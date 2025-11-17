@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FloodGuard - Flood Monitoring & Alert System</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .api-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .api-section h2 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .api-endpoints {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .api-endpoint {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .api-endpoint code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            padding: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🌊 FloodGuard</h1>
+            <p>Advanced Flood Monitoring & Community Alert System</p>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <h3>📢 Real-time Alerts</h3>
+                <p>Receive instant notifications about flood risks, weather changes, and emergency situations in your area.</p>
+            </div>
+            <div class="feature-card">
+                <h3>👥 Community Reports</h3>
+                <p>Share and verify community-sourced reports about flooding, damage, and local conditions.</p>
+            </div>
+            <div class="feature-card">
+                <h3>📊 Data Dashboard</h3>
+                <p>Access comprehensive dashboards with sensor data, weather information, and flood statistics.</p>
+            </div>
+        </div>
+
+        <div class="api-section">
+            <h2>🚀 API Endpoints</h2>
+            <div class="api-endpoints">
+                <div class="api-endpoint">
+                    <strong>Alerts API</strong><br>
+                    <code>GET /api/alerts/</code> - List active alerts<br>
+                    <code>POST /api/alerts/create/</code> - Create new alert
+                </div>
+                <div class="api-endpoint">
+                    <strong>Community API</strong><br>
+                    <code>GET /api/community/reports/</code> - List reports<br>
+                    <code>POST /api/community/reports/create/</code> - Submit report
+                </div>
+                <div class="api-endpoint">
+                    <strong>Dashboard API</strong><br>
+                    <code>GET /api/dashboard/widgets/alerts/</code> - Alert data<br>
+                    <code>GET /api/dashboard/widgets/weather/</code> - Weather data
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Built with Django & IBM Technology Stack • Real-time Flood Monitoring for Communities</p>
+        </div>
+    </div>
+</body>
+</html>
