@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link active">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>🚨 {{ page_title }}</h1>
+            <p>Real-time flood alerts and warnings with AI-powered analysis</p>
+        </div>
+
+        <!-- AI Insights Section -->
+        <div class="ai-insights-section">
+            <h2>🤖 AI-Powered Insights</h2>
+            <div class="insights-grid">
+                {% for insight in ai_insights %}
+                <div class="insight-card">
+                    <div class="insight-icon">🧠</div>
+                    <p>{{ insight }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Satellite Flood Monitoring -->
+        <div class="satellite-section">
+            <h2>🛰️ Satellite Flood Monitoring</h2>
+            <div class="satellite-grid">
+                <!-- Flood Extent Data -->
+                <div class="satellite-panel">
+                    <h3>🌊 Flood Extent (Sentinel-1)</h3>
+                    <div class="satellite-data">
+                        {% for sat_data in satellite_flood_data %}
+                        <div class="satellite-card {{ sat_data.get_flood_risk_level }}">
+                            <div class="satellite-header">
+                                <h4>{{ sat_data.location }}</h4>
+                                <span class="risk-level {{ sat_data.get_flood_risk_level }}">{{ sat_data.get_flood_risk_level|title }}</span>
+                            </div>
+                            <div class="satellite-meta">
+                                <span>📡 {{ sat_data.satellite|title }}</span>
+                                <span>📅 {{ sat_data.capture_date|date:"M d, Y H:i" }}</span>
+                                <span>☁️ {{ sat_data.cloud_cover }}% cloud cover</span>
+                            </div>
+                            {% if sat_data.image_url %}
+                            <div class="satellite-image">
+                                <img src="{{ sat_data.image_url }}" alt="Flood extent map" loading="lazy">
+                            </div>
+                            {% endif %}
+                            <div class="satellite-info">
+                                <p><strong>Data Quality:</strong> {{ sat_data.data_quality|title }}</p>
+                                {% if sat_data.geojson_data %}
+                                <p><strong>Flood Polygons:</strong> {{ sat_data.geojson_data.features|length }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="no-data">
+                            <p>No recent flood extent data available</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Precipitation Data -->
+                <div class="satellite-panel">
+                    <h3>🌧️ Precipitation Monitoring (CHIRPS)</h3>
+                    <div class="satellite-data">
+                        {% for precip_data in satellite_precipitation %}
+                        <div class="satellite-card {{ precip_data.get_flood_risk_level }}">
+                            <div class="satellite-header">
+                                <h4>{{ precip_data.location }}</h4>
+                                <span class="risk-level {{ precip_data.get_flood_risk_level }}">{{ precip_data.get_flood_risk_level|title }}</span>
+                            </div>
+                            <div class="satellite-meta">
+                                <span>📡 {{ precip_data.satellite|title }}</span>
+                                <span>📅 {{ precip_data.capture_date|date:"M d, Y H:i" }}</span>
+                                {% if precip_data.metadata.precipitation_mm %}
+                                <span>💧 {{ precip_data.metadata.precipitation_mm }}mm rainfall</span>
+                                {% endif %}
+                            </div>
+                            {% if precip_data.image_url %}
+                            <div class="satellite-image">
+                                <img src="{{ precip_data.image_url }}" alt="Precipitation map" loading="lazy">
+                            </div>
+                            {% endif %}
+                            <div class="satellite-info">
+                                <p><strong>Data Quality:</strong> {{ precip_data.data_quality|title }}</p>
+                                {% if precip_data.metadata %}
+                                <p><strong>Source:</strong> {{ precip_data.metadata.source|default:"Satellite" }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="no-data">
+                            <p>No recent precipitation data available</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Alerts -->
+        <div class="alerts-section">
+            <h2>Active Flood Alerts</h2>
+            <div class="alerts-container">
+                {% for alert in alerts %}
+                <div class="alert-card {{ alert.alert_level|lower }}">
+                    <div class="alert-header">
+                        <h3>{{ alert.title }}</h3>
+                        <span class="alert-level {{ alert.alert_level|lower }}">{{ alert.alert_level }}</span>
+                    </div>
+                    <div class="alert-content">
+                        <p>{{ alert.description }}</p>
+                        <div class="alert-meta">
+                            <span>📍 {{ alert.location }}</span>
+                            {% if alert.latitude and alert.longitude %}
+                            <span>📌 {{ alert.latitude }}, {{ alert.longitude }}</span>
+                            {% endif %}
+                            <span>⏰ {{ alert.start_time|date:"M d, Y H:i" }}</span>
+                            {% if alert.end_time %}
+                            <span>🏁 {{ alert.end_time|date:"M d, Y H:i" }}</span>
+                            {% endif %}
+                        </div>
+                        {% if alert.affected_area %}
+                        <div class="affected-area">
+                            <strong>Affected Areas:</strong> {{ alert.affected_area }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="no-data">
+                    <h3>No Active Alerts</h3>
+                    <p>All clear! No flood alerts currently active in your area.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="actions-section">
+            <h2>Quick Actions</h2>
+            <div class="action-buttons">
+                <button class="action-btn" onclick="createAlert()">📝 Create New Alert</button>
+                <button class="action-btn" onclick="viewAlertHistory()">📚 View Alert History</button>
+                <button class="action-btn" onclick="exportAlerts()">📄 Export Alerts</button>
+                <button class="action-btn emergency" onclick="emergencyCall()">🚨 Emergency Broadcast</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Page-specific JavaScript
+        function createAlert() {
+            window.location.href = '/admin/alerts/floodalert/add/';
+        }
+
+        function viewAlertHistory() {
+            window.location.href = '/admin/alerts/floodalert/';
+        }
+
+        function exportAlerts() {
+            alert('Export functionality would integrate with reporting system');
+        }
+
+        function emergencyCall() {
+            alert('🚨 EMERGENCY: Please call your local emergency services immediately!\n\nEmergency Hotline: 911 (US) or your local emergency number.');
+        }
+
+        // Auto-refresh alerts every 60 seconds
+        setInterval(function() {
+            location.reload();
+        }, 60000);
+    </script>
+</body>
+</html>

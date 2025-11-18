@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link active">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>📊 {{ page_title }}</h1>
+            <p>Comprehensive flood monitoring statistics and analytics</p>
+        </div>
+
+        <!-- AI Insights Section -->
+        <div class="ai-insights-section">
+            <h2>🤖 AI Analytics & Predictions</h2>
+            <div class="insights-grid">
+                {% for insight in ai_insights %}
+                <div class="insight-card">
+                    <div class="insight-icon">📈</div>
+                    <p>{{ insight }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Key Statistics -->
+        <div class="stats-overview">
+            <h2>Key Metrics</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">{{ total_alerts }}</div>
+                    <div class="stat-label">Active Alerts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ total_reports }}</div>
+                    <div class="stat-label">Community Reports</div>
+                </div>
+                <div class="stat-card critical">
+                    <div class="stat-value">{{ critical_alerts }}</div>
+                    <div class="stat-label">Critical Alerts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ recent_alerts }}</div>
+                    <div class="stat-label">Alerts (7 days)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ recent_reports }}</div>
+                    <div class="stat-label">Reports (7 days)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">{{ monthly_alerts }}</div>
+                    <div class="stat-label">Alerts (30 days)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Location-based Statistics -->
+        <div class="location-stats">
+            <h2>Activity by Location</h2>
+            <div class="location-tables">
+                <div class="location-table">
+                    <h3>Top Alert Locations</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Alert Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for location in alerts_by_location %}
+                            <tr>
+                                <td>{{ location.location }}</td>
+                                <td>{{ location.count }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="2">No alert data available</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="location-table">
+                    <h3>Top Report Locations</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Report Count</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for location in reports_by_location %}
+                            <tr>
+                                <td>{{ location.location }}</td>
+                                <td>{{ location.count }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="2">No report data available</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="actions-section">
+            <h2>Analytics Actions</h2>
+            <div class="action-buttons">
+                <button class="action-btn" onclick="generateReport()">📊 Generate Report</button>
+                <button class="action-btn" onclick="viewTrends()">📈 View Trends</button>
+                <button class="action-btn" onclick="exportData()">📄 Export Data</button>
+                <button class="action-btn" onclick="predictiveAnalysis()">🔮 Predictive Analysis</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Page-specific JavaScript
+        function generateReport() {
+            alert('Generating comprehensive flood monitoring report...');
+        }
+
+        function viewTrends() {
+            alert('Loading trend analysis charts...');
+        }
+
+        function exportData() {
+            alert('Exporting statistical data to CSV...');
+        }
+
+        function predictiveAnalysis() {
+            alert('Running AI predictive models for flood risk assessment...');
+        }
+
+        // Auto-refresh statistics every 5 minutes
+        setInterval(function() {
+            location.reload();
+        }, 300000);
+    </script>
+</body>
+</html>

@@ -4,101 +4,313 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FloodGuard - Flood Monitoring & Alert System</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+    <script>
+        // Dashboard JavaScript for live data updates
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load all widgets on page load
+            refreshStats();
+            refreshAlerts();
+            refreshReports();
+            refreshWeather();
+            refreshSatellite();
+            refreshSensors();
+
+            // Auto-refresh every 30 seconds
+            setInterval(function() {
+                refreshStats();
+                refreshAlerts();
+                refreshReports();
+                refreshWeather();
+                refreshSatellite();
+                refreshSensors();
+            }, 30000);
+        });
+
+        function refreshStats() {
+            fetch('/api/dashboard/widgets/stats/')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('total-alerts').textContent = data.total_alerts;
+                    document.getElementById('total-reports').textContent = data.total_reports;
+                    document.getElementById('critical-alerts').textContent = data.critical_alerts;
+                    document.getElementById('recent-activity').textContent = data.recent_alerts + data.recent_reports;
+                })
+                .catch(error => console.error('Error loading stats:', error));
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+
+        function refreshAlerts() {
+            fetch('/api/dashboard/widgets/alerts/')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('alerts-content');
+                    if (!data.alerts || data.alerts.length === 0) {
+                        container.innerHTML = '<div class="no-data">No active alerts</div>';
+                        return;
+                    }
+                    container.innerHTML = data.alerts.map(alert => `
+                        <div class="alert-item ${alert.alert_level ? alert.alert_level.toLowerCase() : 'moderate'}">
+                            <div class="alert-title">${alert.title || 'Untitled Alert'}</div>
+                            <div class="alert-meta">${alert.location || 'Unknown Location'} • ${alert.created_at ? new Date(alert.created_at).toLocaleDateString() : 'Unknown Date'}</div>
+                            <div class="alert-level">${alert.alert_level || 'MODERATE'}</div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error loading alerts:', error));
         }
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 50px;
+
+        function refreshReports() {
+            fetch('/api/dashboard/widgets/reports/')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('reports-content');
+                    if (!data.reports || data.reports.length === 0) {
+                        container.innerHTML = '<div class="no-data">No community reports</div>';
+                        return;
+                    }
+                    container.innerHTML = data.reports.map(report => `
+                        <div class="report-item ${report.severity ? report.severity.toLowerCase() : 'moderate'}">
+                            <div class="report-title">${report.title || 'Untitled Report'}</div>
+                            <div class="report-meta">${report.report_type || 'Unknown'} • ${report.location || 'Unknown Location'}</div>
+                            <div class="report-severity">${report.severity || 'MODERATE'}</div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error loading reports:', error));
         }
-        .header h1 {
-            font-size: 3em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+
+        function refreshWeather() {
+            fetch('/api/dashboard/widgets/weather/')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('weather-content');
+                    if (!data.weather || data.weather.length === 0) {
+                        container.innerHTML = '<div class="no-data">No weather data available</div>';
+                        return;
+                    }
+                    container.innerHTML = data.weather.slice(0, 3).map(weather => `
+                        <div class="weather-item">
+                            <div class="weather-location">${weather.location || 'Unknown'}</div>
+                            <div class="weather-temp">${weather.temperature ? weather.temperature + '°C' : 'N/A'}</div>
+                            <div class="weather-details">
+                                💧 ${weather.humidity ? weather.humidity + '%' : 'N/A'} • 🌧️ ${weather.precipitation || 0}mm
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error loading weather:', error));
         }
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.9;
+
+        function refreshSatellite() {
+            fetch('/api/dashboard/widgets/satellite/')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('satellite-content');
+                    if (!data.satellite_data || data.satellite_data.length === 0) {
+                        container.innerHTML = '<div class="no-data">No satellite data available</div>';
+                        return;
+                    }
+                    container.innerHTML = data.satellite_data.slice(0, 3).map(sat => `
+                        <div class="satellite-item ${sat.flood_risk_level || 'low'}">
+                            <div class="satellite-type">${sat.satellite ? sat.satellite.replace('_', ' ') : 'Unknown'}</div>
+                            <div class="satellite-location">${sat.location || 'Unknown'}</div>
+                            <div class="satellite-risk">Risk: ${sat.flood_risk_level || 'Unknown'}</div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error loading satellite data:', error));
         }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 30px;
-            margin-bottom: 50px;
+
+        function refreshSensors() {
+            fetch('/api/dashboard/widgets/sensors/')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('sensors-content');
+                    if (!data.sensors || data.sensors.length === 0) {
+                        container.innerHTML = '<div class="no-data">No sensor data available</div>';
+                        return;
+                    }
+                    container.innerHTML = data.sensors.slice(0, 4).map(sensor => `
+                        <div class="sensor-item">
+                            <div class="sensor-type">${sensor.sensor_type ? sensor.sensor_type.replace('_', ' ') : 'Unknown'}</div>
+                            <div class="sensor-value">${sensor.value || 'N/A'} ${sensor.unit || ''}</div>
+                            <div class="sensor-location">${sensor.location || 'Unknown'}</div>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => console.error('Error loading sensors:', error));
         }
-        .feature-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: transform 0.3s ease;
+
+        function emergencyCall() {
+            alert('🚨 EMERGENCY: Please call your local emergency services immediately!\n\nEmergency Hotline: 911 (US) or your local emergency number.');
         }
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-        .feature-card h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.5em;
-        }
-        .feature-card p {
-            color: #666;
-            line-height: 1.6;
-        }
-        .api-section {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        .api-section h2 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .api-endpoints {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-        }
-        .api-endpoint {
-            background: #f8f9fa;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            border-radius: 8px;
-        }
-        .api-endpoint code {
-            background: #e9ecef;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-        }
-        .footer {
-            text-align: center;
-            color: white;
-            opacity: 0.8;
-            padding: 20px 0;
-        }
-    </style>
+    </script>
 </head>
 <body>
-    <div class="container">
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <ul>
+            <li><a href="/" class="active">🏠 Dashboard</a></li>
+            <li><a href="/api/alerts/" target="_blank">📢 Alerts</a></li>
+            <li><a href="/api/community/reports/" target="_blank">👥 Community Reports</a></li>
+            <li><a href="/api/dashboard/widgets/stats/" target="_blank">📊 Statistics</a></li>
+            <li><a href="/api/dashboard/widgets/weather/" target="_blank">🌤️ Weather Data</a></li>
+            <li><a href="/api/dashboard/widgets/sensors/" target="_blank">📡 Sensor Readings</a></li>
+            <li><a href="/admin/" target="_blank">🔧 Admin Panel</a></li>
+        </ul>
+    </div>
+
+    <div class="main-content">
         <div class="header">
             <h1>🌊 FloodGuard</h1>
             <p>Advanced Flood Monitoring & Community Alert System</p>
+        </div>
+
+        <!-- Live Dashboard Widgets Section -->
+        <div class="dashboard-widgets">
+            <h2>📊 Live Dashboard</h2>
+            <div class="widgets-grid">
+                <!-- Statistics Widget -->
+                <div class="widget-card stats-widget">
+                    <div class="widget-header">
+                        <h3>📈 System Statistics</h3>
+                        <span class="widget-refresh" onclick="refreshStats()">🔄</span>
+                    </div>
+                    <div class="widget-content" id="stats-content">
+                        <div class="stat-item">
+                            <span class="stat-label">Active Alerts:</span>
+                            <span class="stat-value" id="total-alerts">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Community Reports:</span>
+                            <span class="stat-value" id="total-reports">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Critical Alerts:</span>
+                            <span class="stat-value critical" id="critical-alerts">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Recent Activity (7 days):</span>
+                            <span class="stat-value" id="recent-activity">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Alerts Widget -->
+                <div class="widget-card alerts-widget">
+                    <div class="widget-header">
+                        <h3>🚨 Recent Alerts</h3>
+                        <span class="widget-refresh" onclick="refreshAlerts()">🔄</span>
+                    </div>
+                    <div class="widget-content" id="alerts-content">
+                        <div class="loading">Loading alerts...</div>
+                    </div>
+                </div>
+
+                <!-- Community Reports Widget -->
+                <div class="widget-card reports-widget">
+                    <div class="widget-header">
+                        <h3>👥 Community Reports</h3>
+                        <span class="widget-refresh" onclick="refreshReports()">🔄</span>
+                    </div>
+                    <div class="widget-content" id="reports-content">
+                        <div class="loading">Loading reports...</div>
+                    </div>
+                </div>
+
+                <!-- Weather Widget -->
+                <div class="widget-card weather-widget">
+                    <div class="widget-header">
+                        <h3>🌤️ Weather Data</h3>
+                        <span class="widget-refresh" onclick="refreshWeather()">🔄</span>
+                    </div>
+                    <div class="widget-content" id="weather-content">
+                        <div class="loading">Loading weather data...</div>
+                    </div>
+                </div>
+
+                <!-- Satellite Monitoring Widget -->
+                <div class="widget-card satellite-widget">
+                    <div class="widget-header">
+                        <h3>🛰️ Satellite Data</h3>
+                        <span class="widget-refresh" onclick="refreshSatellite()">🔄</span>
+                    </div>
+                    <div class="widget-content" id="satellite-content">
+                        <div class="loading">Loading satellite data...</div>
+                    </div>
+                </div>
+
+                <!-- Sensor Readings Widget -->
+                <div class="widget-card sensors-widget">
+                    <div class="widget-header">
+                        <h3>📡 Sensor Readings</h3>
+                        <span class="widget-refresh" onclick="refreshSensors()">🔄</span>
+                    </div>
+                    <div class="widget-content" id="sensors-content">
+                        <div class="loading">Loading sensor data...</div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Widget -->
+                <div class="widget-card actions-widget">
+                    <div class="widget-header">
+                        <h3>⚡ Quick Actions</h3>
+                    </div>
+                    <div class="widget-content">
+                        <button class="action-btn" onclick="window.open('/dashboard/alerts/', '_blank')">
+                            📢 View Alerts & Satellite
+                        </button>
+                        <button class="action-btn" onclick="window.open('/api/community/reports/', '_blank')">
+                            👥 View Reports
+                        </button>
+                        <button class="action-btn" onclick="window.open('/admin/', '_blank')">
+                            🔧 Admin Panel
+                        </button>
+                        <button class="action-btn emergency" onclick="emergencyCall()">
+                            🚨 Emergency
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flood Safety Tips Section -->
+        <div class="tips-section">
+            <h2>🛡️ Flood Safety Guidelines</h2>
+            <div class="tips-container">
+                <div class="tip-card animate-fade-in">
+                    <div class="tip-icon">🏠</div>
+                    <h3>Prepare Your Home</h3>
+                    <p>Move furniture and valuables to higher ground. Seal basement windows and doors with sandbags or plastic sheeting.</p>
+                </div>
+                <div class="tip-card animate-slide-up">
+                    <div class="tip-icon">🚗</div>
+                    <h3>Emergency Kit</h3>
+                    <p>Prepare an emergency kit with water, food, medications, flashlight, batteries, and important documents.</p>
+                </div>
+                <div class="tip-card animate-fade-in-delay">
+                    <div class="tip-icon">📞</div>
+                    <h3>Stay Informed</h3>
+                    <p>Monitor local weather reports and flood warnings. Sign up for community alerts and emergency notifications.</p>
+                </div>
+                <div class="tip-card animate-slide-up-delay">
+                    <div class="tip-icon">🚶‍♂️</div>
+                    <h3>Evacuation Plan</h3>
+                    <p>Know your evacuation routes and have a family communication plan. Never walk, swim, or drive through flood waters.</p>
+                </div>
+                <div class="tip-card animate-fade-in-delay-2">
+                    <div class="tip-icon">🔌</div>
+                    <h3>Electrical Safety</h3>
+                    <p>Avoid contact with electrical equipment in wet areas. Turn off utilities if instructed by authorities.</p>
+                </div>
+                <div class="tip-card animate-slide-up-delay-2">
+                    <div class="tip-icon">👨‍👩‍👧‍👦</div>
+                    <h3>Help Others</h3>
+                    <p>Check on neighbors, especially elderly or disabled residents. Report flooded roads and help direct traffic.</p>
+                </div>
+            </div>
         </div>
 
         <div class="features">

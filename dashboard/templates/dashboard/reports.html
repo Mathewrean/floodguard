@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link active">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>👥 {{ page_title }}</h1>
+            <p>Community-sourced flood reports and incident tracking</p>
+        </div>
+
+        <!-- AI Insights Section -->
+        <div class="ai-insights-section">
+            <h2>🤖 AI Community Analysis</h2>
+            <div class="insights-grid">
+                {% for insight in ai_insights %}
+                <div class="insight-card">
+                    <div class="insight-icon">👥</div>
+                    <p>{{ insight }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Community Reports -->
+        <div class="reports-section">
+            <h2>Recent Community Reports</h2>
+            <div class="reports-container">
+                {% for report in reports %}
+                <div class="report-card {{ report.severity|lower }}">
+                    <div class="report-header">
+                        <h3>{{ report.title }}</h3>
+                        <span class="report-severity {{ report.severity|lower }}">{{ report.severity }}</span>
+                    </div>
+                    <div class="report-content">
+                        <p>{{ report.description }}</p>
+                        <div class="report-meta">
+                            <span>📍 {{ report.location }}</span>
+                            {% if report.latitude and report.longitude %}
+                            <span>📌 {{ report.latitude }}, {{ report.longitude }}</span>
+                            {% endif %}
+                            <span>🏷️ {{ report.report_type|title }}</span>
+                            <span>⏰ {{ report.created_at|date:"M d, Y H:i" }}</span>
+                            <span>👤 {{ report.reporter.username|default:"Anonymous" }}</span>
+                        </div>
+                        {% if report.address %}
+                        <div class="report-address">
+                            <strong>Address:</strong> {{ report.address }}
+                        </div>
+                        {% endif %}
+                        <div class="report-status">
+                            <span class="status {{ report.verification_status|lower }}">{{ report.verification_status|title }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="no-data">
+                    <h3>No Community Reports</h3>
+                    <p>No public reports available at this time.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="actions-section">
+            <h2>Community Actions</h2>
+            <div class="action-buttons">
+                <button class="action-btn" onclick="submitReport()">📝 Submit Report</button>
+                <button class="action-btn" onclick="viewMap()">🗺️ View Map</button>
+                <button class="action-btn" onclick="exportReports()">📄 Export Reports</button>
+                <button class="action-btn" onclick="communityGuidelines()">📋 Guidelines</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Page-specific JavaScript
+        function submitReport() {
+            window.location.href = '/admin/community/userreport/add/';
+        }
+
+        function viewMap() {
+            alert('Interactive map view would show report locations');
+        }
+
+        function exportReports() {
+            alert('Export functionality would generate community report summaries');
+        }
+
+        function communityGuidelines() {
+            alert('Community Reporting Guidelines:\n\n1. Report only what you observe directly\n2. Include specific location details\n3. Be respectful and accurate\n4. Photos/videos are helpful but optional\n5. Emergency situations should call 911 first');
+        }
+
+        // Auto-refresh reports every 60 seconds
+        setInterval(function() {
+            location.reload();
+        }, 60000);
+    </script>
+</body>
+</html>

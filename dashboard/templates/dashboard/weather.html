@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link active">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>🌤️ {{ page_title }}</h1>
+            <p>Real-time weather monitoring and flood risk assessment</p>
+        </div>
+
+        <!-- AI Insights Section -->
+        <div class="ai-insights-section">
+            <h2>🤖 AI Weather Intelligence</h2>
+            <div class="insights-grid">
+                {% for insight in ai_insights %}
+                <div class="insight-card">
+                    <div class="insight-icon">🌦️</div>
+                    <p>{{ insight }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Current Weather Summary -->
+        <div class="weather-summary">
+            <h2>Current Weather Conditions</h2>
+            <div class="weather-cards">
+                {% for weather in weather_data|slice:":5" %}
+                <div class="weather-card">
+                    <div class="weather-location">{{ weather.location }}</div>
+                    <div class="weather-main">
+                        <div class="weather-temp">{{ weather.temperature|default:"N/A" }}°C</div>
+                        <div class="weather-details">
+                            <div>💧 Humidity: {{ weather.humidity|default:"N/A" }}%</div>
+                            <div>🌧️ Precipitation: {{ weather.precipitation }}mm</div>
+                            {% if weather.wind_speed %}
+                            <div>💨 Wind: {{ weather.wind_speed }} m/s</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="weather-time">{{ weather.timestamp|date:"M d, H:i" }}</div>
+                </div>
+                {% empty %}
+                <div class="no-data">
+                    <h3>No Weather Data</h3>
+                    <p>Weather monitoring data not available at this time.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Weather Data Table -->
+        <div class="weather-table-section">
+            <h2>Detailed Weather Readings</h2>
+            <div class="data-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Location</th>
+                            <th>Temperature (°C)</th>
+                            <th>Humidity (%)</th>
+                            <th>Precipitation (mm)</th>
+                            <th>Wind Speed (m/s)</th>
+                            <th>Pressure (hPa)</th>
+                            <th>Visibility (km)</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for weather in weather_data %}
+                        <tr>
+                            <td>{{ weather.location }}</td>
+                            <td>{{ weather.temperature|default:"-" }}</td>
+                            <td>{{ weather.humidity|default:"-" }}</td>
+                            <td>{{ weather.precipitation }}</td>
+                            <td>{{ weather.wind_speed|default:"-" }}</td>
+                            <td>{{ weather.pressure|default:"-" }}</td>
+                            <td>{{ weather.visibility|default:"-" }}</td>
+                            <td>{{ weather.timestamp|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8">No weather data available</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="actions-section">
+            <h2>Weather Actions</h2>
+            <div class="action-buttons">
+                <button class="action-btn" onclick="viewForecast()">🔮 View Forecast</button>
+                <button class="action-btn" onclick="radarView()">📡 Radar View</button>
+                <button class="action-btn" onclick="exportWeather()">📄 Export Data</button>
+                <button class="action-btn" onclick="alertThresholds()">⚠️ Alert Thresholds</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Page-specific JavaScript
+        function viewForecast() {
+            alert('Loading 7-day weather forecast...');
+        }
+
+        function radarView() {
+            alert('Opening weather radar visualization...');
+        }
+
+        function exportWeather() {
+            alert('Exporting weather data to CSV format...');
+        }
+
+        function alertThresholds() {
+            alert('Weather Alert Thresholds:\n\nHeavy Rain: >10mm/hour\nHigh Wind: >15 m/s\nLow Visibility: <1km\n\nThese thresholds trigger automatic flood risk assessments.');
+        }
+
+        // Auto-refresh weather data every 10 minutes
+        setInterval(function() {
+            location.reload();
+        }, 600000);
+    </script>
+</body>
+</html>

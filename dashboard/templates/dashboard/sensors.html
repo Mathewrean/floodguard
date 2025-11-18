@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link active">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>📡 {{ page_title }}</h1>
+            <p>IoT sensor network monitoring and real-time data collection</p>
+        </div>
+
+        <!-- AI Insights Section -->
+        <div class="ai-insights-section">
+            <h2>🤖 AI Sensor Analytics</h2>
+            <div class="insights-grid">
+                {% for insight in ai_insights %}
+                <div class="insight-card">
+                    <div class="insight-icon">📊</div>
+                    <p>{{ insight }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Sensor Status Overview -->
+        <div class="sensor-overview">
+            <h2>Sensor Network Status</h2>
+            <div class="sensor-status-grid">
+                {% for sensor in sensors|slice:":10" %}
+                <div class="sensor-status-card {{ sensor.is_active|yesno:'active,inactive' }}">
+                    <div class="sensor-header">
+                        <h3>{{ sensor.sensor_type|title }} - {{ sensor.sensor_id }}</h3>
+                        <span class="status-indicator {{ sensor.is_active|yesno:'active,inactive' }}">
+                            {{ sensor.is_active|yesno:'● Active,● Inactive' }}
+                        </span>
+                    </div>
+                    <div class="sensor-data">
+                        <div class="sensor-value">{{ sensor.value }} {{ sensor.unit }}</div>
+                        <div class="sensor-location">{{ sensor.location }}</div>
+                        <div class="sensor-coords">
+                            📍 {{ sensor.latitude }}, {{ sensor.longitude }}
+                        </div>
+                        <div class="sensor-time">{{ sensor.timestamp|date:"M d, H:i:s" }}</div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="no-data">
+                    <h3>No Sensor Data</h3>
+                    <p>Sensor network data not available at this time.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Sensor Data Table -->
+        <div class="sensor-table-section">
+            <h2>Detailed Sensor Readings</h2>
+            <div class="data-table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Sensor ID</th>
+                            <th>Type</th>
+                            <th>Location</th>
+                            <th>Value</th>
+                            <th>Unit</th>
+                            <th>Status</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sensor in sensors %}
+                        <tr class="{{ sensor.is_active|yesno:'active,inactive' }}">
+                            <td>{{ sensor.sensor_id }}</td>
+                            <td>{{ sensor.sensor_type|title }}</td>
+                            <td>{{ sensor.location }}</td>
+                            <td>{{ sensor.value }}</td>
+                            <td>{{ sensor.unit }}</td>
+                            <td>
+                                <span class="status-badge {{ sensor.is_active|yesno:'active,inactive' }}">
+                                    {{ sensor.is_active|yesno:'Active,Inactive' }}
+                                </span>
+                            </td>
+                            <td>{{ sensor.timestamp|date:"M d, Y H:i:s" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7">No sensor data available</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="actions-section">
+            <h2>Sensor Actions</h2>
+            <div class="action-buttons">
+                <button class="action-btn" onclick="addSensor()">➕ Add Sensor</button>
+                <button class="action-btn" onclick="calibrateSensors()">🔧 Calibrate</button>
+                <button class="action-btn" onclick="exportSensorData()">📄 Export Data</button>
+                <button class="action-btn" onclick="sensorMaintenance()">🛠️ Maintenance</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Page-specific JavaScript
+        function addSensor() {
+            window.location.href = '/admin/dashboard/sensordata/add/';
+        }
+
+        function calibrateSensors() {
+            alert('Initiating sensor calibration sequence...');
+        }
+
+        function exportSensorData() {
+            alert('Exporting sensor data to CSV format...');
+        }
+
+        function sensorMaintenance() {
+            alert('Opening sensor maintenance dashboard...');
+        }
+
+        // Auto-refresh sensor data every 30 seconds
+        setInterval(function() {
+            location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

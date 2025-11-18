@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link active">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>⚙️ {{ page_title }}</h1>
+            <p>System administration and configuration management</p>
+        </div>
+
+        <!-- AI Insights Section -->
+        <div class="ai-insights-section">
+            <h2>🤖 AI System Intelligence</h2>
+            <div class="insights-grid">
+                {% for insight in ai_insights %}
+                <div class="insight-card">
+                    <div class="insight-icon">⚙️</div>
+                    <p>{{ insight }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="system-status">
+            <h2>System Health Overview</h2>
+            <div class="status-cards">
+                <div class="status-card operational">
+                    <div class="status-icon">🟢</div>
+                    <div class="status-info">
+                        <h3>Database</h3>
+                        <p>Operational</p>
+                    </div>
+                </div>
+                <div class="status-card operational">
+                    <div class="status-icon">🟢</div>
+                    <div class="status-info">
+                        <h3>API Services</h3>
+                        <p>All Endpoints Active</p>
+                    </div>
+                </div>
+                <div class="status-card operational">
+                    <div class="status-icon">🟢</div>
+                    <div class="status-info">
+                        <h3>Sensor Network</h3>
+                        <p>95% Uptime</p>
+                    </div>
+                </div>
+                <div class="status-card warning">
+                    <div class="status-icon">🟡</div>
+                    <div class="status-info">
+                        <h3>Weather API</h3>
+                        <p>Intermittent Issues</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Actions -->
+        <div class="admin-actions">
+            <h2>Administration Tools</h2>
+            <div class="admin-grid">
+                <div class="admin-section">
+                    <h3>🚨 Alert Management</h3>
+                    <div class="admin-buttons">
+                        <button class="admin-btn" onclick="manageAlerts()">Manage Alerts</button>
+                        <button class="admin-btn" onclick="alertTemplates()">Alert Templates</button>
+                        <button class="admin-btn" onclick="notificationSettings()">Notification Settings</button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>👥 User Management</h3>
+                    <div class="admin-buttons">
+                        <button class="admin-btn" onclick="manageUsers()">Manage Users</button>
+                        <button class="admin-btn" onclick="userPermissions()">Permissions</button>
+                        <button class="admin-btn" onclick="bulkActions()">Bulk Actions</button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>📊 Data Management</h3>
+                    <div class="admin-buttons">
+                        <button class="admin-btn" onclick="dataBackup()">Backup Data</button>
+                        <button class="admin-btn" onclick="dataExport()">Export Data</button>
+                        <button class="admin-btn" onclick="dataCleanup()">Data Cleanup</button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>📡 Sensor Management</h3>
+                    <div class="admin-buttons">
+                        <button class="admin-btn" onclick="sensorConfig()">Sensor Config</button>
+                        <button class="admin-btn" onclick="calibrationLogs()">Calibration Logs</button>
+                        <button class="admin-btn" onclick="maintenanceSchedule()">Maintenance</button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>🔧 System Configuration</h3>
+                    <div class="admin-buttons">
+                        <button class="admin-btn" onclick="systemSettings()">System Settings</button>
+                        <button class="admin-btn" onclick="apiKeys()">API Keys</button>
+                        <button class="admin-btn" onclick="integrations()">Integrations</button>
+                    </div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>📈 Analytics & Reporting</h3>
+                    <div class="admin-buttons">
+                        <button class="admin-btn" onclick="generateReports()">Generate Reports</button>
+                        <button class="admin-btn" onclick="analyticsDashboard()">Analytics Dashboard</button>
+                        <button class="admin-btn" onclick="performanceMetrics()">Performance Metrics</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Logs -->
+        <div class="system-logs">
+            <h2>Recent System Activity</h2>
+            <div class="logs-container">
+                <div class="log-entry">
+                    <span class="log-time">2024-01-15 14:30:22</span>
+                    <span class="log-level info">INFO</span>
+                    <span class="log-message">Sensor network calibration completed successfully</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">2024-01-15 14:25:10</span>
+                    <span class="log-level warning">WARNING</span>
+                    <span class="log-message">Weather API response delay detected</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">2024-01-15 14:20:05</span>
+                    <span class="log-level info">INFO</span>
+                    <span class="log-message">New community report submitted and verified</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">2024-01-15 14:15:33</span>
+                    <span class="log-level info">INFO</span>
+                    <span class="log-message">Flood alert broadcast to 1,250 subscribers</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">2024-01-15 14:10:18</span>
+                    <span class="log-level error">ERROR</span>
+                    <span class="log-message">Failed to connect to external weather service</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Admin panel JavaScript
+        function manageAlerts() {
+            window.open('/admin/alerts/', '_blank');
+        }
+
+        function alertTemplates() {
+            alert('Alert template management system...');
+        }
+
+        function notificationSettings() {
+            alert('Notification configuration panel...');
+        }
+
+        function manageUsers() {
+            window.open('/admin/auth/', '_blank');
+        }
+
+        function userPermissions() {
+            alert('User permissions management...');
+        }
+
+        function bulkActions() {
+            alert('Bulk user actions panel...');
+        }
+
+        function dataBackup() {
+            alert('Initiating data backup process...');
+        }
+
+        function dataExport() {
+            alert('Data export wizard...');
+        }
+
+        function dataCleanup() {
+            alert('Data cleanup and optimization...');
+        }
+
+        function sensorConfig() {
+            window.open('/admin/dashboard/', '_blank');
+        }
+
+        function calibrationLogs() {
+            alert('Sensor calibration logs...');
+        }
+
+        function maintenanceSchedule() {
+            alert('Maintenance scheduling system...');
+        }
+
+        function systemSettings() {
+            window.open('/admin/', '_blank');
+        }
+
+        function apiKeys() {
+            alert('API key management...');
+        }
+
+        function integrations() {
+            alert('Third-party integrations panel...');
+        }
+
+        function generateReports() {
+            alert('Report generation wizard...');
+        }
+
+        function analyticsDashboard() {
+            window.location.href = '{% url "dashboard:statistics_page" %}';
+        }
+
+        function performanceMetrics() {
+            alert('System performance monitoring...');
+        }
+
+        // Auto-refresh system status every 2 minutes
+        setInterval(function() {
+            // In a real system, this would refresh status indicators
+            console.log('Refreshing system status...');
+        }, 120000);
+    </script>
+</body>
+</html>
