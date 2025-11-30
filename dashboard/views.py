@@ -58,6 +58,24 @@ def reports_widget(request):
 
 def weather_widget(request):
     """API endpoint for weather widget data with live satellite integration and Kenya mapping"""
+    # Check if this is an AJAX request or direct browser access
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('format') == 'json':
+        # Return JSON for API calls
+        return _get_weather_widget_json()
+    else:
+        # Return HTML template for direct browser access
+        # Get the JSON data and parse it for template rendering
+        json_response = _get_weather_widget_json()
+        import json
+        weather_data = json.loads(json_response.content.decode('utf-8'))
+        context = {
+            'weather_data': weather_data,
+            'page_title': 'Weather Widget API'
+        }
+        return render(request, 'dashboard/weather_widget.html', context)
+
+def _get_weather_widget_json():
+    """Helper function to generate weather widget JSON data"""
     # Get latest weather data for different locations
     weather_data = WeatherData.objects.order_by('-timestamp')[:15]
     weather_list = []

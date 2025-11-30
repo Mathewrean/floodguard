@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Widget API - FloodGuard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+    <style>
+        .api-response-container {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #007bff;
+        }
+
+        .api-response-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .api-response-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .api-status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .json-display {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .json-key {
+            color: #63b3ed;
+        }
+
+        .json-string {
+            color: #68d391;
+        }
+
+        .json-number {
+            color: #fbb6ce;
+        }
+
+        .json-boolean {
+            color: #f6ad55;
+        }
+
+        .section-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            margin: 20px 0 10px 0;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .data-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .summary-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .summary-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .risk-indicator {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .risk-low {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .risk-moderate {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .risk-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .risk-critical {
+            background: #f5c6cb;
+            color: #721c24;
+        }
+
+        .satellite-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .satellite-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .satellite-image {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .satellite-info {
+            padding: 15px;
+        }
+
+        .satellite-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .satellite-meta {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .satellite-risk {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .flood-zones-map {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .zone-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .zone-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #007bff;
+        }
+
+        .zone-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .zone-details {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .refresh-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px 0;
+        }
+
+        .refresh-btn:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🌊 FloodGuard</h2>
+        <nav>
+            <a href="{% url 'dashboard:dashboard_home' %}" class="nav-link">🏠 Dashboard</a>
+            <a href="{% url 'dashboard:alerts_page' %}" class="nav-link">🚨 Alerts</a>
+            <a href="{% url 'dashboard:reports_page' %}" class="nav-link">👥 Reports</a>
+            <a href="{% url 'dashboard:statistics_page' %}" class="nav-link">📊 Statistics</a>
+            <a href="{% url 'dashboard:weather_page' %}" class="nav-link">🌤️ Weather</a>
+            <a href="{% url 'dashboard:sensors_page' %}" class="nav-link">📡 Sensors</a>
+            <a href="{% url 'dashboard:admin_panel_page' %}" class="nav-link">⚙️ Admin</a>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <div class="header">
+            <h1>🌤️ Weather Widget API</h1>
+            <p>AI-powered flood risk assessment with live satellite data</p>
+            <button class="refresh-btn" onclick="location.reload()">🔄 Refresh Data</button>
+        </div>
+
+        <!-- Data Summary -->
+        <div class="data-summary">
+            <div class="summary-card">
+                <div class="summary-value">{{ weather_data.weather_stations|length }}</div>
+                <div class="summary-label">Weather Stations</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ weather_data.satellite_data|length }}</div>
+                <div class="summary-label">Satellite Images</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ weather_data.flood_zones.features|length }}</div>
+                <div class="summary-label">Flood Zones</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value">{{ weather_data.active_alerts|length }}</div>
+                <div class="summary-label">Active Alerts</div>
+            </div>
+        </div>
+
+        <!-- AI Flood Risk Assessment -->
+        <div class="section-header">
+            🤖 AI Flood Risk Assessment
+        </div>
+        <div class="api-response-container">
+            <div class="api-response-header">
+                <div class="api-response-title">Current Risk Level</div>
+                <div class="api-status status-success">AI Active</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 15px;">
+                <div>
+                    <strong>Risk Score:</strong> {{ weather_data.flood_risk_assessment.risk_score }}/100
+                </div>
+                <div>
+                    <strong>Overall Risk:</strong>
+                    <span class="risk-indicator risk-{{ weather_data.flood_risk_assessment.overall_risk_level|lower }}">
+                        {{ weather_data.flood_risk_assessment.overall_risk_level }}
+                    </span>
+                </div>
+            </div>
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 6px;">
+                <strong>AI Analysis:</strong>
+                <ul style="margin-top: 10px;">
+                    <li>24h Precipitation Average: {{ weather_data.flood_risk_assessment.precipitation_24h_avg }}mm</li>
+                    <li>Satellite Flood Detections: {{ weather_data.flood_risk_assessment.satellite_flood_detections }}</li>
+                    <li>Last Updated: {{ weather_data.flood_risk_assessment.last_updated|date:"M d, Y H:i:s" }}</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Satellite Data -->
+        <div class="section-header">
+            🛰️ Live Satellite Data
+        </div>
+        <div class="satellite-grid">
+            {% for satellite in weather_data.satellite_data %}
+            <div class="satellite-card">
+                <img src="{{ satellite.image_url }}" alt="{{ satellite.satellite }} - {{ satellite.location }}" class="satellite-image">
+                <div class="satellite-info">
+                    <div class="satellite-title">{{ satellite.satellite }} - {{ satellite.location }}</div>
+                    <div class="satellite-meta">
+                        <div>Type: {{ satellite.data_type|title }}</div>
+                        <div>Captured: {{ satellite.capture_date|date:"M d, Y H:i" }}</div>
+                        <div>Quality: {{ satellite.data_quality }}</div>
+                        <div>Cloud Cover: {{ satellite.cloud_cover }}%</div>
+                    </div>
+                    <span class="satellite-risk risk-{{ satellite.flood_risk_level|lower }}">
+                        {{ satellite.flood_risk_level|title }} Risk
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Flood Zones -->
+        <div class="section-header">
+            🗺️ Kenya Flood Zones
+        </div>
+        <div class="flood-zones-map">
+            <h3>Critical Flood-Prone Areas</h3>
+            <div class="zone-list">
+                {% for zone in weather_data.flood_zones.features %}
+                <div class="zone-item">
+                    <div class="zone-name">{{ zone.properties.name }}</div>
+                    <div class="zone-details">
+                        <div>Risk Level: <span class="risk-indicator risk-{{ zone.properties.risk_level|lower }}">{{ zone.properties.risk_level|title }}</span></div>
+                        <div>Population Affected: {{ zone.properties.population_affected|intcomma }}</div>
+                        <div>Last Flood: {{ zone.properties.last_flood }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Weather Stations -->
+        <div class="section-header">
+            🌡️ Weather Stations
+        </div>
+        <div class="data-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Temperature (°C)</th>
+                        <th>Humidity (%)</th>
+                        <th>Precipitation (mm)</th>
+                        <th>Wind Speed (m/s)</th>
+                        <th>Pressure (hPa)</th>
+                        <th>Last Update</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for station in weather_data.weather_stations %}
+                    <tr>
+                        <td>{{ station.location }}</td>
+                        <td>{{ station.temperature|default:"-" }}</td>
+                        <td>{{ station.humidity|default:"-" }}</td>
+                        <td>{{ station.precipitation }}</td>
+                        <td>{{ station.wind_speed|default:"-" }}</td>
+                        <td>{{ station.pressure|default:"-" }}</td>
+                        <td>{{ station.timestamp|date:"M d, H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Active Alerts -->
+        {% if weather_data.active_alerts %}
+        <div class="section-header">
+            🚨 Active Flood Alerts
+        </div>
+        <div class="data-table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Level</th>
+                        <th>Location</th>
+                        <th>Description</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in weather_data.active_alerts %}
+                    <tr>
+                        <td>{{ alert.title }}</td>
+                        <td>
+                            <span class="risk-indicator risk-{{ alert.level|lower }}">
+                                {{ alert.level }}
+                            </span>
+                        </td>
+                        <td>{{ alert.location }}</td>
+                        <td>{{ alert.description|truncatechars:50 }}</td>
+                        <td>{{ alert.created_at|date:"M d, H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <!-- Raw JSON Response -->
+        <div class="section-header">
+            📄 Raw API Response (JSON)
+        </div>
+        <div class="api-response-container">
+            <div class="api-response-header">
+                <div class="api-response-title">Complete API Response</div>
+                <div class="api-status status-success">HTTP 200</div>
+            </div>
+            <div class="json-display">{{ weather_data_json|safe }}</div>
+        </div>
+    </div>
+
+    <script>
+        // Syntax highlight JSON
+        document.addEventListener('DOMContentLoaded', function() {
+            const jsonDisplay = document.querySelector('.json-display');
+            if (jsonDisplay) {
+                // The weather_data is already rendered as a string in the template
+                // We need to parse it back to format it nicely
+                try {
+                    const data = JSON.parse(jsonDisplay.textContent);
+                    jsonDisplay.textContent = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    // If parsing fails, leave as is
+                    console.log('JSON parsing failed:', e);
+                }
+            }
+        });
+
+        // Auto-refresh every 5 minutes
+        setInterval(function() {
+            location.reload();
+        }, 300000);
+    </script>
+</body>
+</html>
