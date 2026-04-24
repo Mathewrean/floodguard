@@ -401,6 +401,23 @@ body {
     gap: 20px;
 }
 
+/* Highlight animation when a card is clicked */
+.alert-card.highlight {
+    animation: pulse 1s ease-in-out;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 8px 20px rgba(0,0,0,0.12); transform: translateY(-2px); }
+    50% { box-shadow: 0 16px 40px rgba(0,0,0,0.18); transform: translateY(-6px); }
+    100% { box-shadow: 0 8px 20px rgba(0,0,0,0.12); transform: translateY(-2px); }
+}
+
+/* Sparkline canvas inside alert cards */
+.sparkline { display:block; width:120px; height:30px; }
+
+/* Map container fallback sizing */
+#alerts-map { background: #f8f9fa; }
+
 .alert-card {
     background: white;
     border-radius: 12px;

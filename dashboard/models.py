@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+# ---------------- DASHBOARD WIDGETS ----------------
 class DashboardWidget(models.Model):
     WIDGET_TYPES = [
         ('ALERTS', 'Active Alerts'),
@@ -25,6 +26,7 @@ class DashboardWidget(models.Model):
     def __str__(self):
         return f"{self.widget_type}: {self.title}"
 
+
 class UserDashboard(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     widgets = models.ManyToManyField(DashboardWidget, through='UserWidgetConfig')
@@ -35,6 +37,7 @@ class UserDashboard(models.Model):
 
     def __str__(self):
         return f"Dashboard for {self.user.username}"
+
 
 class UserWidgetConfig(models.Model):
     user_dashboard = models.ForeignKey(UserDashboard, on_delete=models.CASCADE)
@@ -47,6 +50,8 @@ class UserWidgetConfig(models.Model):
         unique_together = ['user_dashboard', 'widget']
         ordering = ['position']
 
+
+# ---------------- SENSOR DATA ----------------
 class SensorData(models.Model):
     sensor_id = models.CharField(max_length=50)
     sensor_type = models.CharField(max_length=20, choices=[
@@ -59,7 +64,7 @@ class SensorData(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
     value = models.FloatField()
-    unit = models.CharField(max_length=20, default='mm')  # mm for rain, m for water level, etc.
+    unit = models.CharField(max_length=20, default='mm')
     timestamp = models.DateTimeField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -74,19 +79,21 @@ class SensorData(models.Model):
             models.Index(fields=['sensor_type', 'timestamp']),
         ]
 
+
+# ---------------- WEATHER DATA ----------------
 class WeatherData(models.Model):
     location = models.CharField(max_length=100)
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
-    temperature = models.FloatField(null=True, blank=True)  # Celsius
-    humidity = models.FloatField(null=True, blank=True)  # Percentage
-    precipitation = models.FloatField(default=0)  # mm
-    wind_speed = models.FloatField(null=True, blank=True)  # m/s
-    wind_direction = models.FloatField(null=True, blank=True)  # Degrees
-    pressure = models.FloatField(null=True, blank=True)  # hPa
-    visibility = models.FloatField(null=True, blank=True)  # km
+    temperature = models.FloatField(null=True, blank=True)
+    humidity = models.FloatField(null=True, blank=True)
+    precipitation = models.FloatField(default=0)
+    wind_speed = models.FloatField(null=True, blank=True)
+    wind_direction = models.FloatField(null=True, blank=True)
+    pressure = models.FloatField(null=True, blank=True)
+    visibility = models.FloatField(null=True, blank=True)
     timestamp = models.DateTimeField()
-    source = models.CharField(max_length=50, default='NOAA')  # Data source
+    source = models.CharField(max_length=50, default='NOAA')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -98,8 +105,9 @@ class WeatherData(models.Model):
             models.Index(fields=['location', 'timestamp']),
         ]
 
+
+# ---------------- SATELLITE DATA ----------------
 class SatelliteData(models.Model):
-    """Satellite imagery and flood monitoring data"""
     SATELLITE_CHOICES = [
         ('sentinel1', 'Sentinel-1 (SAR Flood Detection)'),
         ('sentinel2', 'Sentinel-2 (Optical Validation)'),
@@ -107,7 +115,6 @@ class SatelliteData(models.Model):
         ('chirps', 'CHIRPS (Rainfall)'),
         ('gpm', 'NASA GPM (Precipitation)'),
     ]
-
     DATA_TYPE_CHOICES = [
         ('flood_extent', 'Flood Extent Mapping'),
         ('precipitation', 'Precipitation Data'),
@@ -118,29 +125,22 @@ class SatelliteData(models.Model):
 
     satellite = models.CharField(max_length=20, choices=SATELLITE_CHOICES)
     data_type = models.CharField(max_length=20, choices=DATA_TYPE_CHOICES)
-    location = models.CharField(max_length=100, help_text="Area covered by the data")
+    location = models.CharField(max_length=100)
     latitude = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
-
-    # Data storage
-    image_url = models.URLField(blank=True, help_text="URL to satellite image tile")
-    geojson_data = models.JSONField(null=True, blank=True, help_text="GeoJSON flood polygons or features")
-    metadata = models.JSONField(default=dict, help_text="Additional satellite metadata")
-
-    # Temporal information
-    capture_date = models.DateTimeField(help_text="When the satellite data was captured")
+    image_url = models.URLField(blank=True)
+    geojson_data = models.JSONField(null=True, blank=True)
+    metadata = models.JSONField(default=dict)
+    capture_date = models.DateTimeField()
     processed_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField(null=True, blank=True, help_text="When this data expires")
-
-    # Status and quality
+    expires_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     data_quality = models.CharField(max_length=20, default='good',
                                    choices=[('excellent', 'Excellent'),
-                                           ('good', 'Good'),
-                                           ('fair', 'Fair'),
-                                           ('poor', 'Poor')])
-    cloud_cover = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
-                                     help_text="Cloud cover percentage")
+                                            ('good', 'Good'),
+                                            ('fair', 'Fair'),
+                                            ('poor', 'Poor')])
+    cloud_cover = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     class Meta:
         ordering = ['-capture_date']
@@ -154,18 +154,13 @@ class SatelliteData(models.Model):
         return f"{self.satellite} - {self.data_type} - {self.location} ({self.capture_date.date()})"
 
     def is_expired(self):
-        """Check if the satellite data has expired"""
-        if self.expires_at:
-            from django.utils import timezone
-            return timezone.now() > self.expires_at
-        return False
+        from django.utils import timezone
+        return self.expires_at and timezone.now() > self.expires_at
 
     def get_flood_risk_level(self):
-        """Calculate flood risk level based on satellite data"""
         if self.data_type == 'flood_extent' and self.geojson_data:
-            # Simple risk calculation based on flood area
             features = self.geojson_data.get('features', [])
-            flood_area = len(features)  # Simplified - count of flood polygons
+            flood_area = len(features)
             if flood_area > 50:
                 return 'critical'
             elif flood_area > 20:
@@ -175,7 +170,6 @@ class SatelliteData(models.Model):
             else:
                 return 'low'
         elif self.data_type == 'precipitation':
-            # Risk based on precipitation intensity
             precip = self.metadata.get('precipitation_mm', 0)
             if precip > 100:
                 return 'critical'
@@ -186,3 +180,36 @@ class SatelliteData(models.Model):
             else:
                 return 'low'
         return 'unknown'
+
+
+# ---------------- FLOOD ALERTS ----------------
+class FloodAlert(models.Model):
+    location = models.CharField(max_length=100)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    parameter = models.CharField(max_length=50)  # e.g., "Rainfall", "Water Level"
+    severity = models.CharField(max_length=20, choices=[
+        ('low', 'Low'),
+        ('moderate', 'Moderate'),
+        ('high', 'High'),
+        ('critical', 'Critical')
+    ], default='moderate')
+    threshold = models.FloatField()  # Threshold value for triggering alert
+    value = models.FloatField()  # Current measured value
+    triggered_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)  # <-- Fix: required by views
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    
+
+
+    class Meta:
+        ordering = ['-triggered_at']
+        indexes = [
+            models.Index(fields=['latitude', 'longitude']),
+            models.Index(fields=['parameter', 'triggered_at']),
+            models.Index(fields=['is_active', 'triggered_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.parameter} alert at {self.location} ({self.severity})"

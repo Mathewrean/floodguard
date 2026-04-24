@@ -6,6 +6,14 @@ from .models import UserReport, ReportComment
 import json
 from datetime import datetime
 
+
+def reports_api(request):
+    reports = list(UserReport.objects.filter(is_public=True)
+                   .order_by('-created_at')
+                   .values('title', 'location', 'report_type', 'severity')[:10])
+    data = reports
+    return JsonResponse({"reports": data})
+
 def report_list(request):
     """API endpoint to list community reports"""
     reports = UserReport.objects.filter(is_public=True).order_by('-created_at')

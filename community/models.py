@@ -39,11 +39,12 @@ class UserReport(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['-created_at']
+
     def __str__(self):
         return f"{self.report_type}: {self.title}"
 
-    class Meta:
-        ordering = ['-created_at']
 
 class ReportMedia(models.Model):
     report = models.ForeignKey(UserReport, on_delete=models.CASCADE, related_name='media')
@@ -58,6 +59,7 @@ class ReportMedia(models.Model):
     def __str__(self):
         return f"{self.media_type} for {self.report.title}"
 
+
 class ReportComment(models.Model):
     report = models.ForeignKey(UserReport, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -66,8 +68,19 @@ class ReportComment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ['created_at']
+
     def __str__(self):
         return f"Comment by {self.author.username} on {self.report.title}"
 
-    class Meta:
-        ordering = ['created_at']
+
+# Minimal Report model for dashboard compatibility
+class Report(models.Model):
+    user = models.CharField(max_length=100)
+    description = models.TextField()
+    location = models.CharField(max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.location}"

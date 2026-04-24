@@ -19,3 +19,4 @@ urlpatterns = [
     path('widgets/stats/', views.stats_widget, name='stats_widget'),
     path('widgets/satellite/', views.satellite_widget, name='satellite_widget'),
 ]
+

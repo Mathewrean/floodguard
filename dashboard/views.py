@@ -6,11 +6,23 @@ from .models import DashboardWidget, SensorData, WeatherData, UserDashboard, Sat
 from alerts.models import FloodAlert
 from community.models import UserReport
 from datetime import datetime, timedelta
+import json
 from django.db.models import Count, Avg
+from community.models import Report, UserReport
+
+
+
+
 
 def dashboard_home(request):
     """Main dashboard view"""
-    return render(request, 'dashboard/home.html')
+    # Fetch the 10 most recent flood alerts
+    alerts = FloodAlert.objects.order_by('-triggered_at')[:10]
+
+    context = {
+        'alerts': alerts,
+    }
+    return render(request, 'dashboard/home.html', context)
 
 @login_required
 def user_dashboard(request):
@@ -27,17 +39,40 @@ def user_dashboard(request):
     }
     return render(request, 'dashboard/user_dashboard.html', context)
 
+from django.http import JsonResponse
+from alerts.models import FloodAlert
+from community.models import Report  # if you have community reports model
+
+def stats_api(request):
+    total_alerts = FloodAlert.objects.count()
+    critical_alerts = FloodAlert.objects.filter(severity='High').count()
+    total_reports = Report.objects.count()
+    recent_activity = FloodAlert.objects.filter(
+        triggered_at__gte=datetime.now()-timedelta(days=7)
+    ).count() + Report.objects.filter(
+        created_at__gte=datetime.now()-timedelta(days=7)
+    ).count()
+    return JsonResponse({
+        "total_alerts": total_alerts,
+        "critical_alerts": critical_alerts,
+        "total_reports": total_reports,
+        "recent_alerts": total_alerts,
+        "recent_reports": total_reports,
+        "recent_activity": recent_activity,
+    })
+
+
 def alerts_widget(request):
     """API endpoint for alerts widget data"""
-    alerts = FloodAlert.objects.filter(is_active=True).order_by('-created_at')[:5]
+    alerts = FloodAlert.objects.order_by('-triggered_at')[:5]
     data = []
     for alert in alerts:
         data.append({
             'id': alert.id,
-            'title': alert.title,
-            'level': alert.alert_level,
-            'location': alert.location,
-            'created_at': alert.created_at.isoformat(),
+            'title': getattr(alert, 'title', ''),
+            'level': getattr(alert, 'severity', None) or getattr(alert, 'alert_level', None),
+            'location': getattr(alert, 'location', None),
+            'created_at': getattr(alert, 'triggered_at', None) and getattr(alert, 'triggered_at').isoformat() or None,
         })
     return JsonResponse({'alerts': data})
 
@@ -227,22 +262,21 @@ def _get_weather_widget_json():
 
     # Live weather alerts for Kenya
     active_alerts = FloodAlert.objects.filter(
-        is_active=True,
         latitude__range=(-4.7, 5.0),
         longitude__range=(33.9, 41.9)
-    ).order_by('-created_at')[:3]
+    ).order_by('-triggered_at')[:3]
 
     alerts_list = []
     for alert in active_alerts:
         alerts_list.append({
             'id': alert.id,
-            'title': alert.title,
-            'level': alert.alert_level,
-            'location': alert.location,
-            'latitude': float(alert.latitude) if alert.latitude else None,
-            'longitude': float(alert.longitude) if alert.longitude else None,
-            'description': alert.description,
-            'created_at': alert.created_at.isoformat(),
+            'title': getattr(alert, 'title', ''),
+            'level': getattr(alert, 'severity', None) or getattr(alert, 'alert_level', None),
+            'location': getattr(alert, 'location', None),
+            'latitude': float(getattr(alert, 'latitude', None)) if getattr(alert, 'latitude', None) else None,
+            'longitude': float(getattr(alert, 'longitude', None)) if getattr(alert, 'longitude', None) else None,
+            'description': getattr(alert, 'description', None),
+            'created_at': (getattr(alert, 'triggered_at', None) and getattr(alert, 'triggered_at').isoformat()) or (getattr(alert, 'created_at', None) and getattr(alert, 'created_at').isoformat()),
         })
 
     # Return comprehensive weather data with satellite integration
@@ -295,13 +329,13 @@ def sensors_widget(request):
 def stats_widget(request):
     """API endpoint for statistics widget data"""
     # Calculate some basic statistics
-    total_alerts = FloodAlert.objects.filter(is_active=True).count()
+    total_alerts = FloodAlert.objects.count()
     total_reports = UserReport.objects.filter(is_public=True).count()
-    critical_alerts = FloodAlert.objects.filter(alert_level='CRITICAL', is_active=True).count()
+    critical_alerts = FloodAlert.objects.filter(severity='CRITICAL').count()
 
     # Recent activity (last 7 days)
     week_ago = datetime.now() - timedelta(days=7)
-    recent_alerts = FloodAlert.objects.filter(created_at__gte=week_ago).count()
+    recent_alerts = FloodAlert.objects.filter(triggered_at__gte=week_ago).count()
     recent_reports = UserReport.objects.filter(created_at__gte=week_ago).count()
 
     # Satellite data statistics
@@ -343,17 +377,17 @@ def satellite_widget(request):
 # Page views for navigation
 def alerts_page(request):
     """Alerts page with AI-powered insights and satellite data"""
-    alerts = FloodAlert.objects.filter(is_active=True).order_by('-created_at')
+    alerts = FloodAlert.objects.order_by('-triggered_at')
 
     # Get satellite data for flood monitoring
     satellite_flood_data = SatelliteData.objects.filter(
         data_type='flood_extent',
-        is_active=True
+        # no is_active field on alerts.FloodAlert model; kept other filters as-is
     ).order_by('-capture_date')[:5]
 
     satellite_precipitation = SatelliteData.objects.filter(
         data_type='precipitation',
-        is_active=True
+        # no is_active field on alerts.FloodAlert model; kept other filters as-is
     ).order_by('-capture_date')[:5]
 
     context = {
@@ -369,6 +403,60 @@ def alerts_page(request):
             "Precipitation Radar: CHIRPS data shows 45mm rainfall in last 24 hours across flood-prone regions."
         ]
     }
+    # Build a lightweight JSON-friendly alerts list for the template's JS visualizations
+    alerts_list = []
+    # Build time-series (alerts per day) for last 14 days and per-location small series for last 7 days
+    days = []
+    days_count = 14
+    for i in range(days_count - 1, -1, -1):
+        d = (datetime.now() - timedelta(days=i)).date()
+        days.append(d.isoformat())
+    per_day_counts = {d: 0 for d in days}
+
+    # per-location timeseries for last 7 days
+    per_location = {}
+    loc_days = []
+    loc_days_count = 7
+    for i in range(loc_days_count - 1, -1, -1):
+        d = (datetime.now() - timedelta(days=i)).date()
+        loc_days.append(d.isoformat())
+    for a in alerts:
+        alerts_list.append({
+            'id': a.id,
+            'title': getattr(a, 'title', None) or getattr(a, 'location', ''),
+            'level': getattr(a, 'severity', None) or getattr(a, 'alert_level', None),
+            'location': getattr(a, 'location', None),
+            'latitude': float(a.latitude) if getattr(a, 'latitude', None) is not None else None,
+            'longitude': float(a.longitude) if getattr(a, 'longitude', None) is not None else None,
+            'description': getattr(a, 'description', None),
+            'start_time': (getattr(a, 'start_time', None) and getattr(a, 'start_time').isoformat()) or None,
+            'end_time': (getattr(a, 'end_time', None) and getattr(a, 'end_time').isoformat()) or None,
+            'triggered_at': (getattr(a, 'triggered_at', None) and getattr(a, 'triggered_at').isoformat()) or None,
+        })
+        # update per-day counts based on triggered_at date if available
+        ta = getattr(a, 'triggered_at', None)
+        if ta:
+            key = ta.date().isoformat()
+            if key in per_day_counts:
+                per_day_counts[key] += 1
+
+        # per-location series
+        loc = getattr(a, 'location', None) or 'Unknown'
+        if loc not in per_location:
+            per_location[loc] = {d:0 for d in loc_days}
+        if ta:
+            k = ta.date().isoformat()
+            if k in per_location[loc]:
+                per_location[loc][k] += 1
+
+    context['alerts_json'] = json.dumps(alerts_list)
+    context['alerts_timeseries_json'] = json.dumps({'days': days, 'counts': [per_day_counts[d] for d in days]})
+    # per-location series formatted as list of {location: str, series: [ints matching loc_days order]}
+    loc_series = []
+    for loc, series_map in per_location.items():
+        loc_series.append({'location': loc, 'series': [series_map[d] for d in loc_days]})
+    context['loc_days'] = json.dumps(loc_days)
+    context['per_location_series_json'] = json.dumps(loc_series)
     return render(request, 'dashboard/alerts.html', context)
 
 def reports_page(request):
@@ -388,21 +476,21 @@ def reports_page(request):
 def statistics_page(request):
     """Statistics dashboard page"""
     # Calculate comprehensive statistics
-    total_alerts = FloodAlert.objects.filter(is_active=True).count()
+    total_alerts = FloodAlert.objects.count()
     total_reports = UserReport.objects.filter(is_public=True).count()
-    critical_alerts = FloodAlert.objects.filter(alert_level='CRITICAL', is_active=True).count()
+    critical_alerts = FloodAlert.objects.filter(severity='CRITICAL').count()
 
     # Time-based statistics
     week_ago = datetime.now() - timedelta(days=7)
     month_ago = datetime.now() - timedelta(days=30)
 
-    recent_alerts = FloodAlert.objects.filter(created_at__gte=week_ago).count()
-    monthly_alerts = FloodAlert.objects.filter(created_at__gte=month_ago).count()
+    recent_alerts = FloodAlert.objects.filter(triggered_at__gte=week_ago).count()
+    monthly_alerts = FloodAlert.objects.filter(triggered_at__gte=month_ago).count()
     recent_reports = UserReport.objects.filter(created_at__gte=week_ago).count()
     monthly_reports = UserReport.objects.filter(created_at__gte=month_ago).count()
 
     # Location-based stats
-    alerts_by_location = FloodAlert.objects.filter(is_active=True).values('location').annotate(count=Count('id')).order_by('-count')[:5]
+    alerts_by_location = FloodAlert.objects.values('location').annotate(count=Count('id')).order_by('-count')[:5]
     reports_by_location = UserReport.objects.filter(is_public=True).values('location').annotate(count=Count('id')).order_by('-count')[:5]
 
     context = {
@@ -463,3 +551,4 @@ def admin_panel_page(request):
         ]
     }
     return render(request, 'dashboard/admin_panel.html', context)
+

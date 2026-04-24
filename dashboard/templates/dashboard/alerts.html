@@ -7,6 +7,14 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
     {% load static %}
     <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+    <!-- Leaflet for map and Chart.js for charts -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <!-- MarkerCluster plugin -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 </head>
 <body>
     <div class="sidebar">
@@ -119,33 +127,55 @@
             </div>
         </div>
 
-        <!-- Active Alerts -->
+        <!-- Active Alerts: interactive map + charts + cards -->
         <div class="alerts-section">
             <h2>Active Flood Alerts</h2>
-            <div class="alerts-container">
+
+            <div class="alerts-visual-row" style="display:flex;gap:16px;align-items:flex-start;margin-bottom:16px;">
+                <div id="alerts-map" style="flex:1;min-height:360px;border-radius:8px;overflow:hidden;border:1px solid #e6e6e6"></div>
+                <div style="width:360px;">
+                    <div class="widget-card" style="padding:12px;margin-bottom:12px;">
+                        <h4 style="margin:0 0 8px 0">Severity Breakdown</h4>
+                        <canvas id="severityChart" width="300" height="200"></canvas>
+                    </div>
+                    <div class="widget-card" style="padding:12px;margin-bottom:12px;">
+                        <h4 style="margin:0 0 8px 0">Alerts Trend (14d)</h4>
+                        <canvas id="trendChart" width="300" height="120"></canvas>
+                    </div>
+                    <div class="widget-card" style="padding:12px;">
+                        <h4 style="margin:0 0 8px 0">Quick Stats</h4>
+                        <ul style="list-style:none;padding:0;margin:0;line-height:1.6;">
+                            <li><strong id="totalAlerts">0</strong> total alerts</li>
+                            <li><strong id="highAlerts">0</strong> high/critical</li>
+                            <li><strong id="moderateAlerts">0</strong> moderate</li>
+                            <li><strong id="lowAlerts">0</strong> low</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alerts-container" id="alerts-cards">
                 {% for alert in alerts %}
-                <div class="alert-card {{ alert.alert_level|lower }}">
+                <div class="alert-card {% if alert.severity == 'CRITICAL' or alert.severity == 'HIGH' %}high-alert{% elif alert.severity == 'MODERATE' %}moderate-alert{% else %}low-alert{% endif %}" data-lat="{{ alert.latitude }}" data-lng="{{ alert.longitude }}" data-id="{{ alert.id }}">
                     <div class="alert-header">
                         <h3>{{ alert.title }}</h3>
-                        <span class="alert-level {{ alert.alert_level|lower }}">{{ alert.alert_level }}</span>
+                        <span class="alert-level {% if alert.severity %}{{ alert.severity|lower }}{% else %}{{ alert.alert_level|lower }}{% endif %}">{% if alert.severity %}{{ alert.severity }}{% else %}{{ alert.alert_level }}{% endif %}</span>
                     </div>
                     <div class="alert-content">
                         <p>{{ alert.description }}</p>
+                        <div style="margin-top:8px;">
+                            <canvas class="sparkline" data-location="{{ alert.location }}" width="120" height="30"></canvas>
+                        </div>
                         <div class="alert-meta">
                             <span>📍 {{ alert.location }}</span>
                             {% if alert.latitude and alert.longitude %}
                             <span>📌 {{ alert.latitude }}, {{ alert.longitude }}</span>
                             {% endif %}
-                            <span>⏰ {{ alert.start_time|date:"M d, Y H:i" }}</span>
+                            <span>⏰ {% if alert.start_time %}{{ alert.start_time|date:"M d, Y H:i" }}{% elif alert.triggered_at %}{{ alert.triggered_at|date:"M d, Y H:i" }}{% else %}—{% endif %}</span>
                             {% if alert.end_time %}
                             <span>🏁 {{ alert.end_time|date:"M d, Y H:i" }}</span>
                             {% endif %}
                         </div>
-                        {% if alert.affected_area %}
-                        <div class="affected-area">
-                            <strong>Affected Areas:</strong> {{ alert.affected_area }}
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
                 {% empty %}
@@ -191,6 +221,114 @@
         setInterval(function() {
             location.reload();
         }, 60000);
+    </script>
+    <script>
+        // Initialize visual components using server-provided JSON `alerts_json` and timeseries
+        (function(){
+            try {
+                const alerts = JSON.parse('{{ alerts_json|escapejs }}');
+                const timeseries = JSON.parse('{{ alerts_timeseries_json|escapejs }}');
+                const perLocationSeries = JSON.parse('{{ per_location_series_json|escapejs }}');
+
+                // Severity counts
+                const counts = {HIGH:0, MODERATE:0, LOW:0, CRITICAL:0, OTHER:0};
+                alerts.forEach(a => {
+                    const lvl = (a.level || a.severity || '').toString().toUpperCase();
+                    if (lvl === 'CRITICAL' || lvl === 'HIGH') counts.HIGH += 1;
+                    else if (lvl === 'MODERATE') counts.MODERATE += 1;
+                    else if (lvl === 'LOW') counts.LOW += 1;
+                    else counts.OTHER += 1;
+                });
+
+                // Update quick stats
+                document.getElementById('totalAlerts').textContent = alerts.length;
+                document.getElementById('highAlerts').textContent = counts.HIGH;
+                document.getElementById('moderateAlerts').textContent = counts.MODERATE;
+                document.getElementById('lowAlerts').textContent = counts.LOW;
+
+                // Render severity donut chart
+                const ctx = document.getElementById('severityChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['High/Critical','Moderate','Low','Other'],
+                        datasets: [{
+                            data: [counts.HIGH, counts.MODERATE, counts.LOW, counts.OTHER],
+                            backgroundColor: ['#ff4c4c','#ffcc00','#4caf50','#9aa0a6']
+                        }]
+                    },
+                    options: {plugins:{legend:{position:'bottom'}}}
+                });
+
+                // Trend chart (14 days)
+                try {
+                    const tctx = document.getElementById('trendChart').getContext('2d');
+                    new Chart(tctx, {
+                        type: 'line',
+                        data: {
+                            labels: timeseries.days,
+                            datasets: [{
+                                label: 'Alerts',
+                                data: timeseries.counts,
+                                borderColor: '#ff4c4c',
+                                backgroundColor: 'rgba(255,76,76,0.08)',
+                                fill: true,
+                                tension: 0.35,
+                            }]
+                        },
+                        options: {plugins:{legend:{display:false}}, scales:{x:{display:false}, y:{display:true}}}
+                    });
+                } catch(e) { console.warn('Trend chart error', e); }
+
+                // Initialize Leaflet map
+                const map = L.map('alerts-map', {attributionControl:false}).setView([0.0, 36.0], 6);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18}).addTo(map);
+
+                // Use marker cluster for many points
+                const markers = L.markerClusterGroup();
+                alerts.forEach(a => {
+                    if (a.latitude && a.longitude) {
+                        const color = (a.level && a.level.toLowerCase().includes('high'))? '#ff4c4c' : (a.level && a.level.toLowerCase().includes('moderate'))? '#ffcc00' : '#4caf50';
+                        const m = L.circleMarker([a.latitude, a.longitude], {radius:8, color: color});
+                        m.bindPopup(`<strong>${a.title}</strong><br>${a.location || ''}<br>${a.level || a.severity || ''}`);
+                        markers.addLayer(m);
+                    }
+                });
+                map.addLayer(markers);
+                if (markers.getLayers().length) {
+                    map.fitBounds(markers.getBounds().pad(0.2));
+                }
+
+                // Card click -> pan to marker
+                document.querySelectorAll('#alerts-cards .alert-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const lat = parseFloat(card.dataset.lat);
+                        const lng = parseFloat(card.dataset.lng);
+                        if (!isNaN(lat) && !isNaN(lng)) map.setView([lat,lng], Math.max(map.getZoom(),10));
+                        card.classList.add('highlight');
+                        setTimeout(()=>card.classList.remove('highlight'),2000);
+                    });
+                });
+
+                // Render per-location sparklines using perLocationSeries
+                try {
+                    const sparkCanvases = document.querySelectorAll('canvas.sparkline');
+                    sparkCanvases.forEach(c => {
+                        const loc = c.dataset.location || '';
+                        const entry = perLocationSeries.find(p => p.location === loc);
+                        const data = entry ? entry.series : new Array(7).fill(0);
+                        new Chart(c.getContext('2d'), {
+                            type: 'line',
+                            data: {labels: new Array(data.length).fill(''), datasets:[{data:data, borderColor:'#007bff', tension:0.3, pointRadius:0}]},
+                            options: {plugins:{legend:{display:false}}, scales:{x:{display:false}, y:{display:false}}, elements:{line:{borderWidth:2}}}
+                        });
+                    });
+                } catch(e) { console.warn('Sparkline error', e); }
+
+            } catch (e) {
+                console.error('Could not render alerts visualizations', e);
+            }
+        })();
     </script>
 </body>
 </html>

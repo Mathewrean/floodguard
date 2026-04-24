@@ -399,7 +399,7 @@
                         </td>
                         <td>{{ alert.location }}</td>
                         <td>{{ alert.description|truncatechars:50 }}</td>
-                        <td>{{ alert.created_at|date:"M d, H:i" }}</td>
+                        <td>{% if alert.triggered_at %}{{ alert.triggered_at|date:"M d, H:i" }}{% else %}{{ alert.created_at|date:"M d, H:i" }}{% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
