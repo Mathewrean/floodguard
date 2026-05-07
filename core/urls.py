@@ -1,13 +1,13 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+from . import views
 from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet
-from . import views  # Import our new views
 
 router = DefaultRouter()
 router.register(r'zones', AlertZoneViewSet)
 router.register(r'readings', FloodReadingViewSet)
 router.register(r'reports', IncidentReportViewSet)
-router.register(r'alerts', AlertLogViewSet, basename='alert')
+router.register(r'alerts', AlertLogViewSet)
 
 urlpatterns = [
     # Landing page and user interface routes
@@ -26,5 +26,6 @@ urlpatterns = [
     path('map/', views.map_view, name='map_view'),
     
     # API routes
+    path('api/v1/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
     path('api/v1/', include(router.urls)),
 ]

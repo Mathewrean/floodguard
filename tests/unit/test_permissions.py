@@ -5,6 +5,7 @@ from core.permissions import IsAuthority, IsAdminUser
 from tests.factories import UserFactory, AuthorityUserFactory
 
 
+@pytest.mark.django_db
 class TestIsAuthority:
     def test_returns_true_for_authority_user(self):
         request = RequestFactory().get('/')
@@ -27,6 +28,7 @@ class TestIsAuthority:
         assert not permission.has_permission(request, None)
 
 
+@pytest.mark.django_db
 class TestIsAdminUser:
     def test_returns_true_for_superuser(self):
         request = RequestFactory().get('/')

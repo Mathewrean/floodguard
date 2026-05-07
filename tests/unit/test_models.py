@@ -7,6 +7,7 @@ from tests.factories import AlertZoneFactory, FloodReadingFactory, IncidentRepor
 
 
 class TestAlertZone:
+    @pytest.mark.django_db
     def test_centroid_property(self):
         zone = AlertZoneFactory()
         centroid = zone.centroid

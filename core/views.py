@@ -6,8 +6,140 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
-from .models import AlertZone, IncidentReport, AlertLog, UserProfile
+from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
 from django.contrib.gis.geos import Point
+
+# REST API imports
+from rest_framework import viewsets, permissions, status, serializers as drf_serializers
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from rest_framework_gis.serializers import GeometryField
+
+# Serializers for API
+class AlertZoneSerializer(drf_serializers.ModelSerializer):
+    polygon = GeometryField()
+
+    class Meta:
+        model = AlertZone
+        fields = ['id', 'name', 'risk_threshold', 'manual_override_active', 'manual_override_until', 'polygon']
+
+class FloodReadingSerializer(drf_serializers.ModelSerializer):
+    location = drf_serializers.SerializerMethodField()
+
+    class Meta:
+        model = FloodReading
+        fields = ['id', 'location', 'water_level_metres', 'risk_score', 'source', 'verified', 'timestamp']
+
+    def get_location(self, obj):
+        if obj.location:
+            return [obj.location.x, obj.location.y]
+        return None
+
+class IncidentReportSerializer(drf_serializers.ModelSerializer):
+    location = GeometryField()
+    photo = drf_serializers.ImageField(write_only=True, required=False, allow_null=True)
+    photo_url = drf_serializers.SerializerMethodField()
+    submitted_by = drf_serializers.SerializerMethodField()
+    reviewed_by = drf_serializers.SerializerMethodField()
+
+    class Meta:
+        model = IncidentReport
+        fields = ['id', 'location', 'severity', 'description', 'photo', 'photo_url', 'status', 'submitted_by', 'reviewed_by', 'created_at', 'updated_at']
+
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+
+    def get_submitted_by(self, obj):
+        if obj.submitted_by:
+            return obj.submitted_by.username
+        return None
+
+    def get_reviewed_by(self, obj):
+        if obj.reviewed_by:
+            return obj.reviewed_by.username
+        return None
+
+    def validate_location(self, value):
+        # Validate location is within supported region (Kenya/East Africa bounds)
+        lon = value.x
+        lat = value.y
+        # Kenya approximate bounds: longitude 33.0 to 42.0, latitude -5.0 to 5.0
+        if not (33.0 <= lon <= 42.0 and -5.0 <= lat <= 5.0):
+            raise drf_serializers.ValidationError("Location outside supported area")
+        return value
+
+class AlertLogSerializer(drf_serializers.ModelSerializer):
+    zone_name = drf_serializers.SerializerMethodField()
+
+    class Meta:
+        model = AlertLog
+        fields = ['id', 'zone_name', 'message', 'channel', 'recipient_count', 'triggered_at', 'delivery_status']
+
+    def get_zone_name(self, obj):
+        return obj.alert_zone.name
+
+# ViewSets
+class AlertZoneViewSet(viewsets.ModelViewSet):
+    queryset = AlertZone.objects.all()
+    serializer_class = AlertZoneSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = None  # Return list directly
+
+class FloodReadingViewSet(viewsets.ModelViewSet):
+    queryset = FloodReading.objects.all()
+    serializer_class = FloodReadingSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    pagination_class = None
+
+    @action(detail=False, methods=['get'])
+    def predict(self, request):
+        """
+        Custom action to predict risk score for a zone.
+        Expects zone_id and hours_ahead as query parameters.
+        """
+        zone_id = request.query_params.get('zone_id')
+        hours_ahead = request.query_params.get('hours_ahead', 8)
+
+        if not zone_id:
+            return Response({'error': 'zone_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from core.analytics.scoring import calculate_risk_score
+            risk_score = calculate_risk_score(int(zone_id))
+            return Response({'risk_score': risk_score})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class IncidentReportViewSet(viewsets.ModelViewSet):
+    queryset = IncidentReport.objects.all()
+    serializer_class = IncidentReportSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['patch'])
+    def verify(self, request, pk=None):
+        report = self.get_object()
+        if not request.user.groups.filter(name='EmergencyTeam').exists() and not request.user.is_superuser:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        new_status = request.data.get('status')
+        if new_status not in ['verified', 'rejected']:
+            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+
+        report.status = new_status
+        report.reviewed_by = request.user
+        report.save()
+        return Response({'status': report.status})
+
+class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = AlertLog.objects.all().select_related('alert_zone')
+    serializer_class = AlertLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
 def landing_index(request):
     """Public landing page"""

@@ -15,7 +15,9 @@ function initMapPreview() {
     fetch('/api/v1/zones/')
         .then(response => response.json())
         .then(data => {
-            data.results.forEach(zone => {
+            // Handle both paginated (data.results) and plain list (data)
+            const zones = data.results || data;
+            zones.forEach(zone => {
                 // For simplicity, we'll show a marker at the zone's centroid
                 // In a real app, you'd want to show the actual polygon
                 // Since we don't have the polygon in the API response (it's not included by default in DRF-GIS),
