@@ -127,7 +127,7 @@ class TestGeographicClustering:
         """Test that cluster_recent_reports updates cluster IDs for reports without them"""
         # Create a report without explicit cluster_id (will get one on save)
         report1 = IncidentReport(
-            location=Point(36.8, -1.3, srid=4326),
+            location=self.base_location,
             severity=3,
             description="Report 1",
             submitted_by=self.user
@@ -136,18 +136,20 @@ class TestGeographicClustering:
         
         # Create another report nearby
         report2 = IncidentReport(
-            location=Point(36.8001, -1.3001, srid=4326),
+            location=Point(36.8001, -1.3001, srid=4326),  # Very close
             severity=4,
             description="Report 2",
             submitted_by=self.user
         )
-        # Don't save it yet - we want to test the clustering method
-        
-        # Manually remove cluster_id from report2 to simulate unset
-        report2.cluster_id = None
         report2.save()
         
-        # Verify report2 has no cluster_id
+        # Get its cluster_id (auto-generated)
+        cluster_id_1 = report1.cluster_id
+        cluster_id_2 = report2.cluster_id
+        
+        # Simulate report2 missing cluster_id by clearing it via queryset update to bypass model save
+        IncidentReport.objects.filter(pk=report2.pk).update(cluster_id=None)
+        report2.refresh_from_db()
         assert report2.cluster_id is None
         
         # Run the clustering method
@@ -158,4 +160,4 @@ class TestGeographicClustering:
         
         # Now it should have a cluster ID (same as report1)
         assert report2.cluster_id is not None
-        assert report2.cluster_id == report1.cluster_id
+        assert report2.cluster_id == cluster_id_1

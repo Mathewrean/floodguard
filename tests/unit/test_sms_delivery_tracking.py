@@ -9,6 +9,9 @@ from tests.factories import AlertZoneFactory
 class TestSMSDeliveryReceiptTracking:
     def setup_method(self):
         self.zone = AlertZoneFactory(name="Test Zone")
+        # Create an authority user to ensure dispatch has recipients
+        from tests.factories import AuthorityUserFactory
+        self.authority_user = AuthorityUserFactory()
 
     def test_alert_log_has_delivery_tracking_fields(self):
         """Test that AlertLog model has delivery tracking fields"""

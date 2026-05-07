@@ -1,3 +1,4 @@
+{% load static %}
 {% extends 'base.html' %}
 
 {% block content %}
@@ -96,28 +97,7 @@
     <div class="container">
         <h2>Report a Flood Incident</h2>
         <p>Help keep your community safe by reporting flood conditions in your area.</p>
-        <form id="quick-report-form" class="report-form">
-            <div class="form-group">
-                <label for="report-description">What are you seeing?</label>
-                <textarea id="report-description" placeholder="Describe the flood conditions (water level, affected areas, etc.)" rows="3"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="report-severity">Severity Level:</label>
-                <select id="report-severity">
-                    <option value="1">Low</option>
-                    <option value="2">Medium-Low</option>
-                    <option value="3" selected>Medium</option>
-                    <option value="4">High</option>
-                    <option value="5">Critical</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="report-photo">Upload Photo (Optional):</label>
-                <input type="file" id="report-photo" accept="image/*">
-            </div>
-            <button type="submit" class="btn-primary btn-block">Submit Report</button>
-        </form>
-        <div id="report-status"></div>
+        <a href="{% url 'report_submit' %}" class="btn-primary btn-block">Submit a Report</a>
         <p class="report-note">Reports are reviewed by authorities and may trigger alerts if verified.</p>
     </div>
 </section>
@@ -177,25 +157,17 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/landing.js' %}"></script>
+<script src="{% static 'js/map.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize map preview
     initMapPreview();
     
-    // Handle quick report form
-    const reportForm = document.getElementById('quick-report-form');
-    if (reportForm) {
-        reportForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            submitQuickReport();
-        });
-    }
-    
     // Update last updated timestamp
     setInterval(function() {
         const now = new Date();
-        document.getElementById('last-updated').textContent = now.toLocaleTimeString();
+        const el = document.getElementById('last-updated');
+        if (el) el.textContent = now.toLocaleTimeString();
     }, 1000);
 });
 </script>

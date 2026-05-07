@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="alerts-history">
+    <div class="container">
+        <h1>Alert History</h1>
+        <p>Historical flood alerts and notifications.</p>
+        
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Zone</th>
+                        <th>Message</th>
+                        <th>Channel</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in alerts %}
+                    <tr>
+                        <td>{{ alert.triggered_at|date:"M d, Y H:i" }}</td>
+                        <td>{{ alert.alert_zone.name }}</td>
+                        <td>{{ alert.message|truncatewords:20 }}</td>
+                        <td>{{ alert.channel }}</td>
+                        <td>{{ alert.get_delivery_status_display }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5">No alerts have been sent yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -8,6 +8,8 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
 from django.contrib.gis.geos import Point
+from datetime import timedelta
+from django.utils import timezone
 
 # REST API imports
 from rest_framework import viewsets, permissions, status, serializers as drf_serializers
@@ -90,6 +92,35 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = None  # Return list directly
 
+    @action(detail=True, methods=['post'])
+    def manual_override(self, request, pk=None):
+        zone = self.get_object()
+        # Only authority or admin can set manual override
+        if not (request.user.groups.filter(name='EmergencyTeam').exists() or request.user.is_superuser):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        
+        active = request.data.get('active')
+        if active is None:
+            return Response({'error': 'active field is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        zone.manual_override_active = bool(active)
+        duration_hours = request.data.get('duration_hours')
+        if active and duration_hours:
+            try:
+                hours = int(duration_hours)
+                zone.manual_override_until = timezone.now() + timedelta(hours=hours)
+            except (ValueError, TypeError):
+                return Response({'error': 'duration_hours must be an integer'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            zone.manual_override_until = None
+        
+        zone.save()
+        return Response({
+            'status': 'updated',
+            'manual_override_active': zone.manual_override_active,
+            'manual_override_until': zone.manual_override_until.isoformat() if zone.manual_override_until else None
+        })
+
 class FloodReadingViewSet(viewsets.ModelViewSet):
     queryset = FloodReading.objects.all()
     serializer_class = FloodReadingSerializer
@@ -118,7 +149,11 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
 class IncidentReportViewSet(viewsets.ModelViewSet):
     queryset = IncidentReport.objects.all()
     serializer_class = IncidentReportSerializer
-    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action == 'create':
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
 
     @action(detail=True, methods=['patch'])
     def verify(self, request, pk=None):

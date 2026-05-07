@@ -1,0 +1,16 @@
+{% load static %}
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="map-page">
+    <div class="container">
+        <h1>Live Flood Map</h1>
+        <p>View current flood zones, risk levels, and incident reports.</p>
+        <div id="map" class="full-map"></div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/map.js' %}"></script>
+{% endblock %}

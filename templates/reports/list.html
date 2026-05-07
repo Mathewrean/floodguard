@@ -1,110 +1,49 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="reports-page">
+<section class="reports-list">
     <div class="container">
         <h1>Incident Reports</h1>
-        <p class="reports-description">Browse all submitted flood incident reports.</p>
+        <p>Browse all flood incident reports submitted by the community.</p>
         
-        <!-- Reports Filter -->
-        <div class="reports-filter">
-            <select id="filter-status" class="filter-select">
-                <option value="all">All Reports</option>
-                <option value="pending">Pending Review</option>
-                <option value="verified">Verified</option>
-                <option value="rejected">Rejected</option>
-            </select>
-            
-            <select id="filter-severity" class="filter-select">
-                <option value="all">All Severities</option>
-                <option value="1">Low</option>
-                <option value="2">Medium-Low</option>
-                <option value="3">Medium</option>
-                <option value="4">High</option>
-                <option value="5">Critical</option>
-            </select>
-            
-            <button id="apply-filters" class="btn-primary">Apply Filters</button>
-            <a href="{% url 'report_submit' %}" class="btn-secondary">Submit New Report</a>
-        </div>
-        
-        <!-- Reports List -->
-        <div class="reports-list" id="reports-list">
-            {% if reports %}
-                {% for report in reports %}
-                <div class="report-card">
-                    <div class="report-header">
-                        <h3>Incident Report #{{ report.id }}</h3>
-                        <span class="report-badge status-{{ report.status }}">{{ report.get_status_display }}</span>
-                        <span class="report-badge severity-{{ report.severity }}">{{ report.get_severity_display }}</span>
-                    </div>
-                    
-                    <div class="report-content">
-                        <p class="report-description">{{ report.description|truncatewords:20 }}</p>
-                        <div class="report-meta">
-                            <span class="report-location">📍 Location available</span>
-                            <span class="report-date">🕒 {{ report.created_at|timesince }} ago</span>
-                            {% if report.submitted_by %}
-                                <span class="report-submitter">👤 {{ report.submitted_by.username }}</span>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Location</th>
+                        <th>Severity</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Submitted By</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td>{{ report.id }}</td>
+                        <td>
+                            {% if report.location %}
+                            {{ report.location.y }}, {{ report.location.x }}
+                            {% else %}
+                            N/A
                             {% endif %}
-                        </div>
-                    </div>
-                    
-                    {% if report.photo %}
-                    <div class="report-photo">
-                        <img src="{{ report.photo.url }}" alt="Incident photo">
-                    </div>
-                    {% endif %}
-                    
-                    <div class="report-actions">
-                        <a href="{% url 'report_detail' report.id %}" class="btn-sm">View Details</a>
-                        {% if request.user.groups.filter(name='EmergencyTeam').exists or request.user.is_superuser %}
-                            <button class="btn-sm btn-outline" data-report-id="{{ report.id }}" data-action="verify">Verify</button>
-                            <button class="btn-sm btn-outline" data-report-id="{{ report.id }}" data-action="reject">Reject</button>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state">
-                    <p>No reports found matching the selected filters.</p>
-                    <a href="{% url 'report_submit' %}" class="btn-primary">Submit First Report</a>
-                </div>
-            {% endif %}
+                        </td>
+                        <td>{{ report.get_severity_display }}</td>
+                        <td>{{ report.description|truncatewords:15 }}</td>
+                        <td>{{ report.get_status_display }}</td>
+                        <td>{{ report.submitted_by.username }}</td>
+                        <td>{{ report.created_at|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7">No reports submitted yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-        
-        <!-- Pagination would go here if needed -->
     </div>
 </section>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Apply filters when button is clicked
-    const applyFiltersBtn = document.getElementById('apply-filters');
-    if (applyFiltersBtn) {
-        applyFiltersBtn.addEventListener('click', function() {
-            const statusFilter = document.getElementById('filter-status').value;
-            const severityFilter = document.getElementById('filter-severity').value;
-            
-            // In a real app, this would make an API call to filter reports
-            // For now, we'll just show a message
-            alert(`Filtering by status: ${statusFilter}, severity: ${severityFilter}`);
-        });
-    }
-    
-    // Handle verify/reject buttons
-    const actionButtons = document.querySelectorAll('[data-action]');
-    actionButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const reportId = this.getAttribute('data-report-id');
-            const action = this.getAttribute('data-action');
-            
-            // In a real app, this would make an API call to update the report
-            alert(`${action.charAt(0).toUpperCase() + action.slice(1)} report #${reportId}`);
-        });
-    });
-});
-</script>
 {% endblock %}

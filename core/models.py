@@ -29,6 +29,11 @@ class AlertZone(models.Model):
         return self.name
 
     @property
+    def centroid(self):
+        """Return the centroid of the zone polygon."""
+        return self.polygon.centroid
+
+    @property
     def is_override_active(self):
         """Check if manual override is currently active"""
         if not self.manual_override_active:
@@ -60,7 +65,11 @@ class AlertZone(models.Model):
                 raise ValidationError({'polygon': 'Polygon must be within Kenya bounds'})
 
     def save(self, *args, **kwargs):
-        """Override save to run validation"""
+        """Override save to run validation and auto-deactivate expired overrides"""
+        # Auto-deactivate manual override if expired
+        if self.manual_override_active and self.manual_override_until:
+            if timezone.now() > self.manual_override_until:
+                self.manual_override_active = False
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -99,6 +108,7 @@ class IncidentReport(models.Model):
         ('pending', 'Pending'),
         ('verified', 'Verified'),
         ('rejected', 'Rejected'),
+        ('acknowledged', 'Acknowledged'),
     ]
     
     location = models.PointField(srid=4326)
@@ -109,17 +119,31 @@ class IncidentReport(models.Model):
     description = models.TextField()
     photo = models.ImageField(upload_to='incident_photos/', blank=True, null=True)
     status = models.CharField(
-        max_length=10,
+        max_length=12,
         choices=STATUS_CHOICES,
         default='pending'
     )
-    submitted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='submitted_reports')
+    submitted_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='submitted_reports', null=True, blank=True)
     reviewed_by = models.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
         related_name='reviewed_reports'
+    )
+    # Emergency acknowledgment fields
+    acknowledged_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='acknowledged_reports',
+        help_text="Authority user who acknowledged this incident"
+    )
+    acknowledged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the incident was acknowledged"
     )
     # Geographic clustering field
     cluster_id = models.CharField(
