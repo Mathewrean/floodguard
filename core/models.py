@@ -121,12 +121,77 @@ class IncidentReport(models.Model):
         blank=True,
         related_name='reviewed_reports'
     )
+    # Geographic clustering field
+    cluster_id = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Identifier for geographic cluster of related reports"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    
     def __str__(self):
         return f"Incident {self.id} - {self.get_severity_display()} - {self.status}"
-
+    
+    def save(self, *args, **kwargs):
+        # Auto-assign cluster_id if not set and we have a location
+        if not self.cluster_id and self.location:
+            self.cluster_id = self.calculate_cluster_id()
+        super().save(*args, **kwargs)
+    
+    def calculate_cluster_id(self, radius_meters=100):
+        """
+        Calculate a cluster ID based on geographic proximity.
+        Reports within the specified radius (default 100m) will share the same cluster ID.
+        """
+        from django.contrib.gis.db.models import Union
+        from django.contrib.gis.geos import Point
+        from django.contrib.gis.measure import Distance
+        
+        # Find existing reports within radius
+        nearby_reports = IncidentReport.objects.filter(
+            location__distance_lte=(self.location, Distance(m=radius_meters))
+        ).exclude(id=self.id if self.id else None)
+        
+        # If there are nearby reports, use the earliest one's cluster ID or create a new one
+        if nearby_reports.exists():
+            # Get the earliest report's cluster ID, or generate one if it doesn't have one
+            earliest_report = nearby_reports.order_by('created_at').first()
+            if earliest_report.cluster_id:
+                return earliest_report.cluster_id
+            else:
+                # Generate a cluster ID based on the earliest report's location and time
+                return f"cluster_{earliest_report.id}_{int(earliest_report.created_at.timestamp())}"
+        else:
+            # No nearby reports, create a new cluster ID based on this report's location and time
+            return f"cluster_{int(timezone.now().timestamp())}_{hash((self.location.x, self.location.y)) % 10000}"
+    
+    @classmethod
+    def cluster_recent_reports(cls, hours=24, radius_meters=100):
+        """
+        Cluster recent reports geographically.
+        This can be run as a periodic task to update cluster assignments.
+        """
+        from django.contrib.gis.measure import Distance
+        from django.utils import timezone
+        import datetime
+        
+        cutoff_time = timezone.now() - datetime.timedelta(hours=hours)
+        recent_reports = cls.objects.filter(
+            created_at__gte=cutoff_time
+        ).filter(
+            cluster_id__isnull=True
+        ) | cls.objects.filter(
+            created_at__gte=cutoff_time,
+            cluster_id=''
+        )
+        
+        for report in recent_reports:
+            if not report.cluster_id:
+                report.cluster_id = report.calculate_cluster_id(radius_meters)
+                report.save(update_fields=['cluster_id'])
+    
     class Meta:
         ordering = ['-created_at']
 
