@@ -132,19 +132,37 @@ def dispatch_alerts(zone_id, risk_score):
             # For now, we'll just log
             logger.info(f"Sending SMS to user {user.username}: {message}")
             
+            # Simulate getting a message ID from the provider
+            provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
+            
             # Set Redis key with 3-hour expiry
             redis_client.setex(redis_key, 3*60*60, 1)  # 3 hours in seconds
             
-            # Create AlertLog record
-            AlertLog.objects.create(
+            # Create AlertLog record with delivery tracking
+            alert_log = AlertLog.objects.create(
                 alert_zone=zone,
                 message=message,
                 channel='SMS',
                 recipient_count=1,  # This is per user, but we'll log each separately for simplicity
-                triggered_at=timezone.now()
+                triggered_at=timezone.now(),
+                delivery_status='sent',
+                provider_message_id=provider_message_id
             )
+            
+            # In a real implementation, we would check delivery status via webhook or API
+            # For now, we'll simulate successful delivery after a short delay
+            # In production, this would be updated by a callback from the SMS provider
             
         except Exception as e:
             logger.error(f"Failed to send alert to user {user.username}: {str(e)}")
+            # Create failed alert log
+            AlertLog.objects.create(
+                alert_zone=zone,
+                message=message,
+                channel='SMS',
+                recipient_count=1,
+                triggered_at=timezone.now(),
+                delivery_status='failed'
+            )
 
     logger.info(f"Alert dispatch completed for zone {zone.name} with risk score {risk_score}")

@@ -137,6 +137,30 @@ class AlertLog(models.Model):
     channel = models.CharField(max_length=50, help_text="e.g., SMS, Email, App Push")
     recipient_count = models.IntegerField(default=0)
     triggered_at = models.DateTimeField(auto_now_add=True)
+    # SMS delivery tracking fields
+    delivery_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pending'),
+            ('sent', 'Sent'),
+            ('delivered', 'Delivered'),
+            ('failed', 'Failed'),
+            ('undelivered', 'Undelivered'),
+        ],
+        default='pending',
+        help_text="Delivery status of the alert"
+    )
+    provider_message_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Message ID from the SMS provider (e.g., Africa's Talking)"
+    )
+    delivered_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp when the message was delivered"
+    )
 
     def __str__(self):
         return f"Alert for {self.alert_zone.name} at {self.triggered_at}"
