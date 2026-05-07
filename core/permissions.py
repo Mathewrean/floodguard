@@ -1,29 +1,24 @@
-from rest_framework.permissions import BasePermission
+from rest_framework import permissions
 
 
-class IsAuthority(BasePermission):
+class IsAuthority(permissions.BasePermission):
     """
-    Custom permission to only allow users with authority or admin role.
-    """
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        try:
-            profile = request.user.profile
-            return profile.role in ['authority', 'admin']
-        except request.user.profile.RelatedObjectDoesNotExist:
-            return False
-
-
-class IsAdminUser(BasePermission):
-    """
-    Custom permission to only allow users with admin role.
+    Allows access only to users with EmergencyTeam group membership.
     """
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        try:
-            profile = request.user.profile
-            return profile.role == 'admin'
-        except request.user.profile.RelatedObjectDoesNotExist:
-            return False
+        return (
+            request.user and
+            request.user.is_authenticated and
+            (
+                request.user.groups.filter(name='EmergencyTeam').exists() or
+                request.user.is_superuser
+            )
+        )
+
+
+class IsAdminUser(permissions.BasePermission):
+    """
+    Allows access only to superuser accounts.
+    """
+    def has_permission(self, request, view):
+        return request.user and request.user.is_authenticated and request.user.is_superuser

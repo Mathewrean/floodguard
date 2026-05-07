@@ -4,6 +4,7 @@ from django.utils import timezone
 from datetime import timedelta
 from core.models import AlertZone, UserProfile
 from tests.factories import AlertZoneFactory, UserFactory, AuthorityUserFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 
 @pytest.mark.django_db
@@ -52,7 +53,7 @@ class TestManualAlertOverride:
     def test_only_authority_and_admin_can_set_manual_override(self):
         """Test that only authority and admin users can set manual override"""
         from core.views import AlertZoneViewSet
-        from rest_framework.test import APIRequestFactory
+        from rest_framework.test import APIRequestFactory, force_authenticate
         
         factory = APIRequestFactory()
         view = AlertZoneViewSet.as_view({'post': 'manual_override'})
@@ -60,14 +61,14 @@ class TestManualAlertOverride:
         # Test with citizen user (should fail)
         request = factory.post(f'/api/v1/alertzones/{self.zone.id}/manual_override/', 
                               {'active': True}, format='json')
-        request.user = self.citizen_user
+        force_authenticate(request, user=self.citizen_user)
         response = view(request, pk=self.zone.id)
         assert response.status_code == 403  # Permission denied
         
         # Test with authority user (should succeed)
         request = factory.post(f'/api/v1/alertzones/{self.zone.id}/manual_override/', 
                               {'active': True, 'duration_hours': 2}, format='json')
-        request.user = self.authority_user
+        force_authenticate(request, user=self.authority_user)
         response = view(request, pk=self.zone.id)
         assert response.status_code == 200
         assert response.data['manual_override_active'] is True
@@ -75,7 +76,7 @@ class TestManualAlertOverride:
         # Test with admin user (should succeed)
         request = factory.post(f'/api/v1/alertzones/{self.zone.id}/manual_override/', 
                               {'active': True}, format='json')
-        request.user = self.admin_user
+        force_authenticate(request, user=self.admin_user)
         response = view(request, pk=self.zone.id)
         assert response.status_code == 200
         assert response.data['manual_override_active'] is True
@@ -83,7 +84,7 @@ class TestManualAlertOverride:
     def test_manual_override_can_be_deactivated(self):
         """Test that manual override can be turned off"""
         from core.views import AlertZoneViewSet
-        from rest_framework.test import APIRequestFactory
+        from rest_framework.test import APIRequestFactory, force_authenticate
         
         factory = APIRequestFactory()
         view = AlertZoneViewSet.as_view({'post': 'manual_override'})
@@ -91,7 +92,7 @@ class TestManualAlertOverride:
         # First activate override
         request = factory.post(f'/api/v1/alertzones/{self.zone.id}/manual_override/', 
                               {'active': True, 'duration_hours': 2}, format='json')
-        request.user = self.authority_user
+        force_authenticate(request, user=self.authority_user)
         response = view(request, pk=self.zone.id)
         assert response.status_code == 200
         assert response.data['manual_override_active'] is True
@@ -99,7 +100,7 @@ class TestManualAlertOverride:
         # Then deactivate it
         request = factory.post(f'/api/v1/alertzones/{self.zone.id}/manual_override/', 
                               {'active': False}, format='json')
-        request.user = self.authority_user
+        force_authenticate(request, user=self.authority_user)
         response = view(request, pk=self.zone.id)
         assert response.status_code == 200
         assert response.data['manual_override_active'] is False
@@ -108,18 +109,15 @@ class TestManualAlertOverride:
     def test_manual_override_with_duration_sets_until_field(self):
         """Test that setting override with duration sets the until field correctly"""
         from core.views import AlertZoneViewSet
-        from rest_framework.test import APIRequestFactory
+        from rest_framework.test import APIRequestFactory, force_authenticate
         
         factory = APIRequestFactory()
-        viewset = AlertZoneViewSet()
+        view = AlertZoneViewSet.as_view({'post': 'manual_override'})
         
         request = factory.post(f'/api/v1/alertzones/{self.zone.id}/manual_override/', 
                               {'active': True, 'duration_hours': 3}, format='json')
-        request.user = self.authority_user
-        viewset.request = request
-        viewset.kwargs = {'pk': self.zone.id}
-        
-        response = viewset.manual_override(request, pk=self.zone.id)
+        force_authenticate(request, user=self.authority_user)
+        response = view(request, pk=self.zone.id)
         assert response.status_code == 200
         assert response.data['manual_override_active'] is True
         assert response.data['manual_override_until'] is not None

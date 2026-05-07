@@ -70,6 +70,7 @@ class AlertZone(models.Model):
         if self.manual_override_active and self.manual_override_until:
             if timezone.now() > self.manual_override_until:
                 self.manual_override_active = False
+                self.manual_override_until = None
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -82,7 +83,9 @@ class FloodReading(models.Model):
     water_level_metres = models.FloatField(help_text="Water level in metres")
     risk_score = models.FloatField(
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
-        help_text="Calculated risk score (0.0-1.0)"
+        help_text="Calculated risk score (0.0-1.0)",
+        null=True,
+        blank=True
     )
     source = models.CharField(max_length=100, help_text="Data source (e.g., sensor, satellite)")
     verified = models.BooleanField(default=False)

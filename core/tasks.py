@@ -120,20 +120,50 @@ def dispatch_alerts(zone_id, risk_score):
     for user in authority_users:
         # Create a Redis key for this user/zone pair
         redis_key = f"alert:{zone.id}:{user.id}"
-        
+
         # Check if we have sent an alert in the last 3 hours
         if redis_client.exists(redis_key):
             logger.info(f"Alert deduplication: Skipping alert for user {user.username} in zone {zone.name}")
             continue
-        
-        # Send SMS via Africa's Talking (mocked for now)
+
+        # Send SMS via Africa's Talking
         try:
-            # In a real implementation, we would call the Africa's Talking API
-            # For now, we'll just log
-            logger.info(f"Sending SMS to user {user.username}: {message}")
+            from django.conf import settings
+            import requests
             
-            # Simulate getting a message ID from the provider
-            provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
+            # Get user's phone number from profile
+            try:
+                phone_number = user.profile.phone_number
+            except UserProfile.DoesNotExist:
+                logger.warning(f"User {user.username} has no profile, skipping SMS")
+                continue
+            
+            if not phone_number:
+                logger.warning(f"User {user.username} has no phone number, skipping SMS")
+                continue
+
+            # Africa's Talking API endpoint
+            sms_endpoint = "https://api.africastalking.com/version1/messaging"
+            
+            payload = {
+                'username': getattr(settings, 'AFRICASTALKING_USERNAME', ''),
+                'to': phone_number,
+                'message': message[:159]  # Ensure within 160 chars
+            }
+            headers = {
+                'apikey': getattr(settings, 'AFRICASTALKING_API_KEY', ''),
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            response = requests.post(sms_endpoint, data=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            # Parse response to get message ID
+            try:
+                result = response.json()
+                provider_message_id = result.get('SMSMessageData', {}).get('Recipients', [{}])[0].get('messageId', '')
+            except Exception:
+                provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
             
             # Set Redis key with 3-hour expiry
             redis_client.setex(redis_key, 3*60*60, 1)  # 3 hours in seconds
@@ -143,15 +173,11 @@ def dispatch_alerts(zone_id, risk_score):
                 alert_zone=zone,
                 message=message,
                 channel='SMS',
-                recipient_count=1,  # This is per user, but we'll log each separately for simplicity
+                recipient_count=1,
                 triggered_at=timezone.now(),
                 delivery_status='sent',
                 provider_message_id=provider_message_id
             )
-            
-            # In a real implementation, we would check delivery status via webhook or API
-            # For now, we'll simulate successful delivery after a short delay
-            # In production, this would be updated by a callback from the SMS provider
             
         except Exception as e:
             logger.error(f"Failed to send alert to user {user.username}: {str(e)}")
