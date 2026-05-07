@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="dashboard">
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>Admin Dashboard</h1>
+            <p>Welcome back, {{ user.username }}!</p>
+            <p class="user-role">Role: System Administrator</p>
+        </div>
+        
+        <div class="dashboard-grid">
+            <!-- Stats Cards -->
+            <div class="stats-card">
+                <h3>Total Users</h3>
+                <p class="stat-number" id="total-users-count">-</p>
+                <p>Registered users</p>
+            </div>
+            
+            <div class="stats-card">
+                <h3>Active Alerts</h3>
+                <p class="stat-number" id="active-alerts-count">-</p>
+                <p>Currently active</p>
+            </div>
+            
+            <div class="stats-card">
+                <h3>Total Reports</h3>
+                <p class="stat-number" id="total-reports-count">-</p>
+                <p>All time</p>
+            </div>
+            
+            <div class="stats-card">
+                <h3>System Health</h3>
+                <p class="stat-number" id="system-health">-</p>
+                <p>Operational status</p>
+            </div>
+        </div>
+        
+        <!-- System Overview -->
+        <div class="dashboard-section">
+            <h2>System Overview</h2>
+            <div class="overview-grid">
+                <div class="overview-item">
+                    <h3>Users by Role</h3>
+                    <div id="users-by-role-chart" class="chart-placeholder">
+                        <!-- Chart will be loaded here -->
+                    </div>
+                </div>
+                <div class="overview-item">
+                    <h3>Alerts by Channel</h3>
+                    <div id="alerts-by-channel-chart" class="chart-placeholder">
+                        <!-- Chart will be loaded here -->
+                    </div>
+                </div>
+                <div class="overview-item">
+                    <h3>Reports Trend (7 days)</h3>
+                    <div id="reports-trend-chart" class="chart-placeholder">
+                        <!-- Chart will be loaded here -->
+                    </div>
+                </div>
+                <div class="overview-item">
+                    <h3>Zone Status</h3>
+                    <div id="zone-status-list" class="zone-status-list">
+                        <!-- Zone status items will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="dashboard-section">
+            <h2>Recent System Activity</h2>
+            <div class="activity-timeline" id="system-activity-timeline">
+                <!-- Activity items will be loaded via JavaScript -->
+                <div class="loading-indicator">Loading system activity...</div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="dashboard-section">
+            <h2>Quick Actions</h2>
+            <div class="quick-actions">
+                <a href="/admin/" class="action-card">
+                    <div class="action-icon">⚙️</div>
+                    <h3>Django Admin</h3>
+                    <p>Access full admin interface</p>
+                </a>
+                <a href="{% url 'map_view' %}" class="action-card">
+                    <div class="action-icon">🗺️</div>
+                    <h3>View Flood Map</h3>
+                    <p>See current flood zones and reports</p>
+                </a>
+                <a href="{% url 'alert_history' %}" class="action-card">
+                    <div class="action-icon">🚨</div>
+                    <h3>Alert History</h3>
+                    <p>View all past alerts</p>
+                </a>
+                <a href="{% url 'report_list' %}" class="action-card">
+                    <div class="action-icon">📋</div>
+                    <h3>All Reports</h3>
+                    <p>Browse all incident reports</p>
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/admin.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initAdminDashboard();
+});
+</script>
+{% endblock %}

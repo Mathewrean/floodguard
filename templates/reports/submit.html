@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="report-page">
+    <div class="container">
+        <h1>Submit Flood Incident Report</h1>
+        <p class="report-description">Help your community by reporting flood conditions. Include photos and location for faster verification.</p>
+        
+        {% if success %}
+            <div class="alert alert-success">
+                <h3>Report Submitted Successfully!</h3>
+                <p>Your report has been received and is awaiting review. Report ID: {{ report_id }}</p>
+                <a href="{% url 'report_list' %}" class="btn-secondary">View All Reports</a>
+            </div>
+        {% elif error %}
+            <div class="alert alert-error">
+                <h3>Error Submitting Report</h3>
+                <p>{{ error }}</p>
+            </div>
+        {% else %}
+            <form id="report-form" method="post" enctype="multipart/form-data" class="report-form">
+                {% csrf_token %}
+                
+                <div class="form-section">
+                    <h2>Incident Details</h2>
+                    
+                    <div class="form-group">
+                        <label for="description">What are you seeing?</label>
+                        <textarea id="description" name="description" rows="4" placeholder="Describe the flood conditions (water depth, affected areas, impacts, etc.)" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="severity">Severity Level:</label>
+                        <select id="severity" name="severity" required>
+                            <option value="">Select severity level</option>
+                            <option value="1">Low - Minor pooling, no impact</option>
+                            <option value="2">Medium-Low - Some flooding, minimal impact</option>
+                            <option value="3">Medium - Noticeable flooding, some disruption</option>
+                            <option value="4">High - Significant flooding, major disruption</option>
+                            <option value="5">Critical - Severe flooding, dangerous conditions</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="photo">Upload Photo (Optional):</label>
+                        <input type="file" id="photo" name="photo" accept="image/*">
+                        <p class="form-help">Upload a photo showing the flood conditions (max 5MB)</p>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Location</h2>
+                    <p class="location-help">We'll try to detect your location automatically. You can adjust if needed.</p>
+                    
+                    <div id="location-status" class="location-status">
+                        <span id="location-icon">📍</span>
+                        <span id="location-text">Detecting your location...</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="latitude">Latitude:</label>
+                        <input type="number" id="latitude" name="latitude" step="0.000001" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="longitude">Longitude:</label>
+                        <input type="number" id="longitude" name="longitude" step="0.000001" readonly>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="accuracy">Accuracy:</label>
+                        <input type="number" id="accuracy" name="accuracy" step="0.01" readonly>
+                        <span id="accuracy-value">-- meters</span>
+                    </div>
+                    
+                    <button type="button" id="use-current-location" class="btn-secondary">
+                        Use Current Location
+                    </button>
+                </div>
+                
+                <div class="form-section">
+                    <h2>Manual Location Override (Optional)</h2>
+                    <p class="form-help">If automatic detection fails, you can manually enter coordinates or use the map below.</p>
+                    
+                    <div id="manual-map" class="manual-map" style="height: 200px;">
+                        <!-- Map will be initialized here -->
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="manual-latitude">Latitude:</label>
+                        <input type="number" id="manual-latitude" name="manual_latitude" step="0.000001">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="manual-longitude">Longitude:</label>
+                        <input type="number" id="manual-longitude" name="manual_longitude" step="0.000001">
+                    </div>
+                </div>
+                
+                <button type="submit" id="submit-btn" class="btn-primary btn-block">
+                    Submit Report
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/report.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initReportForm();
+});
+</script>
+{% endblock %}

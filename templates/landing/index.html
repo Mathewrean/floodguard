@@ -1,0 +1,202 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="hero">
+    <div class="container hero-content">
+        <h1>FloodGuard</h1>
+        <p>Real-time flood monitoring and early warning system for communities</p>
+        <div class="hero-buttons">
+            <a href="{% url 'register' %}" class="btn-primary">Join as Citizen</a>
+            <a href="{% url 'login' %}" class="btn-secondary">Login</a>
+        </div>
+        <div class="live-status-strip">
+            <div class="status-item">
+                <span class="status-label">Active Monitoring Zones:</span>
+                <span class="status-value">{{ zones_count }}</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">System Status:</span>
+                <span class="status-value status-operational">Operational</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Last Updated:</span>
+                <span class="status-value" id="last-updated">Just now</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="features">
+    <div class="container">
+        <h2>How FloodGuard Works</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🌧️</div>
+                <h3>Real-time Monitoring</h3>
+                <p>Continuous flood risk assessment using satellite data, weather feeds, and ground sensors.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3>Instant Alerts</h3>
+                <p>Multi-channel notifications (SMS, email, app push) when flood risk exceeds thresholds.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <h3>Community Reporting</h3>
+                <p>Citizens can report flood incidents with photos and location via mobile app.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🗺️</div>
+                <h3>Interactive Maps</h3>
+                <p>Visualize flood zones, risk levels, and incident reports on interactive maps.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="live-map-preview">
+    <div class="container">
+        <h2>Live Flood Map</h2>
+        <div id="map-preview" class="map-preview">
+            <!-- Leaflet map will be initialized here -->
+        </div>
+        <div class="map-controls">
+            <button id="zoom-in" class="map-control-btn">+</button>
+            <button id="zoom-out" class="map-control-btn">−</button>
+            <button id="locate-me" class="map-control-btn">📍</button>
+        </div>
+        <a href="{% url 'map_view' %}" class="view-full-map">View Full Screen Map →</a>
+    </div>
+</section>
+
+<section class="alerts-demo">
+    <div class="container">
+        <h2>Recent Alerts</h2>
+        <div id="alerts-demo" class="alerts-feed">
+            <!-- Alerts will be populated via JavaScript -->
+            <div class="alert-item">
+                <div class="alert-header">
+                    <span class="alert-type">Flood Warning</span>
+                    <span class="alert-time">2 minutes ago</span>
+                </div>
+                <div class="alert-message">
+                    Water levels rising rapidly in Northern Zone. Evacuation advised for low-lying areas.
+                </div>
+                <div class="alert-footer">
+                    <span class="alert-zone">Northern Flood Zone</span>
+                    <span class="alert-channel">SMS • Email • App Push</span>
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'alert_history' %}" class="view-all-alerts">View All Alert History →</a>
+    </div>
+</section>
+
+<section class="citizen-report">
+    <div class="container">
+        <h2>Report a Flood Incident</h2>
+        <p>Help keep your community safe by reporting flood conditions in your area.</p>
+        <form id="quick-report-form" class="report-form">
+            <div class="form-group">
+                <label for="report-description">What are you seeing?</label>
+                <textarea id="report-description" placeholder="Describe the flood conditions (water level, affected areas, etc.)" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="report-severity">Severity Level:</label>
+                <select id="report-severity">
+                    <option value="1">Low</option>
+                    <option value="2">Medium-Low</option>
+                    <option value="3" selected>Medium</option>
+                    <option value="4">High</option>
+                    <option value="5">Critical</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="report-photo">Upload Photo (Optional):</label>
+                <input type="file" id="report-photo" accept="image/*">
+            </div>
+            <button type="submit" class="btn-primary btn-block">Submit Report</button>
+        </form>
+        <div id="report-status"></div>
+        <p class="report-note">Reports are reviewed by authorities and may trigger alerts if verified.</p>
+    </div>
+</section>
+
+<section class="about-us">
+    <div container class="container">
+        <h2>About FloodGuard</h2>
+        <div class="about-content">
+            <div class="about-text">
+                <p>FloodGuard is a community-powered flood monitoring and early warning system designed to save lives and reduce property damage through timely alerts and coordinated response.</p>
+                <p>Our system combines automated sensor data, weather forecasts, and citizen reports to provide accurate flood risk assessments for communities worldwide.</p>
+            </div>
+            <div class="about-stats">
+                <div class="stat-item">
+                    <h3>100+</h3>
+                    <p>Communities Protected</p>
+                </div>
+                <div class="stat-item">
+                    <h3>50K+</h3>
+                    <p>Active Users</p>
+                </div>
+                <div class="stat-item">
+                    <h3>24/7</h3>
+                    <p>Monitoring</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="call-to-action">
+    <div class="container">
+        <h2>Join the FloodGuard Network</h2>
+        <p>Whether you're a concerned citizen, emergency responder, or community leader, you can help make your community more resilient to floods.</p>
+        <div class="cta-buttons">
+            <a href="{% url 'register' %}" class="btn-primary">Sign Up as Citizen</a>
+            <a href="{% url 'login' %}" class="btn-secondary">Login to Dashboard</a>
+            <a href="{% url 'map_view' %}" class="btn-outline">Explore Live Map</a>
+        </div>
+    </div>
+</section>
+
+<section class="partners">
+    <div class="container">
+        <h2>Trusted by</h2>
+        <div class="partners-logos">
+            <div class="partner-logo">🌍</div>
+            <div class="partner-logo">🚨</div>
+            <div class="partner-logo">🏥</div>
+            <div class="partner-logo">🏫</div>
+            <div class="partner-logo">👨‍🌾</div>
+            <div class="partner-logo">🚒</div>
+        </div>
+        <p>Working with meteorological agencies, emergency services, NGOs, and community organizations.</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/landing.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize map preview
+    initMapPreview();
+    
+    // Handle quick report form
+    const reportForm = document.getElementById('quick-report-form');
+    if (reportForm) {
+        reportForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitQuickReport();
+        });
+    }
+    
+    // Update last updated timestamp
+    setInterval(function() {
+        const now = new Date();
+        document.getElementById('last-updated').textContent = now.toLocaleTimeString();
+    }, 1000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="dashboard">
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>Citizen Dashboard</h1>
+            <p>Welcome back, {{ user.username }}!</p>
+        </div>
+        
+        <div class="dashboard-grid">
+            <!-- Stats Cards -->
+            <div class="stats-card">
+                <h3>My Reports</h3>
+                <p class="stat-number" id="my-reports-count">-</p>
+                <p>Reports submitted</p>
+            </div>
+            
+            <div class="stats-card">
+                <h3>Active Alerts</h3>
+                <p class="stat-number" id="active-alerts-count">-</p>
+                <p>In your area</p>
+            </div>
+            
+            <div class="stats-card">
+                <h3>Verification Status</h3>
+                <p class="stat-number" id="verified-reports-count">-</p>
+                <p>Verified reports</p>
+            </div>
+            
+            <div class="stats-card">
+                <h3>Safety Score</h3>
+                <p class="stat-number" id="safety-score">-</p>
+                <p>Out of 100</p>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div class="dashboard-section">
+            <h2>Recent Activity</h2>
+            <div class="activity-timeline" id="activity-timeline">
+                <!-- Activity items will be loaded via JavaScript -->
+                <div class="loading-indicator">Loading your recent activity...</div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="dashboard-section">
+            <h2>Quick Actions</h2>
+            <div class="quick-actions">
+                <a href="{% url 'report_submit' %}" class="action-card">
+                    <div class="action-icon">📝</div>
+                    <h3>Report Incident</h3>
+                    <p>Submit a flood report</p>
+                </a>
+                <a href="{% url 'map_view' %}" class="action-card">
+                    <div class="action-icon">🗺️</div>
+                    <h3>View Flood Map</h3>
+                    <p>See current flood zones</p>
+                </a>
+                <a href="{% url 'alert_history' %}" class="action-card">
+                    <div class="action-icon">🚨</div>
+                    <h3>Check Alerts</h3>
+                    <p>See recent flood alerts</p>
+                </a>
+                <a href="{% url 'report_list' %}" class="action-card">
+                    <div class="action-icon">📋</div>
+                    <h3>My Reports</h3>
+                    <p>View your submission history</p>
+                </a>
+            </div>
+        </div>
+        
+        <!-- Nearby Reports -->
+        <div class="dashboard-section">
+            <h2>Nearby Reports</h2>
+            <div class="reports-map" id="reports-map" style="height: 300px;">
+                <!-- Map will be initialized here -->
+            </div>
+            <a href="{% url 'map_view' %}" class="view-all">View All Reports on Map →</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initCitizenDashboard();
+});
+</script>
+{% endblock %}

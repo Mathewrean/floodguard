@@ -1,12 +1,12 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import Group
+from django.contrib.auth.models import User, Group
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
-from .models import AlertZone, IncidentReport, AlertLog
+from .models import AlertZone, IncidentReport, AlertLog, UserProfile
 from django.contrib.gis.geos import Point
 
 def landing_index(request):
