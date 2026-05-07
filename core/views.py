@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
+from django.utils import timezone
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog
 from .serializers import AlertZoneSerializer, FloodReadingSerializer, IncidentReportSerializer, AlertLogSerializer
 from .permissions import IsAuthority, IsAdminUser
@@ -13,6 +14,35 @@ class AlertZoneViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertZone.objects.all()
     serializer_class = AlertZoneSerializer
     permission_classes = [AllowAny]  # Public endpoint
+
+    @action(detail=True, methods=['post'])
+    def manual_override(self, request, pk=None):
+        """
+        Set manual alert override for a zone (authority/admin only).
+        Expected data: {'active': boolean, 'duration_hours': integer (optional)}
+        """
+        # Only allow authority or admin users to set manual overrides
+        if not (request.user.is_superuser or 
+                hasattr(request.user, 'profile') and 
+                request.user.profile.role in ['authority', 'admin']):
+            return Response({'error': 'Permission denied'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        alert_zone = self.get_object()
+        active = request.data.get('active', False)
+        duration_hours = request.data.get('duration_hours')
+        
+        alert_zone.manual_override_active = active
+        
+        if active and duration_hours:
+            alert_zone.manual_override_until = timezone.now() + timezone.timedelta(hours=int(duration_hours))
+        elif not active:
+            alert_zone.manual_override_until = None
+            
+        alert_zone.save()
+        
+        serializer = self.get_serializer(alert_zone)
+        return Response(serializer.data)
 
 
 class FloodReadingViewSet(viewsets.ReadOnlyModelViewSet):

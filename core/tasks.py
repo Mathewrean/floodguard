@@ -100,6 +100,11 @@ def dispatch_alerts(zone_id, risk_score):
         logger.error(f"AlertZone with id {zone_id} does not exist.")
         return
 
+    # Check for manual alert override - if active, do not dispatch alerts
+    if zone.is_override_active:
+        logger.info(f"Alert dispatch skipped for zone {zone.name} due to active manual override")
+        return
+
     # Build alert message
     from core.alerts.messages import build_alert_message
     message, severity_label = build_alert_message(zone, risk_score)

@@ -1,6 +1,7 @@
 from django.contrib.gis.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 
 
 class AlertZone(models.Model):
@@ -10,11 +11,33 @@ class AlertZone(models.Model):
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
         help_text="Risk threshold (0.0-1.0) for triggering alerts"
     )
+    # Manual alert override fields
+    manual_override_active = models.BooleanField(
+        default=False,
+        help_text="When active, suppresses automatic alert triggering for this zone"
+    )
+    manual_override_until = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Override is active until this time (if set)"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_override_active(self):
+        """Check if manual override is currently active"""
+        if not self.manual_override_active:
+            return False
+        if self.manual_override_until and timezone.now() > self.manual_override_until:
+            # Override has expired, deactivate it
+            self.manual_override_active = False
+            self.manual_override_until = None
+            self.save(update_fields=['manual_override_active', 'manual_override_until'])
+            return False
+        return True
 
     class Meta:
         verbose_name_plural = "Alert Zones"
