@@ -1,133 +1,236 @@
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.contrib.auth.models import User
-from django.utils import timezone
-from .models import AlertZone, FloodReading, IncidentReport, AlertLog
-from .serializers import AlertZoneSerializer, FloodReadingSerializer, IncidentReportSerializer, AlertLogSerializer
-from .permissions import IsAuthority, IsAdminUser
-from .analytics.scoring import calculate_risk_score
+from django.shortcuts import render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import Group
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+import json
+from .models import AlertZone, IncidentReport, AlertLog
+from django.contrib.gis.geos import Point
 
+def landing_index(request):
+    """Public landing page"""
+    # Get active zones count for the hero section
+    zones_count = AlertZone.objects.count()
+    context = {
+        'zones_count': zones_count,
+    }
+    return render(request, 'landing/index.html', context)
 
-class AlertZoneViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = AlertZone.objects.all()
-    serializer_class = AlertZoneSerializer
-    permission_classes = [AllowAny]  # Public endpoint
+def about(request):
+    """About page"""
+    return render(request, 'landing/about.html')
 
-    @action(detail=True, methods=['post'])
-    def manual_override(self, request, pk=None):
-        """
-        Set manual alert override for a zone (authority/admin only).
-        Expected data: {'active': boolean, 'duration_hours': integer (optional)}
-        """
-        # Only allow authority or admin users to set manual overrides
-        if not (request.user.is_superuser or 
-                hasattr(request.user, 'profile') and 
-                request.user.profile.role in ['authority', 'admin']):
-            return Response({'error': 'Permission denied'}, 
-                          status=status.HTTP_403_FORBIDDEN)
-        
-        alert_zone = self.get_object()
-        active = request.data.get('active', False)
-        duration_hours = request.data.get('duration_hours')
-        
-        alert_zone.manual_override_active = active
-        
-        if active and duration_hours:
-            alert_zone.manual_override_until = timezone.now() + timezone.timedelta(hours=int(duration_hours))
-        elif not active:
-            alert_zone.manual_override_until = None
-            
-        alert_zone.save()
-        
-        serializer = self.get_serializer(alert_zone)
-        return Response(serializer.data)
-
-
-class FloodReadingViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = FloodReading.objects.all().order_by('-timestamp')[:100]  # Latest 100
-    serializer_class = FloodReadingSerializer
-    permission_classes = [IsAuthority]  # Authority or admin only
-
-    @action(detail=False, methods=['get'])
-    def predict(self, request):
-        """
-        Predict risk score for a given zone and time horizon.
-        """
-        zone_id = request.query_params.get('zone_id')
-        hours_ahead = request.query_params.get('hours_ahead', 8)
-        
-        if not zone_id:
-            return Response({'error': 'zone_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            # Calculate risk score using our scoring function
-            risk_score = calculate_risk_score(int(zone_id))
-            return Response({'risk_score': risk_score})
-        except ValueError:
-            return Response({'error': 'Invalid zone_id'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class IncidentReportViewSet(viewsets.ModelViewSet):
-    queryset = IncidentReport.objects.all()
-    serializer_class = IncidentReportSerializer
-
-    def get_permissions(self):
-        if self.action == 'create':
-            permission_classes = [AllowAny]  # Public submission
-        elif self.action == 'list':
-            permission_classes = [IsAuthority]  # Authority or admin to list all reports
-        elif self.action == 'verify':
-            permission_classes = [IsAuthority]  # Authority or admin to verify
+def login_view(request):
+    """Login view"""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            # Redirect based on user role
+            if user.is_superuser:
+                return redirect('admin_dashboard')
+            elif user.groups.filter(name='EmergencyTeam').exists():
+                return redirect('authority_dashboard')
+            else:
+                return redirect('citizen_dashboard')
         else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
+            return render(request, 'auth/login.html', {'error': 'Invalid credentials'})
+    return render(request, 'auth/login.html')
 
-    @action(detail=True, methods=['patch'])
-    def verify(self, request, pk=None):
-        # Placeholder for verification - to be implemented in Phase 4
-        report = self.get_object()
-        status_val = request.data.get('status')
-        if status_val not in dict(IncidentReport.STATUS_CHOICES):
-            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
-        report.status = status_val
-        report.reviewed_by = request.user
-        report.save()
-        serializer = self.get_serializer(report)
-        return Response(serializer.data)
-
-
-class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = AlertLog.objects.all()
-    serializer_class = AlertLogSerializer
-    permission_classes = [IsAuthority]
-
-    @action(detail=False, methods=['post'])
-    def send(self, request):
-        """
-        Manually trigger alert dispatch for testing (admin only).
-        """
-        # Only allow admin users to manually trigger alerts
-        if not request.user.is_superuser:
-            return Response({'error': 'Only admins can manually trigger alerts'}, 
-                          status=status.HTTP_403_FORBIDDEN)
+def register_view(request):
+    """Registration view"""
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password1 = request.POST.get('password1')
+        password2 = request.POST.get('password2')
         
-        zone_id = request.data.get('zone_id')
-        risk_score = request.data.get('risk_score', 0.8)
+        if password1 != password2:
+            return render(request, 'auth/register.html', {'error': 'Passwords do not match'})
         
-        if not zone_id:
-            return Response({'error': 'zone_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=username).exists():
+            return render(request, 'auth/register.html', {'error': 'Username already exists'})
         
+        if User.objects.filter(email=email).exists():
+            return render(request, 'auth/register.html', {'error': 'Email already exists'})
+        
+        user = User.objects.create_user(username=username, email=email, password=password1)
+        # Add default citizen profile
+        from .models import UserProfile
+        UserProfile.objects.create(user=user, role='citizen')
+        
+        login(request, user)
+        return redirect('citizen_dashboard')
+    
+    return render(request, 'auth/register.html')
+
+def logout_view(request):
+    """Logout view"""
+    logout(request)
+    return redirect('landing_index')
+
+def dashboard_redirect(request):
+    """Redirect to appropriate dashboard based on user role"""
+    if not request.user.is_authenticated:
+        return redirect('login')
+    
+    if request.user.is_superuser:
+        return redirect('admin_dashboard')
+    elif request.user.groups.filter(name='EmergencyTeam').exists():
+        return redirect('authority_dashboard')
+    else:
+        return redirect('citizen_dashboard')
+
+@login_required
+def citizen_dashboard(request):
+    """Citizen dashboard"""
+    # Get user's location and zone info
+    user_profile = request.user.profile
+    context = {
+        'user': request.user,
+    }
+    return render(request, 'dashboard/public.html', context)
+
+@login_required
+def authority_dashboard(request):
+    """Authority dashboard - requires EmergencyTeam group"""
+    if not request.user.groups.filter(name='EmergencyTeam').exists():
+        return redirect('login')
+    
+    context = {
+        'user': request.user,
+    }
+    return render(request, 'dashboard/authority.html', context)
+
+@login_required
+def admin_dashboard(request):
+    """Admin dashboard - superuser only"""
+    if not request.user.is_superuser:
+        return redirect('login')
+    
+    context = {
+        'user': request.user,
+    }
+    return render(request, 'dashboard/admin_panel.html', context)
+
+def report_submit(request):
+    """Handle citizen report submission"""
+    if request.method == 'POST':
         try:
-            # Trigger the Celery task
-            from core.tasks import dispatch_alerts
-            dispatch_alerts.delay(int(zone_id), float(risk_score))
-            return Response({'status': 'Alert dispatch triggered'})
-        except ValueError:
-            return Response({'error': 'Invalid zone_id or risk_score'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+            # Extract form data
+            latitude = float(request.POST.get('latitude', 0))
+            longitude = float(request.POST.get('longitude', 0))
+            severity = int(request.POST.get('severity', 1))
+            description = request.POST.get('description', '')
+            
+            # Create point
+            location = Point(longitude, latitude, srid=4326)
+            
+            # Create report
+            report = IncidentReport.objects.create(
+                location=location,
+                severity=severity,
+                description=description,
+                submitted_by=request.user if request.user.is_authenticated else None
+            )
+            
+            # Handle photo upload if present
+            if 'photo' in request.FILES:
+                report.photo = request.FILES['photo']
+                report.save()
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': True, 'report_id': report.id})
+            else:
+                return render(request, 'reports/submit.html', {
+                    'success': True,
+                    'report_id': report.id
+                })
+                
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': str(e)})
+            else:
+                return render(request, 'reports/submit.html', {
+                    'error': str(e)
+                })
+    
+    # GET request - show form
+    return render(request, 'reports/submit.html')
+
+def report_list(request):
+    """List all reports"""
+    reports = IncidentReport.objects.all().order_by('-created_at')
+    context = {
+        'reports': reports,
+    }
+    return render(request, 'reports/list.html', context)
+
+def alert_history(request):
+    """Alert history view"""
+    alerts = AlertLog.objects.all().order_by('-triggered_at')
+    context = {
+        'alerts': alerts,
+    }
+    return render(request, 'alerts/history.html', context)
+
+def map_view(request):
+    """Full screen map view"""
+    zones = AlertZone.objects.all()
+    context = {
+        'zones': zones,
+    }
+    return render(request, 'map.html', context)
+
+# API endpoints for dashboard data
+@require_http_methods(["GET"])
+def api_zone_status(request):
+    """API endpoint for zone status data"""
+    zones = AlertZone.objects.all()
+    zones_data = []
+    for zone in zones:
+        zones_data.append({
+            'id': zone.id,
+            'name': zone.name,
+            'risk_threshold': zone.risk_threshold,
+            'manual_override_active': zone.manual_override_active,
+        })
+    return JsonResponse({'zones': zones_data})
+
+@require_http_methods(["GET"])
+def api_recent_alerts(request):
+    """API endpoint for recent alerts"""
+    alerts = AlertLog.objects.select_related('alert_zone').order_by('-triggered_at')[:10]
+    alerts_data = []
+    for alert in alerts:
+        alerts_data.append({
+            'id': alert.id,
+            'message': alert.message,
+            'zone_name': alert.alert_zone.name,
+            'channel': alert.channel,
+            'triggered_at': alert.triggered_at.isoformat(),
+            'delivery_status': alert.delivery_status,
+        })
+    return JsonResponse({'alerts': alerts_data})
+
+@require_http_methods(["GET"])
+def api_dashboard_stats(request):
+    """API endpoint for dashboard statistics"""
+    from django.utils import timezone
+    from datetime import timedelta
+    
+    now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    
+    stats = {
+        'total_zones': AlertZone.objects.count(),
+        'alerts_today': AlertLog.objects.filter(triggered_at__gte=today_start).count(),
+        'reports_this_week': IncidentReport.objects.filter(created_at__gte=week_start).count(),
+        'high_risk_zones': AlertZone.objects.filter(risk_threshold__gte=0.7).count(),
+    }
+    return JsonResponse(stats)

@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet
+from . import views  # Import our new views
 
 router = DefaultRouter()
 router.register(r'zones', AlertZoneViewSet)
@@ -9,5 +10,21 @@ router.register(r'reports', IncidentReportViewSet)
 router.register(r'alerts', AlertLogViewSet, basename='alert')
 
 urlpatterns = [
+    # Landing page and user interface routes
+    path('', views.landing_index, name='landing_index'),
+    path('about/', views.about, name='about'),
+    path('login/', views.login_view, name='login'),
+    path('register/', views.register_view, name='register'),
+    path('logout/', views.logout_view, name='logout'),
+    path('dashboard/', views.dashboard_redirect, name='dashboard_redirect'),
+    path('dashboard/citizen/', views.citizen_dashboard, name='citizen_dashboard'),
+    path('dashboard/authority/', views.authority_dashboard, name='authority_dashboard'),
+    path('dashboard/admin/', views.admin_dashboard, name='admin_dashboard'),
+    path('reports/submit/', views.report_submit, name='report_submit'),
+    path('reports/', views.report_list, name='report_list'),
+    path('alerts/history/', views.alert_history, name='alert_history'),
+    path('map/', views.map_view, name='map_view'),
+    
+    # API routes
     path('api/v1/', include(router.urls)),
 ]

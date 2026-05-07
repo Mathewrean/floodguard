@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FloodGuard{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet Draw for zone creation -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">FloodGuard</a>
+            <div class="nav-links" id="navLinks">
+                <ul>
+                    <li><a href="/" {% if request.path == '/' %}class="active"{% endif %}>Home</a></li>
+                    <li><a href="/map/" {% if request.path|slice:'1:5' == '/map' %}class="active"{% endif %}>Live Map</a></li>
+                    <li><a href="/reports/submit/" {% if request.path|slice:'1:15' == '/reports/submit' %}class="active"{% endif %}>Report a Flood</a></li>
+                    <li><a href="/about/" {% if request.path == '/about/' %}class="active"{% endif %}>About</a></li>
+                    {% if user.is_authenticated %}
+                        {% if user.is_superuser %}
+                            <li><a href="/dashboard/admin/" {% if request.path|slice:'1:14' == '/dashboard/admin' %}class="active"{% endif %}>Admin Dashboard</a></li>
+                            <li><a href="/admin/" target="_blank">Django Admin</a></li>
+                        {% elif user.groups.filter(name='EmergencyTeam').exists %}
+                            <li><a href="/dashboard/authority/" {% if request.path|slice:'1:19' == '/dashboard/authority' %}class="active"{% endif %}>Authority Dashboard</a></li>
+                        {% else %}
+                            <li><a href="/dashboard/citizen/" {% if request.path|slice:'1:17' == '/dashboard/citizen' %}class="active"{% endif %}>My Dashboard</a></li>
+                        {% endif %}
+                        <li><a href="/logout/">Logout</a></li>
+                    {% else %}
+                        <li><a href="/login/">Login</a></li>
+                        <li><a href="/register/">Register</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+            <div class="nav-toggle" id="navToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-links">
+                <a href="/">Home</a>
+                <a href="/map/">Map</a>
+                <a href="/reports/submit/">Report</a>
+                <a href="/about/">About</a>
+                <a href="/admin/">Admin Login</a>
+                <a href="https://kilo.ai/docs" target="_blank">API Docs</a>
+            </div>
+            <div class="footer-emergency">
+                <strong>Emergency Contacts:</strong>
+                Kenya Red Cross: 0722 202 222 |
+                Nairobi County Emergency: 020 222 2222
+            </div>
+            <div class="footer-copyright">
+                &copy; {{ now|date:"Y" }} FloodGuard - protecting communities through intelligence
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Draw -->
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="{% static 'js/map.js' %}"></script>
+    <script src="{% static 'js/reports.js' %}"></script>
+    <script src="{% static 'js/alerts.js' %}"></script>
+    <script src="{% static 'js/dashboard.js' %}"></script>
+    {% block extra_js %}
+    {% endblock %}
+</body>
+</html>
