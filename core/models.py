@@ -96,3 +96,23 @@ class AlertLog(models.Model):
     class Meta:
         ordering = ['-triggered_at']
         verbose_name_plural = "Alert Logs"
+
+
+class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ('citizen', 'Citizen'),
+        ('authority', 'Authority'),
+        ('admin', 'Admin'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='citizen',
+        help_text="User role in the system"
+    )
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.get_role_display()}"

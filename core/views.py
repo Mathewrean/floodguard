@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog
 from .serializers import AlertZoneSerializer, FloodReadingSerializer, IncidentReportSerializer, AlertLogSerializer
+from .permissions import IsAuthority, IsAdminUser
+from .analytics.scoring import calculate_risk_score
 
 
 class AlertZoneViewSet(viewsets.ReadOnlyModelViewSet):
@@ -16,7 +18,7 @@ class AlertZoneViewSet(viewsets.ReadOnlyModelViewSet):
 class FloodReadingViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = FloodReading.objects.all().order_by('-timestamp')[:100]  # Latest 100
     serializer_class = FloodReadingSerializer
-    permission_classes = [IsAuthenticated]  # Token-authenticated
+    permission_classes = [IsAuthority]  # Authority or admin only
 
 
 class IncidentReportViewSet(viewsets.ModelViewSet):
@@ -27,10 +29,9 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             permission_classes = [AllowAny]  # Public submission
         elif self.action == 'list':
-            permission_classes = [IsAuthenticated]  # Authenticated to list
+            permission_classes = [IsAuthority]  # Authority or admin to list all reports
         elif self.action == 'verify':
-            # Will be handled by a custom permission in Phase 4
-            permission_classes = [IsAuthenticated]  # Placeholder
+            permission_classes = [IsAuthority]  # Authority or admin to verify
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
@@ -52,4 +53,4 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertLog.objects.all()
     serializer_class = AlertLogSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthority]
