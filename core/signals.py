@@ -22,6 +22,10 @@ def flood_reading_updated(sender, instance, **kwargs):
     except AlertZone.DoesNotExist:
         return
 
+    # Only proceed if we have a risk score
+    if instance.risk_score is None:
+        return
+
     # Build message for severity
     message, severity = build_alert_message(zone, instance.risk_score)
 

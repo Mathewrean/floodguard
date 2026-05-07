@@ -1,8 +1,8 @@
 import pytest
 from django.utils import timezone
 from unittest.mock import patch
-from core.models import AlertLog, AlertZone
-from tests.factories import AlertZoneFactory
+from core.models import AlertLog, AlertZone, UserProfile
+from tests.factories import AlertZoneFactory, AuthorityUserFactory
 
 
 @pytest.mark.django_db
@@ -78,6 +78,15 @@ class TestSMSDeliveryReceiptTracking:
         """Test that dispatch_alerts creates AlertLog with tracking fields"""
         from core.tasks import dispatch_alerts
         
+        # Ensure zone threshold is low enough
+        self.zone.risk_threshold = 0.5
+        self.zone.save()
+        
+        # Create authority user with phone number for dispatch
+        authority = AuthorityUserFactory()
+        authority.profile.phone_number = '+254712345678'
+        authority.profile.save()
+        
         # Mock the build_alert_message function to avoid actual alert building
         with patch('core.alerts.messages.build_alert_message') as mock_build:
             mock_build.return_value = ("Test alert message", "high")
@@ -98,19 +107,26 @@ class TestSMSDeliveryReceiptTracking:
     def test_dispatch_alerts_handles_failed_delivery(self):
         """Test that dispatch_alerts handles failed delivery correctly"""
         from core.tasks import dispatch_alerts
+        import requests
         
-        # Mock the build_alert_message function
-        with patch('core.alerts.messages.build_alert_message') as mock_build:
-            mock_build.return_value = ("Test alert message", "high")
+        # Ensure zone has low enough threshold to trigger
+        self.zone.risk_threshold = 0.5
+        self.zone.save()
+        
+        # Create authority user with phone number for dispatch
+        authority = AuthorityUserFactory()
+        authority.profile.phone_number = '+254712345678'
+        authority.profile.save()
+        
+        # Mock requests.post to raise an exception (simulate SMS failure)
+        with patch('requests.post') as mock_post:
+            mock_post.side_effect = Exception("SMS service down")
             
-            # Mock an exception during SMS sending to simulate failure
-            with patch('core.tasks.logger.info') as mock_info:
-                mock_info.side_effect = Exception("Simulated SMS failure")
-                
-                # Call dispatch_alerts
-                dispatch_alerts(self.zone.id, 0.8)
-                
-                # Check that an AlertLog was created with failed status
-                alert_log = AlertLog.objects.first()
-                assert alert_log is not None
-                assert alert_log.delivery_status == 'failed'
+            # Call dispatch_alerts
+            dispatch_alerts(self.zone.id, 0.8)
+            
+            # Check that an AlertLog was created with failed status
+            alert_log = AlertLog.objects.first()
+            assert alert_log is not None
+            assert alert_log.delivery_status == 'failed'
+            assert alert_log.message.startswith("Test alert message")

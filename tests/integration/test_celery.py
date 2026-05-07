@@ -34,6 +34,18 @@ class TestRunRiskScoringTask:
         mock_model = mocker.MagicMock()
         mock_model.predict.return_value = [0.8]
         mocker.patch('joblib.load', return_value=mock_model)
+        # Mock Open-Meteo API
+        mock_requests = mocker.patch('requests.get')
+        class MockResp:
+            def raise_for_status(self): pass
+            def json(self):
+                return {
+                    'hourly': {
+                        'time': ['2023-01-01T12:00'],
+                        'river_discharge': [5.0]
+                    }
+                }
+        mock_requests.return_value = MockResp()
         # Create a zone that contains the reading location
         from django.contrib.gis.geos import Polygon
         zone = AlertZoneFactory(
@@ -53,7 +65,12 @@ class TestRunRiskScoringTask:
 class TestDispatchAlertsTask:
     def test_writes_alert_log(self, mocker):
         # Mock SMS API
-        mocker.patch('requests.post')
+        mock_post = mocker.patch('requests.post')
+        class MockResp:
+            def raise_for_status(self): pass
+            def json(self):
+                return {'SMSMessageData': {'Recipients': [{'messageId': 'msg_123'}]}}
+        mock_post.return_value = MockResp()
         from django.contrib.gis.geos import Polygon
         zone = AlertZoneFactory(
             risk_threshold=0.5,
@@ -61,7 +78,9 @@ class TestDispatchAlertsTask:
         )
         # Authority user needed for dispatch; ensure profile has phone
         authority = AuthorityUserFactory()
-        UserProfile.objects.filter(user=authority).update(phone_number='+254712345678')
+        profile, _ = UserProfile.objects.get_or_create(user=authority)
+        profile.phone_number = '+254712345678'
+        profile.save()
         # Manually call dispatch_alerts
         dispatch_alerts(zone.id, 0.8)
         assert AlertLog.objects.filter(alert_zone=zone).exists()
