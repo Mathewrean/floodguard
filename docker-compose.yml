@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-floodguard}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DEBUG=${DEBUG:-True}
+
+  celery:
+    build: .
+    command: celery -A floodguard worker -l info
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DEBUG=${DEBUG:-True}
+
+  celery-beat:
+    build: .
+    command: celery -A floodguard beat -l info
+    volumes:
+      - .:/code
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DEBUG=${DEBUG:-True}
+
+volumes:
+  postgres_data:
+  redis_data:
