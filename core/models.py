@@ -2,6 +2,8 @@ from django.contrib.gis.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from django.contrib.gis.geos import Polygon
 
 
 class AlertZone(models.Model):
@@ -38,6 +40,29 @@ class AlertZone(models.Model):
             self.save(update_fields=['manual_override_active', 'manual_override_until'])
             return False
         return True
+
+    def clean(self):
+        """Validate the alert zone"""
+        super().clean()
+        if self.polygon:
+            # Check if polygon is valid
+            if not self.polygon.valid:
+                raise ValidationError({'polygon': 'Invalid polygon geometry'})
+            
+            # Optional: Check if polygon is within reasonable bounds (e.g., Kenya/Kampala area)
+            # This is just an example - adjust bounds as needed for your application
+            # Kenya approximate bounds: lat -5.0 to 5.0, lon 33.0 to 42.0
+            # Kampala approximate bounds: lat 0.1 to 0.5, lon 32.4 to 33.0
+            # For Nairobi area: lat -1.5 to -1.1, lon 36.6 to 37.2
+            # For this example, we'll use a broader East Africa bound
+            kenya_bounds = Polygon.from_bbox((33.0, -5.0, 42.0, 5.0))  # lon_min, lat_min, lon_max, lat_max
+            if not self.polygon.within(kenya_bounds):
+                raise ValidationError({'polygon': 'Polygon must be within Kenya bounds'})
+
+    def save(self, *args, **kwargs):
+        """Override save to run validation"""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name_plural = "Alert Zones"
