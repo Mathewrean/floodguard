@@ -87,15 +87,19 @@ class TestSMSDeliveryReceiptTracking:
         authority.profile.phone_number = '+254712345678'
         authority.profile.save()
 
-        # Mock the build_alert_message function and requests.post
+        # Mock the build_alert_message function, requests.post, and redis_client
         with patch('core.alerts.messages.build_alert_message') as mock_build, \
-             patch('requests.post') as mock_post:
+             patch('requests.post') as mock_post, \
+             patch('core.tasks.redis_client') as mock_redis:
             mock_build.return_value = ("Test alert message", "high")
             class MockResp:
                 def raise_for_status(self): pass
                 def json(self):
                     return {'SMSMessageData': {'Recipients': [{'messageId': 'msg_123'}]}}
             mock_post.return_value = MockResp()
+            # Mock redis exists to return False (no dedup) and setex to succeed
+            mock_redis.exists.return_value = False
+            mock_redis.setex.return_value = True
 
             # Call dispatch_alerts
             dispatch_alerts(self.zone.id, 0.8)
@@ -124,11 +128,14 @@ class TestSMSDeliveryReceiptTracking:
         authority.profile.phone_number = '+254712345678'
         authority.profile.save()
 
-        # Mock requests.post to raise an exception and build_alert_message
+        # Mock requests.post to raise an exception and build_alert_message, plus redis
         with patch('requests.post') as mock_post, \
-             patch('core.alerts.messages.build_alert_message') as mock_build:
+             patch('core.alerts.messages.build_alert_message') as mock_build, \
+             patch('core.tasks.redis_client') as mock_redis:
             mock_post.side_effect = Exception("SMS service down")
             mock_build.return_value = ("Test alert message", "high")
+            mock_redis.exists.return_value = False
+            mock_redis.setex.return_value = True
 
             # Call dispatch_alerts
             dispatch_alerts(self.zone.id, 0.8)
