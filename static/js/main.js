@@ -2,6 +2,12 @@ function normaliseList(data) {
     return Array.isArray(data) ? data : (data.results || []);
 }
 
+function escapeHTML(value) {
+    const template = document.createElement('template');
+    template.textContent = value == null ? '' : String(value);
+    return template.innerHTML;
+}
+
 function riskClass(score) {
     if (score > 0.7) return 'danger';
     if (score > 0.4) return 'warning';
@@ -55,8 +61,8 @@ async function initLiveStats() {
             stats = await fetchJSON('/api/v1/stats/');
         } catch (error) {
             const [zones, readings] = await Promise.all([
-                fetchJSON('/api/v1/zones/').then(normaliseList),
-                fetchJSON('/api/v1/readings/').then(normaliseList),
+                fetchJSON('/api/v1/zones/').then(normaliseList).catch(() => []),
+                fetchJSON('/api/v1/readings/').then(normaliseList).catch(() => []),
             ]);
             stats = {
                 zones_count: zones.length,
@@ -87,10 +93,10 @@ async function initStatusStrip() {
             const zones = normaliseList(await fetchJSON('/api/v1/zones/'));
             strip.innerHTML = zones.length ? zones.map(zone => {
                 const score = Number(zone.risk_score || 0);
-                return `<span class="zone-pill ${riskClass(score)}">${zone.name}: ${(score * 100).toFixed(0)}%</span>`;
-            }).join('') : '<span class="zone-pill safe">No zones configured</span>';
+                return `<span class="zone-pill ${riskClass(score)}">${escapeHTML(zone.name)}: ${(score * 100).toFixed(0)}%</span>`;
+            }).join('') : '<span class="zone-pill standby">Monitoring standby: add flood zones</span>';
         } catch (error) {
-            strip.innerHTML = '<span class="zone-pill warning">Zone status unavailable</span>';
+            strip.innerHTML = '<span class="zone-pill standby">Zone service reconnecting</span>';
         }
     }
 
@@ -107,16 +113,16 @@ async function initAlertsTicker() {
         try {
             const alerts = normaliseList(await fetchJSON('/api/v1/alerts/')).slice(0, 5);
             if (!alerts.length) {
-                track.textContent = 'No alerts issued yet';
+                track.textContent = 'No alerts issued yet. FloodGuard is monitoring configured zones.';
                 return;
             }
             track.innerHTML = alerts.map(alert => {
                 const message = alert.message || `${alert.zone_name || 'Zone'} alert`;
                 const critical = /critical|evacuat|danger|high/i.test(message);
-                return `<span class="${critical ? 'ticker-critical' : ''}">${message}</span>`;
+                return `<span class="${critical ? 'ticker-critical' : ''}">${escapeHTML(message)}</span>`;
             }).join(' • ');
         } catch (error) {
-            track.textContent = 'Latest alerts unavailable';
+            track.textContent = 'Alert feed reconnecting. No active alert data is currently available.';
         }
     }
 
@@ -161,6 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
 window.countUp = countUp;
 window.fetchJSON = fetchJSON;
 window.normaliseList = normaliseList;
+window.escapeHTML = escapeHTML;
 window.riskClass = riskClass;
 window.getCookie = getCookie;
 window.timeAgo = timeAgo;

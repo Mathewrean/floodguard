@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
+from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -232,10 +233,17 @@ def stats_view(request):
 
 @require_http_methods(["GET"])
 def health_view(request):
+    redis_status = 'unknown'
+    try:
+        from core.tasks import redis_client
+        redis_status = 'ok' if redis_client.ping() else 'down'
+    except Exception:
+        redis_status = 'down'
+
     return JsonResponse({
         'status': 'ok',
         'celery_status': 'unknown',
-        'redis_status': 'unknown',
+        'redis_status': redis_status,
         'last_poll_time': timezone.now().isoformat(),
     })
 
@@ -287,11 +295,18 @@ def register_view(request):
         
         if User.objects.filter(email=email).exists():
             return render(request, 'auth/register.html', {'error': 'Email already exists'})
-        
-        user = User.objects.create_user(username=username, email=email, password=password1)
-        # Add default citizen profile
-        from .models import UserProfile
-        UserProfile.objects.create(user=user, role='citizen')
+
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(username=username, email=email, password=password1)
+                UserProfile.objects.get_or_create(
+                    user=user,
+                    defaults={'role': 'citizen'}
+                )
+        except IntegrityError:
+            return render(request, 'auth/register.html', {
+                'error': 'Account creation could not be completed. Please try again.'
+            })
         
         login(request, user)
         return redirect('citizen_dashboard')
@@ -318,8 +333,7 @@ def dashboard_redirect(request):
 @login_required
 def citizen_dashboard(request):
     """Citizen dashboard"""
-    # Get user's location and zone info
-    user_profile = request.user.profile
+    UserProfile.objects.get_or_create(user=request.user, defaults={'role': 'citizen'})
     context = {
         'user': request.user,
     }
