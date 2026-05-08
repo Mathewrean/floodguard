@@ -51,11 +51,14 @@ class TestRunRiskScoringTask:
         zone = AlertZoneFactory(
             polygon=Polygon([(36.7, -1.4), (36.9, -1.4), (36.9, -1.2), (36.7, -1.2), (36.7, -1.4)], srid=4326)
         )
-        reading = FloodReading.objects.create(
-            location=Point(36.8, -1.3, srid=4326),
-            water_level_metres=5.0,
-            source='test'
-        )
+        # Create multiple readings for high confidence
+        for i in range(12):
+            FloodReading.objects.create(
+                location=Point(36.8, -1.3, srid=4326),
+                water_level_metres=5.0,
+                source='test'
+            )
+        reading = FloodReading.objects.filter(location__within=zone.polygon).first()
         run_risk_scoring(reading.id)
         reading.refresh_from_db()
         assert reading.risk_score == 0.8
@@ -95,6 +98,11 @@ class TestAlertDeduplication:
 
     def test_first_alert_sends_second_does_not(self, mocker):
         mock_sms = mocker.patch('requests.post')
+        class MockResp:
+            def raise_for_status(self): pass
+            def json(self):
+                return {'SMSMessageData': {'Recipients': [{'messageId': 'msg_123'}]}}
+        mock_sms.return_value = MockResp()
         from django.contrib.gis.geos import Polygon
         zone = AlertZoneFactory(
             risk_threshold=0.5,
@@ -102,10 +110,12 @@ class TestAlertDeduplication:
         )
         # Authority user needed for dispatch; ensure phone
         authority = AuthorityUserFactory()
-        UserProfile.objects.filter(user=authority).update(phone_number='+254712345678')
+        profile, _ = UserProfile.objects.get_or_create(user=authority)
+        profile.phone_number = '+254712345678'
+        profile.save()
         # First dispatch
         dispatch_alerts(zone.id, 0.8)
         assert mock_sms.call_count == 1
         # Second within 3 hours
         dispatch_alerts(zone.id, 0.8)
-        assert mock_sms.call_count == 1  # Still 1 due to deduplication due to deduplication
+        assert mock_sms.call_count == 1  # Still 1 due to deduplication

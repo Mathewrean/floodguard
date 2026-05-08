@@ -77,23 +77,29 @@ class TestSMSDeliveryReceiptTracking:
     def test_dispatch_alerts_creates_tracked_alert_log(self):
         """Test that dispatch_alerts creates AlertLog with tracking fields"""
         from core.tasks import dispatch_alerts
-        
+
         # Ensure zone threshold is low enough
         self.zone.risk_threshold = 0.5
         self.zone.save()
-        
+
         # Create authority user with phone number for dispatch
         authority = AuthorityUserFactory()
         authority.profile.phone_number = '+254712345678'
         authority.profile.save()
-        
-        # Mock the build_alert_message function to avoid actual alert building
-        with patch('core.alerts.messages.build_alert_message') as mock_build:
+
+        # Mock the build_alert_message function and requests.post
+        with patch('core.alerts.messages.build_alert_message') as mock_build, \
+             patch('requests.post') as mock_post:
             mock_build.return_value = ("Test alert message", "high")
-            
+            class MockResp:
+                def raise_for_status(self): pass
+                def json(self):
+                    return {'SMSMessageData': {'Recipients': [{'messageId': 'msg_123'}]}}
+            mock_post.return_value = MockResp()
+
             # Call dispatch_alerts
             dispatch_alerts(self.zone.id, 0.8)
-            
+
             # Check that an AlertLog was created with tracking fields
             alert_log = AlertLog.objects.first()
             assert alert_log is not None
@@ -108,25 +114,27 @@ class TestSMSDeliveryReceiptTracking:
         """Test that dispatch_alerts handles failed delivery correctly"""
         from core.tasks import dispatch_alerts
         import requests
-        
+
         # Ensure zone has low enough threshold to trigger
         self.zone.risk_threshold = 0.5
         self.zone.save()
-        
+
         # Create authority user with phone number for dispatch
         authority = AuthorityUserFactory()
         authority.profile.phone_number = '+254712345678'
         authority.profile.save()
-        
-        # Mock requests.post to raise an exception (simulate SMS failure)
-        with patch('requests.post') as mock_post:
+
+        # Mock requests.post to raise an exception and build_alert_message
+        with patch('requests.post') as mock_post, \
+             patch('core.alerts.messages.build_alert_message') as mock_build:
             mock_post.side_effect = Exception("SMS service down")
-            
+            mock_build.return_value = ("Test alert message", "high")
+
             # Call dispatch_alerts
             dispatch_alerts(self.zone.id, 0.8)
-            
+
             # Check that an AlertLog was created with failed status
             alert_log = AlertLog.objects.first()
             assert alert_log is not None
             assert alert_log.delivery_status == 'failed'
-            assert alert_log.message.startswith("Test alert message")
+            assert alert_log.message == "Test alert message"
