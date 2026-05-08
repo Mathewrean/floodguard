@@ -1,177 +1,94 @@
-// Authority Dashboard JavaScript
-function initAuthorityDashboard() {
-    // Fetch dashboard statistics
-    fetchAuthorityStats();
-    
-    // Fetch active alerts
-    fetchActiveAlerts();
-    
-    // Fetch pending reports
-    fetchPendingReports();
-    
-    // Fetch flood zones
-    fetchFloodZones();
+async function initAuthorityDashboard() {
+    await Promise.all([
+        renderPendingReports(),
+        renderFloodZones(),
+        refreshPendingCount(),
+    ]);
+    connectFloodMapSocket();
 }
 
-// Fetch authority dashboard statistics
-function fetchAuthorityStats() {
-    // Simulate fetching stats - in real app, these would come from API
-    setTimeout(() => {
-        document.getElementById('active-alerts-count').textContent = '3';
-        document.getElementById('reports-today-count').textContent = '12';
-        document.getElementById('pending-reports-count').textContent = '5';
-        document.getElementById('verified-today-count').textContent = '8';
-    }, 500);
+async function refreshPendingCount() {
+    const reports = await fetchJSON('/api/v1/reports/?status=pending').then(normaliseList).catch(() => []);
+    const count = document.getElementById('pending-reports-count');
+    if (count) count.textContent = reports.length;
 }
 
-// Fetch active alerts for authority dashboard
-function fetchActiveAlerts() {
-    const alertsContainer = document.getElementById('active-alerts-list');
-    
-    // Simulate fetching alerts
-    setTimeout(() => {
-        alertsContainer.innerHTML = `
-            <div class="alert-item alert-high">
-                <div class="alert-header">
-                    <h4>Flood Warning - Zone B</h4>
-                    <span class="alert-level high">HIGH</span>
-                </div>
-                <div class="alert-content">
-                    <p>Water levels rising rapidly in the northern districts. Evacuation recommended for low-lying areas.</p>
-                    <div class="alert-meta">
-                        <span>Issued: 2 hours ago</span>
-                        <span>Affects: 5,000 residents</span>
-                    </div>
-                </div>
-                <div class="alert-actions">
-                    <button class="btn btn-sm btn-danger">Evacuate Area</button>
-                    <button class="btn btn-sm btn-secondary">Send SMS Alert</button>
-                </div>
-            </div>
-            <div class="alert-item alert-medium">
-                <div class="alert-header">
-                    <h4>Watch Advisory - River Basin</h4>
-                    <span class="alert-level medium">MEDIUM</span>
-                </div>
-                <div class="alert-content">
-                    <p>Monitoring increased rainfall in catchment areas. Preparing flood barriers.</p>
-                    <div class="alert-meta">
-                        <span>Issued: 5 hours ago</span>
-                        <span>Affects: 2,000 residents</span>
-                    </div>
-                </div>
-                <div class="alert-actions">
-                    <button class="btn btn-sm btn-primary">Deploy Team</button>
-                    <button class="btn btn-sm btn-secondary">View Details</button>
-                </div>
+async function renderPendingReports() {
+    const table = document.getElementById('pending-reports-table');
+    if (!table) return;
+    const reports = await fetchJSON('/api/v1/reports/?status=pending').then(normaliseList).catch(() => []);
+
+    table.innerHTML = reports.length ? reports.map(report => `
+        <tr data-report-id="${report.id}">
+            <td>#${report.id}</td>
+            <td><span class="status-badge ${report.status}">${report.status}</span></td>
+            <td>${report.severity}</td>
+            <td>${new Date(report.created_at).toLocaleString()}</td>
+            <td>${report.description}</td>
+            <td>
+                <button class="btn btn-sm btn-success" data-action="verified">Verify</button>
+                <button class="btn btn-sm btn-danger" data-action="rejected">Reject</button>
+            </td>
+        </tr>
+    `).join('') : '<tr><td colspan="6">No pending reports.</td></tr>';
+
+    table.querySelectorAll('button[data-action]').forEach(button => {
+        button.addEventListener('click', () => updateReportStatus(button.closest('tr'), button.dataset.action));
+    });
+}
+
+async function updateReportStatus(row, status) {
+    const id = row.dataset.reportId;
+    const response = await fetch(`/api/v1/reports/${id}/verify/`, {
+        method: 'PATCH',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status })
+    });
+    if (response.ok) {
+        row.remove();
+        refreshPendingCount();
+    }
+}
+
+async function renderFloodZones() {
+    const container = document.getElementById('zones-list');
+    if (!container) return;
+    const zones = await fetchJSON('/api/v1/zones/').then(normaliseList).catch(() => []);
+    container.innerHTML = zones.length ? zones.map(zone => {
+        const score = Number(zone.risk_score || 0);
+        return `
+            <div class="card zone-card ${riskClass(score)}" data-zone-id="${zone.id}">
+                <h3 class="card-title">${zone.name}</h3>
+                <span class="zone-risk ${riskClass(score)}">${(score * 100).toFixed(0)}% ${score > 0.7 ? 'High' : score > 0.4 ? 'Moderate' : 'Safe'}</span>
+                <p class="card-meta">Threshold ${(Number(zone.risk_threshold || 0) * 100).toFixed(0)}%</p>
+                <div class="risk-bar"><span style="width:${Math.round(score * 100)}%"></span></div>
             </div>
         `;
-    }, 800);
+    }).join('') : '<p class="card-meta">No zones configured.</p>';
 }
 
-// Fetch pending reports for review
-function fetchPendingReports() {
-    const reportsContainer = document.getElementById('pending-reports-list');
-    
-    // Simulate fetching pending reports
-    setTimeout(() => {
-        reportsContainer.innerHTML = `
-            <div class="report-item">
-                <div class="report-header">
-                    <h4>Flooding on Main Street</h4>
-                    <span class="report-status pending">Pending Review</span>
-                </div>
-                <div class="report-content">
-                    <p><strong>Location:</strong> Main Street & 5th Ave</p>
-                    <p><strong>Time:</strong> 2026-05-07 14:30</p>
-                    <p><strong>Description:</strong> Water accumulation blocking traffic lane, approximately 15cm deep.</p>
-                    <p><strong>Reporter:</strong> Citizen (verified)</p>
-                </div>
-                <div class="report-actions">
-                    <button class="btn btn-sm btn-success">Verify</button>
-                    <button class="btn btn-sm btn-warning">Request More Info</button>
-                    <button class="btn btn-sm btn-danger">Dismiss</button>
-                </div>
-            </div>
-            <div class="report-item">
-                <div class="report-header">
-                    <h4>Flash Flood Alert - Hillside Area</h4>
-                    <span class="report-status pending">Pending Review</span>
-                </div>
-                <div class="report-content">
-                    <p><strong>Location:</strong> Hillside Residential Area</p>
-                    <p><strong>Time:</strong> 2026-05-07 15:15</p>
-                    <p><strong>Description:</strong> Sudden water flow downhill after heavy rain, potential mudslide risk.</p>
-                    <p><strong>Reporter:</strong> Emergency Team Member</p>
-                </div>
-                <div class="report-actions">
-                    <button class="btn btn-sm btn-success">Verify</button>
-                    <button class="btn btn-sm btn-warning">Request More Info</button>
-                    <button class="btn btn-sm btn-danger">Dismiss</button>
-                </div>
-            </div>
-        `;
-    }, 1000);
+function connectFloodMapSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const socket = new WebSocket(`${protocol}//${window.location.host}/ws/flood-map/`);
+    socket.onmessage = event => {
+        const data = JSON.parse(event.data);
+        const zoneId = data.zone_id || data.id;
+        const score = Number(data.risk_score);
+        if (!zoneId || Number.isNaN(score)) return;
+        const card = document.querySelector(`[data-zone-id="${zoneId}"]`);
+        if (!card) return;
+        card.classList.remove('safe', 'warning', 'danger');
+        card.classList.add(riskClass(score));
+        const badge = card.querySelector('.zone-risk');
+        if (badge) badge.textContent = `${(score * 100).toFixed(0)}%`;
+        const bar = card.querySelector('.risk-bar span');
+        if (bar) bar.style.width = `${Math.round(score * 100)}%`;
+    };
+    socket.onerror = () => socket.close();
 }
 
-// Fetch flood zones data
-function fetchFloodZones() {
-    const zonesContainer = document.getElementById('zones-list');
-    
-    // Simulate fetching zones
-    setTimeout(() => {
-        zonesContainer.innerHTML = `
-            <div class="zone-item">
-                <div class="zone-header">
-                    <h4>Zone A - Riverfront District</h4>
-                    <span class="zone-risk high">HIGH RISK</span>
-                </div>
-                <div class="zone-content">
-                    <p><strong>Risk Level:</strong> 0.85</p>
-                    <p><strong>Monitoring:</strong> Active</p>
-                    <p><strong>Last Updated:</strong> 5 minutes ago</p>
-                </div>
-            </div>
-            <div class="zone-item">
-                <div class="zone-header">
-                    <h4>Zone B - Northern Suburbs</h4>
-                    <span class="zone-risk medium">MEDIUM RISK</span>
-                </div>
-                <div class="zone-content">
-                    <p><strong>Risk Level:</strong> 0.62</p>
-                    <p><strong>Monitoring:</strong> Active</p>
-                    <p><strong>Last Updated:</strong> 10 minutes ago</p>
-                </div>
-            </div>
-            <div class="zone-item">
-                <div class="zone-header">
-                    <h4>Zone C - Eastern Industrial</h4>
-                    <span class="zone-risk low">LOW RISK</span>
-                </div>
-                <div class="zone-content">
-                    <p><strong>Risk Level:</strong> 0.28</p>
-                    <p><strong>Monitoring:</strong> Active</p>
-                    <p><strong>Last Updated:</strong> 15 minutes ago</p>
-                </div>
-            </div>
-        `;
-    }, 1200);
-}
-
-// Utility functions for authority dashboard
-function formatTimeAgo(dateString) {
-    // Same implementation as in dashboard.js
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
-    
-    if (seconds < 60) return `${seconds} seconds ago`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    if (seconds < 2592000) return `${Math.floor(seconds / 86400)} days ago`;
-    
-    return date.toLocaleDateString();
-}
-
-// Export functions
+document.addEventListener('DOMContentLoaded', initAuthorityDashboard);
 window.initAuthorityDashboard = initAuthorityDashboard;

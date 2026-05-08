@@ -3,92 +3,49 @@
 
 {% block content %}
 <section class="dashboard">
-    <div class="container">
+    <aside class="dashboard-sidebar">
+        <a class="active" href="{% url 'citizen_dashboard' %}">Dashboard</a>
+        <a href="{% url 'report_submit' %}">Report</a>
+        <a href="{% url 'map_view' %}">Map</a>
+        <a href="{% url 'alert_history' %}">Alerts</a>
+    </aside>
+    <div class="container dashboard-content">
         <div class="dashboard-header">
-            <h1>Citizen Dashboard</h1>
-            <p>Welcome back, {{ user.username }}!</p>
+            <h1 class="section-title">Citizen Dashboard</h1>
+            <p class="section-subtitle">Welcome back, {{ user.username }}.</p>
         </div>
-        
-        <div class="dashboard-grid">
-            <!-- Stats Cards -->
-            <div class="stats-card">
-                <h3>My Reports</h3>
-                <p class="stat-number" id="my-reports-count">-</p>
-                <p>Reports submitted</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Active Alerts</h3>
-                <p class="stat-number" id="active-alerts-count">-</p>
-                <p>In your area</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Verification Status</h3>
-                <p class="stat-number" id="verified-reports-count">-</p>
-                <p>Verified reports</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Safety Score</h3>
-                <p class="stat-number" id="safety-score">-</p>
-                <p>Out of 100</p>
-            </div>
+
+        <div class="stats-grid">
+            <div class="stat-card card"><span>Reports</span><strong id="my-reports-count">0</strong><small>Submitted by you</small></div>
+            <div class="stat-card card"><span>Nearest Zone</span><strong id="nearest-zone-risk">--</strong><small id="nearest-zone-name">Loading zone</small></div>
+            <div class="stat-card card"><span>Verified</span><strong id="verified-reports-count">0</strong><small>Your verified reports</small></div>
+            <div class="stat-card card"><span>High Risk Zones</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Currently elevated</small></div>
         </div>
-        
-        <!-- Recent Activity -->
-        <div class="dashboard-section">
-            <h2>Recent Activity</h2>
-            <div class="activity-timeline" id="activity-timeline">
-                <!-- Activity items will be loaded via JavaScript -->
-                <div class="loading-indicator">Loading your recent activity...</div>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">My Reports</h2>
+                <a class="btn btn-sm btn-primary" href="{% url 'report_submit' %}">New Report</a>
             </div>
-        </div>
-        
-        <!-- Quick Actions -->
-        <div class="dashboard-section">
-            <h2>Quick Actions</h2>
-            <div class="quick-actions">
-                <a href="{% url 'report_submit' %}" class="action-card">
-                    <div class="action-icon">📝</div>
-                    <h3>Report Incident</h3>
-                    <p>Submit a flood report</p>
-                </a>
-                <a href="{% url 'map_view' %}" class="action-card">
-                    <div class="action-icon">🗺️</div>
-                    <h3>View Flood Map</h3>
-                    <p>See current flood zones</p>
-                </a>
-                <a href="{% url 'alert_history' %}" class="action-card">
-                    <div class="action-icon">🚨</div>
-                    <h3>Check Alerts</h3>
-                    <p>See recent flood alerts</p>
-                </a>
-                <a href="{% url 'report_list' %}" class="action-card">
-                    <div class="action-icon">📋</div>
-                    <h3>My Reports</h3>
-                    <p>View your submission history</p>
-                </a>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Status</th><th>Severity</th><th>Created</th><th>Description</th></tr>
+                    </thead>
+                    <tbody id="my-reports-table">
+                        <tr><td colspan="4"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
             </div>
-        </div>
-        
-        <!-- Nearby Reports -->
-        <div class="dashboard-section">
-            <h2>Nearby Reports</h2>
-            <div class="reports-map" id="reports-map" style="height: 300px;">
-                <!-- Map will be initialized here -->
-            </div>
-            <a href="{% url 'map_view' %}" class="view-all">View All Reports on Map →</a>
-        </div>
+        </section>
+
+        <section class="dashboard-section">
+            <div id="reports-map" class="map-container reports-map"></div>
+        </section>
     </div>
 </section>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/dashboard.js' %}"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    initCitizenDashboard();
-});
-</script>
 {% endblock %}

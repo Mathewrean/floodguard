@@ -3,172 +3,91 @@
 
 {% block content %}
 <section class="hero">
+    <div class="rain" aria-hidden="true"></div>
     <div class="container hero-content">
-        <h1>FloodGuard</h1>
-        <p>Real-time flood monitoring and early warning system for communities</p>
-        <div class="hero-buttons">
-            <a href="{% url 'register' %}" class="btn-primary">Join as Citizen</a>
-            <a href="{% url 'login' %}" class="btn-secondary">Login</a>
+        <div class="hero-badge">Protecting Nairobi & Beyond</div>
+        <h1>Flood Intelligence,<br>When It Matters Most</h1>
+        <p>Real-time flood monitoring, early warnings, and community reports in one command-ready platform.</p>
+        <div class="hero-actions">
+            <a href="{% url 'map_view' %}" class="btn btn-accent">View Live Map <span aria-hidden="true">→</span></a>
+            <a href="{% url 'report_submit' %}" class="btn btn-ghost">Report a Flood</a>
         </div>
-        <div class="live-status-strip">
-            <div class="status-item">
-                <span class="status-label">Active Monitoring Zones:</span>
-                <span class="status-value">{{ zones_count }}</span>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <strong class="stat-value" data-stat="zones_count">{{ zones_count }}</strong>
+                <span>Active Zones Monitored</span>
             </div>
-            <div class="status-item">
-                <span class="status-label">System Status:</span>
-                <span class="status-value status-operational">Operational</span>
+            <div class="hero-stat">
+                <strong class="stat-value" data-stat="alerts_today">0</strong>
+                <span>Alerts Sent Today</span>
             </div>
-            <div class="status-item">
-                <span class="status-label">Last Updated:</span>
-                <span class="status-value" id="last-updated">Just now</span>
+            <div class="hero-stat">
+                <strong class="stat-value" data-stat="reports_this_week">0</strong>
+                <span>Reports This Week</span>
             </div>
         </div>
     </div>
 </section>
 
-<section class="features">
+<section class="section">
     <div class="container">
-        <h2>How FloodGuard Works</h2>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🌧️</div>
-                <h3>Real-time Monitoring</h3>
-                <p>Continuous flood risk assessment using satellite data, weather feeds, and ground sensors.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📱</div>
-                <h3>Instant Alerts</h3>
-                <p>Multi-channel notifications (SMS, email, app push) when flood risk exceeds thresholds.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">👥</div>
-                <h3>Community Reporting</h3>
-                <p>Citizens can report flood incidents with photos and location via mobile app.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🗺️</div>
-                <h3>Interactive Maps</h3>
-                <p>Visualize flood zones, risk levels, and incident reports on interactive maps.</p>
-            </div>
+        <div class="section-header">
+            <h2 class="section-title">How It Works</h2>
+            <p class="section-subtitle">FloodGuard turns live readings and citizen reports into clear action.</p>
+        </div>
+        <div class="steps-grid">
+            <article class="card step-card">
+                <div class="step-number">1</div>
+                <div class="step-icon">Rainfall</div>
+                <h3 class="card-title">Monitor Conditions</h3>
+                <p class="card-meta">Weather, water-level readings, and flood-zone boundaries are evaluated continuously.</p>
+            </article>
+            <article class="card step-card">
+                <div class="step-number">2</div>
+                <div class="step-icon">Risk</div>
+                <h3 class="card-title">Score Risk</h3>
+                <p class="card-meta">Zones are classified as safe, moderate, or high risk using live data and verified reports.</p>
+            </article>
+            <article class="card step-card">
+                <div class="step-number">3</div>
+                <div class="step-icon">Alert</div>
+                <h3 class="card-title">Coordinate Response</h3>
+                <p class="card-meta">Authorities verify reports, trigger alerts, and keep communities informed in real time.</p>
+            </article>
         </div>
     </div>
 </section>
 
-<section class="live-map-preview">
+<section class="section map-preview-section">
     <div class="container">
-        <h2>Live Flood Map</h2>
-        <div id="map-preview" class="map-preview">
-            <!-- Leaflet map will be initialized here -->
+        <div class="section-header">
+            <h2 class="section-title">Live Flood Map</h2>
+            <p class="section-subtitle">Current flood zones rendered directly from the API.</p>
         </div>
-        <div class="map-controls">
-            <button id="zoom-in" class="map-control-btn">+</button>
-            <button id="zoom-out" class="map-control-btn">−</button>
-            <button id="locate-me" class="map-control-btn">📍</button>
-        </div>
-        <a href="{% url 'map_view' %}" class="view-full-map">View Full Screen Map →</a>
-    </div>
-</section>
-
-<section class="alerts-demo">
-    <div class="container">
-        <h2>Recent Alerts</h2>
-        <div id="alerts-demo" class="alerts-feed">
-            <!-- Alerts will be populated via JavaScript -->
-            <div class="alert-item">
-                <div class="alert-header">
-                    <span class="alert-type">Flood Warning</span>
-                    <span class="alert-time">2 minutes ago</span>
-                </div>
-                <div class="alert-message">
-                    Water levels rising rapidly in Northern Zone. Evacuation advised for low-lying areas.
-                </div>
-                <div class="alert-footer">
-                    <span class="alert-zone">Northern Flood Zone</span>
-                    <span class="alert-channel">SMS • Email • App Push</span>
-                </div>
+        <div class="map-shell">
+            <div id="map-preview" class="map-container"></div>
+            <div class="map-controls-panel">
+                <strong>Legend</strong>
+                <span><i class="legend-dot safe"></i> Safe</span>
+                <span><i class="legend-dot warning"></i> Moderate</span>
+                <span><i class="legend-dot danger"></i> High risk</span>
             </div>
         </div>
-        <a href="{% url 'alert_history' %}" class="view-all-alerts">View All Alert History →</a>
+        <a href="{% url 'map_view' %}" class="btn btn-primary">Open Full Map</a>
     </div>
 </section>
 
-<section class="citizen-report">
-    <div class="container">
-        <h2>Report a Flood Incident</h2>
-        <p>Help keep your community safe by reporting flood conditions in your area.</p>
-        <a href="{% url 'report_submit' %}" class="btn-primary btn-block">Submit a Report</a>
-        <p class="report-note">Reports are reviewed by authorities and may trigger alerts if verified.</p>
-    </div>
-</section>
-
-<section class="about-us">
-    <div container class="container">
-        <h2>About FloodGuard</h2>
-        <div class="about-content">
-            <div class="about-text">
-                <p>FloodGuard is a community-powered flood monitoring and early warning system designed to save lives and reduce property damage through timely alerts and coordinated response.</p>
-                <p>Our system combines automated sensor data, weather forecasts, and citizen reports to provide accurate flood risk assessments for communities worldwide.</p>
-            </div>
-            <div class="about-stats">
-                <div class="stat-item">
-                    <h3>100+</h3>
-                    <p>Communities Protected</p>
-                </div>
-                <div class="stat-item">
-                    <h3>50K+</h3>
-                    <p>Active Users</p>
-                </div>
-                <div class="stat-item">
-                    <h3>24/7</h3>
-                    <p>Monitoring</p>
-                </div>
-            </div>
+<section class="section report-cta">
+    <div class="container split-panel">
+        <div>
+            <h2 class="section-title">See Flooding Nearby?</h2>
+            <p class="section-subtitle">Submit a report with location, severity, and optional photo evidence. It goes straight to the authority review queue.</p>
         </div>
-    </div>
-</section>
-
-<section class="call-to-action">
-    <div class="container">
-        <h2>Join the FloodGuard Network</h2>
-        <p>Whether you're a concerned citizen, emergency responder, or community leader, you can help make your community more resilient to floods.</p>
-        <div class="cta-buttons">
-            <a href="{% url 'register' %}" class="btn-primary">Sign Up as Citizen</a>
-            <a href="{% url 'login' %}" class="btn-secondary">Login to Dashboard</a>
-            <a href="{% url 'map_view' %}" class="btn-outline">Explore Live Map</a>
-        </div>
-    </div>
-</section>
-
-<section class="partners">
-    <div class="container">
-        <h2>Trusted by</h2>
-        <div class="partners-logos">
-            <div class="partner-logo">🌍</div>
-            <div class="partner-logo">🚨</div>
-            <div class="partner-logo">🏥</div>
-            <div class="partner-logo">🏫</div>
-            <div class="partner-logo">👨‍🌾</div>
-            <div class="partner-logo">🚒</div>
-        </div>
-        <p>Working with meteorological agencies, emergency services, NGOs, and community organizations.</p>
+        <a href="{% url 'report_submit' %}" class="btn btn-accent">Submit a Report</a>
     </div>
 </section>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/map.js' %}"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize map preview
-    initMapPreview();
-    
-    // Update last updated timestamp
-    setInterval(function() {
-        const now = new Date();
-        const el = document.getElementById('last-updated');
-        if (el) el.textContent = now.toLocaleTimeString();
-    }, 1000);
-});
-</script>
 {% endblock %}

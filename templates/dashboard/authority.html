@@ -3,103 +3,53 @@
 
 {% block content %}
 <section class="dashboard">
-    <div class="container">
+    <aside class="dashboard-sidebar">
+        <a class="active" href="{% url 'authority_dashboard' %}">Review</a>
+        <a href="{% url 'map_view' %}">Map</a>
+        <a href="{% url 'alert_history' %}">Alerts</a>
+        <a href="{% url 'report_list' %}">Reports</a>
+    </aside>
+    <div class="container dashboard-content">
         <div class="dashboard-header">
-            <h1>Authority Dashboard</h1>
-            <p>Welcome back, {{ user.username }}!</p>
-            <p class="user-role">Role: Emergency Team Member</p>
+            <h1 class="section-title">Authority Dashboard</h1>
+            <p class="section-subtitle">Emergency review queue and live zone overview.</p>
         </div>
-        
-        <div class="dashboard-grid">
-            <!-- Stats Cards -->
-            <div class="stats-card">
-                <h3>Active Alerts</h3>
-                <p class="stat-number" id="active-alerts-count">-</p>
-                <p>Currently active</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Reports Today</h3>
-                <p class="stat-number" id="reports-today-count">-</p>
-                <p>Incident reports</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Pending Review</h3>
-                <p class="stat-number" id="pending-reports-count">-</p>
-                <p>Reports awaiting verification</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Verified Today</h3>
-                <p class="stat-number" id="verified-today-count">-</p>
-                <p>Confirmed incidents</p>
-            </div>
+
+        <div class="stats-grid">
+            <div class="stat-card card"><span>Alerts Today</span><strong class="stat-value" data-stat="alerts_today">0</strong><small>Issued today</small></div>
+            <div class="stat-card card"><span>Reports This Week</span><strong class="stat-value" data-stat="reports_this_week">0</strong><small>Community submissions</small></div>
+            <div class="stat-card card"><span>Pending Review</span><strong id="pending-reports-count">0</strong><small>Awaiting action</small></div>
+            <div class="stat-card card"><span>High Risk</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Zones above threshold</small></div>
         </div>
-        
-        <!-- Alert Management -->
-        <div class="dashboard-section">
-            <h2>Active Alerts</h2>
-            <div class="alerts-container" id="active-alerts-list">
-                <!-- Alerts will be loaded via JavaScript -->
-                <div class="loading-indicator">Loading active alerts...</div>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">Reports Requiring Review</h2>
+                <span class="card-meta">Verify or reject without reloading the page.</span>
             </div>
-        </div>
-        
-        <!-- Reports Requiring Review -->
-        <div class="dashboard-section">
-            <h2>Reports Requiring Review</h2>
-            <div class="reports-container" id="pending-reports-list">
-                <!-- Reports will be loaded via JavaScript -->
-                <div class="loading-indicator">Loading pending reports...</div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>ID</th><th>Status</th><th>Severity</th><th>Created</th><th>Description</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="pending-reports-table">
+                        <tr><td colspan="6"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
             </div>
-        </div>
-        
-        <!-- Zone Management -->
-        <div class="dashboard-section">
-            <h2>Flood Zones</h2>
-            <div class="zones-container" id="zones-list">
-                <!-- Zones will be loaded via JavaScript -->
-                <div class="loading-indicator">Loading flood zones...</div>
+        </section>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">Flood Zones</h2>
+                <a href="/admin/core/alertzone/" class="btn btn-sm btn-outline">Manage Zones</a>
             </div>
-            <a href="/admin/core/alertzone/" class="btn-primary">Manage Zones in Admin</a>
-        </div>
-        
-        <!-- Quick Actions -->
-        <div class="dashboard-section">
-            <h2>Quick Actions</h2>
-            <div class="quick-actions">
-                <a href="{% url 'report_submit' %}" class="action-card">
-                    <div class="action-icon">📝</div>
-                    <h3>Submit Report</h3>
-                    <p>File an incident report</p>
-                </a>
-                <a href="{% url 'map_view' %}" class="action-card">
-                    <div class="action-icon">🗺️</div>
-                    <h3>View Flood Map</h3>
-                    <p>See current flood zones and reports</p>
-                </a>
-                <a href="{% url 'alert_history' %}" class="action-card">
-                    <div class="action-icon">🚨</div>
-                    <h3>Alert History</h3>
-                    <p>View all past alerts</p>
-                </a>
-                <a href="{% url 'report_list' %}" class="action-card">
-                    <div class="action-icon">📋</div>
-                    <h3>All Reports</h3>
-                    <p>Browse all incident reports</p>
-                </a>
-            </div>
-        </div>
+            <div id="zones-list" class="zone-overview-grid"></div>
+        </section>
     </div>
 </section>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/authority.js' %}"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    initAuthorityDashboard();
-});
-</script>
 {% endblock %}

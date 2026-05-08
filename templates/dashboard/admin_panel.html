@@ -3,115 +3,56 @@
 
 {% block content %}
 <section class="dashboard">
-    <div class="container">
+    <aside class="dashboard-sidebar">
+        <a class="active" href="{% url 'admin_dashboard' %}">System</a>
+        <a href="/admin/">Django Admin</a>
+        <a href="{% url 'map_view' %}">Map</a>
+        <a href="{% url 'report_list' %}">Reports</a>
+    </aside>
+    <div class="container dashboard-content">
         <div class="dashboard-header">
-            <h1>Admin Dashboard</h1>
-            <p>Welcome back, {{ user.username }}!</p>
-            <p class="user-role">Role: System Administrator</p>
+            <h1 class="section-title">Admin Dashboard</h1>
+            <p class="section-subtitle">System health, live counts, and zone management.</p>
         </div>
-        
-        <div class="dashboard-grid">
-            <!-- Stats Cards -->
-            <div class="stats-card">
-                <h3>Total Users</h3>
-                <p class="stat-number" id="total-users-count">-</p>
-                <p>Registered users</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Active Alerts</h3>
-                <p class="stat-number" id="active-alerts-count">-</p>
-                <p>Currently active</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>Total Reports</h3>
-                <p class="stat-number" id="total-reports-count">-</p>
-                <p>All time</p>
-            </div>
-            
-            <div class="stats-card">
-                <h3>System Health</h3>
-                <p class="stat-number" id="system-health">-</p>
-                <p>Operational status</p>
-            </div>
+
+        <div class="stats-grid">
+            <div class="stat-card card"><span>Zones</span><strong class="stat-value" data-stat="zones_count">0</strong><small>Monitored polygons</small></div>
+            <div class="stat-card card"><span>Alerts Today</span><strong class="stat-value" data-stat="alerts_today">0</strong><small>AlertLog entries</small></div>
+            <div class="stat-card card"><span>Reports This Week</span><strong class="stat-value" data-stat="reports_this_week">0</strong><small>Incident reports</small></div>
+            <div class="stat-card card"><span>System Health</span><strong id="system-health">--</strong><small id="last-poll-time">Waiting</small></div>
         </div>
-        
-        <!-- System Overview -->
-        <div class="dashboard-section">
-            <h2>System Overview</h2>
-            <div class="overview-grid">
-                <div class="overview-item">
-                    <h3>Users by Role</h3>
-                    <div id="users-by-role-chart" class="chart-placeholder">
-                        <!-- Chart will be loaded here -->
-                    </div>
-                </div>
-                <div class="overview-item">
-                    <h3>Alerts by Channel</h3>
-                    <div id="alerts-by-channel-chart" class="chart-placeholder">
-                        <!-- Chart will be loaded here -->
-                    </div>
-                </div>
-                <div class="overview-item">
-                    <h3>Reports Trend (7 days)</h3>
-                    <div id="reports-trend-chart" class="chart-placeholder">
-                        <!-- Chart will be loaded here -->
-                    </div>
-                </div>
-                <div class="overview-item">
-                    <h3>Zone Status</h3>
-                    <div id="zone-status-list" class="zone-status-list">
-                        <!-- Zone status items will be loaded here -->
-                    </div>
-                </div>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">Service Health</h2>
+                <span class="card-meta">Live from /health/</span>
             </div>
-        </div>
-        
-        <!-- Recent Activity -->
-        <div class="dashboard-section">
-            <h2>Recent System Activity</h2>
-            <div class="activity-timeline" id="system-activity-timeline">
-                <!-- Activity items will be loaded via JavaScript -->
-                <div class="loading-indicator">Loading system activity...</div>
+            <div class="health-grid">
+                <div><span id="celery-dot" class="health-dot"></span> Celery <strong id="celery-status">unknown</strong></div>
+                <div><span id="redis-dot" class="health-dot"></span> Redis <strong id="redis-status">unknown</strong></div>
             </div>
-        </div>
-        
-        <!-- Quick Actions -->
-        <div class="dashboard-section">
-            <h2>Quick Actions</h2>
-            <div class="quick-actions">
-                <a href="/admin/" class="action-card">
-                    <div class="action-icon">⚙️</div>
-                    <h3>Django Admin</h3>
-                    <p>Access full admin interface</p>
-                </a>
-                <a href="{% url 'map_view' %}" class="action-card">
-                    <div class="action-icon">🗺️</div>
-                    <h3>View Flood Map</h3>
-                    <p>See current flood zones and reports</p>
-                </a>
-                <a href="{% url 'alert_history' %}" class="action-card">
-                    <div class="action-icon">🚨</div>
-                    <h3>Alert History</h3>
-                    <p>View all past alerts</p>
-                </a>
-                <a href="{% url 'report_list' %}" class="action-card">
-                    <div class="action-icon">📋</div>
-                    <h3>All Reports</h3>
-                    <p>Browse all incident reports</p>
-                </a>
+        </section>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">Zone Management</h2>
+                <a href="/admin/core/alertzone/" class="btn btn-sm btn-primary">Open Admin</a>
             </div>
-        </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Name</th><th>Risk Score</th><th>Threshold</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="zone-management-table">
+                        <tr><td colspan="4"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 </section>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/admin.js' %}"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    initAdminDashboard();
-});
-</script>
 {% endblock %}

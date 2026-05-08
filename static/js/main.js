@@ -1,158 +1,166 @@
-// Main JavaScript file - initialization and common functionality
-document.addEventListener('DOMContentLoaded', function() {
-    // Mobile menu toggle
-    const mobileMenuToggle = document.querySelector('.mobile-menu-toggle');
-    const navMenu = document.querySelector('.nav-menu');
-    
-    if (mobileMenuToggle && navMenu) {
-        mobileMenuToggle.addEventListener('click', function() {
-            navMenu.classList.toggle('active');
-            
-            // Animate hamburger to X
-            const spans = mobileMenuToggle.querySelectorAll('span');
-            spans.forEach(span => span.classList.toggle('active'));
+function normaliseList(data) {
+    return Array.isArray(data) ? data : (data.results || []);
+}
+
+function riskClass(score) {
+    if (score > 0.7) return 'danger';
+    if (score > 0.4) return 'warning';
+    return 'safe';
+}
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+}
+
+function timeAgo(dateString) {
+    const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+function countUp(element, target, duration = 1500) {
+    const numericTarget = Number(target) || 0;
+    const start = performance.now();
+    const initial = Number(element.textContent.replace(/[^\d.-]/g, '')) || 0;
+
+    function tick(now) {
+        const progress = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const value = Math.round(initial + (numericTarget - initial) * eased);
+        element.textContent = value.toLocaleString();
+        if (progress < 1) requestAnimationFrame(tick);
+    }
+
+    requestAnimationFrame(tick);
+}
+
+async function fetchJSON(url, options = {}) {
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+    return response.json();
+}
+
+async function initLiveStats() {
+    const statElements = document.querySelectorAll('.stat-value[data-stat]');
+    if (!statElements.length) return;
+
+    async function refresh() {
+        let stats;
+        try {
+            stats = await fetchJSON('/api/v1/stats/');
+        } catch (error) {
+            const [zones, readings] = await Promise.all([
+                fetchJSON('/api/v1/zones/').then(normaliseList),
+                fetchJSON('/api/v1/readings/').then(normaliseList),
+            ]);
+            stats = {
+                zones_count: zones.length,
+                alerts_today: 0,
+                reports_this_week: readings.length,
+                high_risk_zones: zones.filter(zone => Number(zone.risk_score || 0) > 0.7).length,
+            };
+        }
+
+        statElements.forEach(element => {
+            const key = element.dataset.stat;
+            if (Object.prototype.hasOwnProperty.call(stats, key)) {
+                countUp(element, stats[key]);
+            }
         });
     }
-    
-    // Close mobile menu when clicking a link
-    const navLinks = document.querySelectorAll('.nav-menu li a');
-    navLinks.forEach(link => {
-        link.addEventListener('click', function() {
-            if (navMenu.classList.contains('active')) {
-                navMenu.classList.remove('active');
-                const spans = mobileMenuToggle.querySelectorAll('span');
-                spans.forEach(span => span.classList.remove('active'));
+
+    refresh();
+    setInterval(refresh, 60000);
+}
+
+async function initStatusStrip() {
+    const strip = document.getElementById('status-strip');
+    if (!strip) return;
+
+    async function refresh() {
+        try {
+            const zones = normaliseList(await fetchJSON('/api/v1/zones/'));
+            strip.innerHTML = zones.length ? zones.map(zone => {
+                const score = Number(zone.risk_score || 0);
+                return `<span class="zone-pill ${riskClass(score)}">${zone.name}: ${(score * 100).toFixed(0)}%</span>`;
+            }).join('') : '<span class="zone-pill safe">No zones configured</span>';
+        } catch (error) {
+            strip.innerHTML = '<span class="zone-pill warning">Zone status unavailable</span>';
+        }
+    }
+
+    refresh();
+    setInterval(refresh, 60000);
+}
+
+async function initAlertsTicker() {
+    const ticker = document.getElementById('alerts-ticker');
+    if (!ticker) return;
+    const track = ticker.querySelector('.ticker-track') || ticker;
+
+    async function refresh() {
+        try {
+            const alerts = normaliseList(await fetchJSON('/api/v1/alerts/')).slice(0, 5);
+            if (!alerts.length) {
+                track.textContent = 'No alerts issued yet';
+                return;
             }
-        });
+            track.innerHTML = alerts.map(alert => {
+                const message = alert.message || `${alert.zone_name || 'Zone'} alert`;
+                const critical = /critical|evacuat|danger|high/i.test(message);
+                return `<span class="${critical ? 'ticker-critical' : ''}">${message}</span>`;
+            }).join(' • ');
+        } catch (error) {
+            track.textContent = 'Latest alerts unavailable';
+        }
+    }
+
+    refresh();
+    setInterval(refresh, 30000);
+}
+
+function initHamburgerMenu() {
+    const nav = document.querySelector('.navbar');
+    const toggle = document.querySelector('.mobile-menu-toggle');
+    if (!nav || !toggle) return;
+
+    toggle.addEventListener('click', event => {
+        event.stopPropagation();
+        const isOpen = nav.classList.toggle('nav-mobile-open');
+        toggle.setAttribute('aria-expanded', String(isOpen));
     });
-    
-    // Smooth scrolling for anchor links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            e.preventDefault();
-            
-            const targetId = this.getAttribute('href');
-            if (targetId !== '#') {
-                const targetElement = document.querySelector(targetId);
-                if (targetElement) {
-                    window.scrollTo({
-                        top: targetElement.offsetTop - 80, // Account for fixed header
-                        behavior: 'smooth'
-                    });
-                }
-            }
-        });
-    });
-    
-    // Add active class to current nav item
-    const currentLocation = window.location.pathname;
-    const navItems = document.querySelectorAll('.nav-menu li a');
-    navItems.forEach(item => {
-        if (item.getAttribute('href') === currentLocation) {
-            item.classList.add('active');
+
+    document.addEventListener('click', event => {
+        if (!nav.contains(event.target)) {
+            nav.classList.remove('nav-mobile-open');
+            toggle.setAttribute('aria-expanded', 'false');
         }
     });
+}
+
+function markActiveNav() {
+    const path = window.location.pathname;
+    document.querySelectorAll('.nav-menu a').forEach(link => {
+        if (link.getAttribute('href') === path) link.classList.add('active');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    markActiveNav();
+    initHamburgerMenu();
+    initLiveStats();
+    initStatusStrip();
+    initAlertsTicker();
 });
 
-// Utility functions
-function showNotification(message, type = 'info', duration = 3000) {
-    // Remove any existing notifications
-    const existingNotifications = document.querySelectorAll('.notification');
-    existingNotifications.forEach(el => el.remove());
-    
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            ${message}
-        </div>
-        <button class="notification-close">&times;</button>
-    `;
-    
-    // Add styles if not already present
-    if (!document.querySelector('#notification-styles')) {
-        const style = document.createElement('style');
-        style.id = 'notification-styles';
-        style.textContent = `
-            .notification {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                padding: 15px 20px;
-                border-radius: 4px;
-                color: white;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                z-index: 1000;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                animation: slideIn 0.3s ease-out;
-            }
-            
-            .notification-info { background-color: #3498db; }
-            .notification-success { background-color: #2ecc71; }
-            .notification-warning { background-color: #f39c12; }
-            .notification-error { background-color: #e74c3c; }
-            
-            .notification-content {
-                flex: 1;
-                margin-right: 10px;
-            }
-            
-            .notification-close {
-                background: none;
-                border: none;
-                color: white;
-                font-size: 1.2rem;
-                cursor: pointer;
-                width: 30px;
-                height: 30px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
-            
-            @keyframes slideIn {
-                from {
-                    transform: translateX(100%);
-                    opacity: 0;
-                }
-                to {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-            }
-            
-            @keyframes slideOut {
-                from {
-                    transform: translateX(0);
-                    opacity: 1;
-                }
-                to {
-                    transform: translateX(100%);
-                    opacity: 0;
-                }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    // Add to page
-    document.body.appendChild(notification);
-    
-    // Remove on close button click
-    const closeBtn = notification.querySelector('.notification-close');
-    closeBtn.addEventListener('click', function() {
-        notification.style.animation = 'slideOut 0.3s ease-in';
-        setTimeout(() => notification.remove(), 300);
-    });
-    
-    // Auto remove after duration
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.style.animation = 'slideOut 0.3s ease-in';
-            setTimeout(() => notification.remove(), 300);
-        }
-    }, duration);
-}
+window.countUp = countUp;
+window.fetchJSON = fetchJSON;
+window.normaliseList = normaliseList;
+window.riskClass = riskClass;
+window.getCookie = getCookie;
+window.timeAgo = timeAgo;

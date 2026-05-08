@@ -3,10 +3,23 @@
 
 {% block content %}
 <section class="map-page">
-    <div class="container">
-        <h1>Live Flood Map</h1>
-        <p>View current flood zones, risk levels, and incident reports.</p>
-        <div id="map" class="full-map"></div>
+    <div class="map-titlebar">
+        <div>
+            <h1>Live Flood Map</h1>
+            <p>Current flood zones, risk levels, and user location.</p>
+        </div>
+    </div>
+    <div class="map-shell full-screen-map">
+        <div id="map" class="map-container full-map"></div>
+        <div class="map-controls-panel">
+            <strong>Layers</strong>
+            <label><input type="checkbox" id="toggle-zones" checked> Zones</label>
+            <label><input type="checkbox" id="toggle-readings" checked> Readings</label>
+            <strong>Legend</strong>
+            <span><i class="legend-dot safe"></i> Safe</span>
+            <span><i class="legend-dot warning"></i> Moderate</span>
+            <span><i class="legend-dot danger"></i> High risk</span>
+        </div>
     </div>
 </section>
 {% endblock %}
