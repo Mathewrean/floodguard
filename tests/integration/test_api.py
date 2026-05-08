@@ -64,7 +64,10 @@ class TestAlertZoneAPI:
         url = reverse('alertzone-list')
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
-        assert 'type' in response.data[0]['polygon']  # GeoJSON
+        # With pagination enabled, response.data is a paginated object with 'results' key
+        zones = response.data.get('results', response.data)
+        assert len(zones) > 0
+        assert 'type' in zones[0]['polygon']  # GeoJSON
 
 
 @pytest.mark.django_db

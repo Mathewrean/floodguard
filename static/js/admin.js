@@ -98,8 +98,9 @@ function renderZones(zones) {
             <strong>${escapeHTML(zone.name)}</strong><br>
             Risk: ${(score * 100).toFixed(1)}%<br>
             Threshold: ${(zone.risk_threshold * 100).toFixed(1)}%<br>
-            Status: ${zoneStatus(score)}<br>
-            <button onclick="triggerOverride(${zone.id})" class="btn btn-sm">Override</button>
+        // Status: ${zoneStatus(score)}<br>
+        <button onclick="triggerOverride(${zone.id})" class="btn btn-sm">Override</button>
+        <button onclick="triggerDispatch(${zone.id})" class="btn btn-sm btn-accent">Send Alert</button>
         `);
         
         polygon.addTo(zonesLayer);
@@ -210,7 +211,7 @@ function fetchDashboardStats() {
     fetch('/api/v1/dashboard/stats/')
         .then(r => r.json())
         .then(stats => {
-            document.getElementById('total-zones').textContent = stats.total_zones || 0;
+            document.getElementById('total-zones').textContent = stats.zones_count || 0;
             document.getElementById('critical-zones').textContent = stats.high_risk_zones || 0;
             document.getElementById('pending-reports').textContent = stats.reports_this_week || 0;
             document.getElementById('alerts-24h').textContent = stats.alerts_today || 0;
@@ -259,11 +260,104 @@ function closeOverrideModal() {
     document.getElementById('override-modal').style.display = 'none';
 }
 
+function closeOverrideModal() {
+    document.getElementById('override-modal').style.display = 'none';
+}
+
+// Dispatch alert modal
+function triggerDispatch(zoneId) {
+    document.getElementById('dispatch-zone-id').value = zoneId;
+    document.getElementById('dispatch-result').style.display = 'none';
+    document.getElementById('dispatch-message').value = '';
+    document.getElementById('dispatch-test-mode').checked = true;
+    // Reset channels to default (SMS checked, Email unchecked)
+    document.querySelectorAll('input[name="channels"]').forEach(cb => {
+        cb.checked = (cb.value === 'sms');
+    });
+    document.getElementById('dispatch-modal').style.display = 'block';
+}
+
+function closeDispatchModal() {
+    document.getElementById('dispatch-modal').style.display = 'none';
+}
+
+document.getElementById('dispatch-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const zoneId = document.getElementById('dispatch-zone-id').value;
+
+    // Gather selected channels
+    const channels = [];
+    document.querySelectorAll('input[name="channels"]:checked').forEach(cb => {
+        channels.push(cb.value);
+    });
+
+    const message = document.getElementById('dispatch-message').value.trim();
+    const testMode = document.getElementById('dispatch-test-mode').checked;
+
+    const payload = {
+        channels: channels,
+        test_mode: testMode
+    };
+    if (message) {
+        payload.test_message = message;
+    }
+
+    fetch(`/api/v1/zones/${zoneId}/dispatch_alert/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+        const resultDiv = document.getElementById('dispatch-result');
+        resultDiv.style.display = 'block';
+
+        if (data.status === 'preview' || data.status === 'dispatched') {
+            resultDiv.className = 'alert alert-success';
+            const statusText = testMode ? 'TEST PREVIEW' : 'ALERT DISPATCHED';
+            let details = `<strong>${statusText}</strong><br>
+                Zone: ${data.zone}<br>
+                Channels: ${data.channels.join(', ')}<br>
+                Target Users: ${data.target_user_count}<br>`;
+
+            if (testMode) {
+                details += `<br><em>${data.note}</em><br><br>`;
+            }
+            details += `Message: ${escapeHTML(data.message)}`;
+
+            if (data.task_id) {
+                details += `<br><small>Task ID: ${data.task_id}</small>`;
+            }
+
+            resultDiv.innerHTML = details;
+            closeDispatchModal();
+
+            // Refresh zones and alerts after a successful dispatch
+            if (data.status === 'dispatched') {
+                fetchZones();
+                fetchAlertsFeed();
+                showToast('Alert dispatched successfully', 'success');
+            }
+        } else {
+            resultDiv.className = 'alert alert-error';
+            resultDiv.textContent = data.error || 'Failed to dispatch alert';
+            showToast('Dispatch failed', 'error');
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        showToast('Network error during dispatch', 'error');
+    });
+});
+
 document.getElementById('override-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const zoneId = document.getElementById('override-zone-id').value;
     const duration = parseInt(document.getElementById('override-duration').value);
-    
+
     fetch(`/api/v1/zones/${zoneId}/manual_override/`, {
         method: 'POST',
         headers: {

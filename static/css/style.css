@@ -526,6 +526,9 @@ table tr:hover td { background: #F5F8FF; }
   padding: 40px;
 }
 .form-group { display: grid; gap: 8px; margin-bottom: 18px; }
+.form-group small { font-size: 12px; color: var(--text-muted); font-weight: normal; }
+.checkbox-group { display: flex; gap: 16px; }
+.checkbox-group label { display: flex; align-items: center; gap: 6px; font-weight: normal; cursor: pointer; }
 label { font-size: 14px; font-weight: 700; color: var(--text); }
 input,
 select,

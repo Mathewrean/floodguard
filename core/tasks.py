@@ -222,3 +222,88 @@ def _send_email_alert_fallback(user, zone, message, severity_label):
     except Exception as e:
         logger.error(f"Failed to send email to {user.username}: {str(e)}")
         return False
+
+
+@shared_task
+def dispatch_manual_alert(zone_id, user_ids, channels, message):
+    """
+    Manually dispatch alerts to specific users in a zone.
+    Used by admin panel for manual alert triggering.
+
+    Args:
+        zone_id: ID of the AlertZone
+        user_ids: list of User IDs to alert
+        channels: list of channels ['sms', 'email']
+        message: custom alert message
+    """
+    try:
+        zone = AlertZone.objects.get(id=zone_id)
+    except AlertZone.DoesNotExist:
+        logger.error(f"AlertZone with id {zone_id} does not exist.")
+        return {'error': 'Zone not found'}
+
+    if not user_ids:
+        return {'error': 'No users specified'}
+
+    alert_logs_created = []
+    failed_count = 0
+
+    for user_id in user_ids:
+        try:
+            user = User.objects.get(id=user_id, is_active=True)
+        except User.DoesNotExist:
+            logger.warning(f"User {user_id} not found or inactive, skipping")
+            failed_count += 1
+            continue
+
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            logger.warning(f"User {user.username} has no profile, skipping")
+            failed_count += 1
+            continue
+
+        # For manual alerts, we don't use deduplication (test alerts bypass it)
+        # But still create a Redis key to prevent accidental duplicate sends within 10 minutes
+        redis_key = f"manual_alert:{zone.id}:{user.id}:{int(timezone.now().timestamp() // 600)}"
+
+        delivery_success = False
+        provider_message_id = None
+
+        # Try SMS if requested
+        if 'sms' in channels and profile.phone_number and profile.sms_enabled:
+            delivery_success, provider_message_id = _send_sms_alert(user, zone, message, redis_key)
+
+        # Try Email if requested and SMS didn't succeed (or email also requested)
+        if 'email' in channels and user.email:
+            email_success = _send_email_alert_fallback(user, zone, message, 'MANUAL')
+            if email_success:
+                delivery_success = True
+            # If both were attempted, use last channel's status
+
+        # Create AlertLog record
+        channel_used = 'SMS' if 'sms' in channels and profile.phone_number else 'Email'
+        alert_log = AlertLog.objects.create(
+            alert_zone=zone,
+            message=message,
+            channel=channel_used,
+            recipient_count=1,
+            triggered_at=timezone.now(),
+            delivery_status='sent' if delivery_success else 'failed',
+            provider_message_id=provider_message_id,
+        )
+        alert_logs_created.append(alert_log)
+
+        if not delivery_success:
+            failed_count += 1
+
+    logger.info(f"Manual alert dispatch completed for zone {zone.name}. Sent: {len(alert_logs_created) - failed_count}, Failed: {failed_count}")
+
+    return {
+        'zone_id': zone_id,
+        'zone_name': zone.name,
+        'total_targeted': len(user_ids),
+        'success_count': len(alert_logs_created) - failed_count,
+        'failed_count': failed_count,
+        'logs_created': len(alert_logs_created)
+    }

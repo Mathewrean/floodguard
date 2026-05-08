@@ -90,6 +90,40 @@
     </div>
 </section>
 
+<!-- Manual Alert Dispatch Modal -->
+<div id="dispatch-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>Send Manual Alert</h3>
+        <form id="dispatch-form">
+            <input type="hidden" id="dispatch-zone-id">
+            <div class="form-group">
+                <label>Channels</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="channels" value="sms" checked> SMS</label>
+                    <label><input type="checkbox" name="channels" value="email"> Email</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Message (optional)</label>
+                <textarea id="dispatch-message" rows="3" placeholder="Custom alert message..."></textarea>
+                <small>Leave blank to use the standard alert template for this zone.</small>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="dispatch-test-mode" checked>
+                    Test Mode (preview only)
+                </label>
+                <small>When enabled, shows what would happen without actually sending alerts.</small>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeDispatchModal()">Cancel</button>
+                <button type="submit" class="btn btn-accent">Send Alert</button>
+            </div>
+        </form>
+        <div id="dispatch-result" class="alert" style="display:none; margin-top: 1rem;"></div>
+    </div>
+</div>
+
 <!-- Authority Quick Actions Modal (for override) -->
 <div id="override-modal" class="modal" style="display:none;">
     <div class="modal-content">

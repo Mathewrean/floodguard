@@ -17,6 +17,7 @@ from django.conf import settings
 from rest_framework import viewsets, permissions, status, serializers as drf_serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework_gis.serializers import GeometryField
 
 # Serializers for API (imported from serializers.py)
@@ -28,16 +29,22 @@ from .serializers import (
 )
 
 # ViewSets
+from rest_framework.pagination import LimitOffsetPagination
+
+# ... other imports ...
+
 class AlertZoneViewSet(viewsets.ModelViewSet):
-    queryset = AlertZone.objects.all()
+    queryset = AlertZone.objects.all().prefetch_related('alert_logs').order_by('-risk_score', 'name')
     serializer_class = AlertZoneSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    pagination_class = None  # Return list directly for small datasets, but support limit/offset
-    
+    pagination_class = LimitOffsetPagination
+    pagination_class.default_limit = 10
+    pagination_class.max_limit = 500
+
     def get_queryset(self):
         """Support filtering by bounding box for map viewport loading."""
-        queryset = AlertZone.objects.all()
-        
+        queryset = AlertZone.objects.all().prefetch_related('alert_logs').order_by('-risk_score', 'name')
+
         # Bounding box filter: ?bbox=min_lon,min_lat,max_lon,max_lat
         bbox_param = self.request.query_params.get('bbox')
         if bbox_param:
@@ -45,23 +52,13 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
                 coords = [float(c) for c in bbox_param.split(',')]
                 if len(coords) == 4:
                     min_lon, min_lat, max_lon, max_lat = coords
-                    # Create polygon from bbox
-                    from django.contrib.gis.geos import Polygon
                     bbox_polygon = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
                     queryset = queryset.filter(polygon__intersects=bbox_polygon)
             except (ValueError, TypeError):
-                pass  # Invalid bbox, return all zones
-        
-        # Limit results for performance (default 100, max 500)
-        limit = self.request.query_params.get('limit')
-        if limit:
-            try:
-                limit_val = int(limit)
-                if 0 < limit_val <= 500:
-                    queryset = queryset[:limit_val]
-            except ValueError:
                 pass
-        
+
+        # For list action, pagination will handle limit automatically
+        # For other actions (like manual_override), we must not slice
         return queryset
 
     @action(detail=True, methods=['post'])
@@ -93,17 +90,115 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
             'manual_override_until': zone.manual_override_until.isoformat() if zone.manual_override_until else None
         })
 
+    @action(detail=True, methods=['post'])
+    def dispatch_alert(self, request, pk=None):
+        """
+        Manually trigger an alert to all subscribed users in a zone.
+        Only accessible by EmergencyTeam or admin users.
+
+        POST data:
+        - channels: list of channels to use ['sms', 'email'] (default: ['sms'])
+        - test_message: custom message override (optional)
+        - test_mode: if true, only shows what would happen without actually sending (default: false)
+        """
+        zone = self.get_object()
+
+        # Permission check: only EmergencyTeam or admin
+        if not (request.user.groups.filter(name='EmergencyTeam').exists() or request.user.is_superuser):
+            return Response({'detail': 'Forbidden: EmergencyTeam or admin privileges required'},
+                          status=status.HTTP_403_FORBIDDEN)
+
+        # Parse request data
+        channels = request.data.get('channels', ['sms'])
+        test_message = request.data.get('test_message', '')
+        test_mode = request.data.get('test_mode', False)
+
+        # Validate channels
+        valid_channels = ['sms', 'email']
+        if not isinstance(channels, list):
+            channels = [channels]
+        channels = [c for c in channels if c in valid_channels]
+
+        if not channels:
+            return Response({'error': 'At least one valid channel required (sms, email)'},
+                          status=status.HTTP_400_BAD_REQUEST)
+
+        # Collect users in this zone
+        from django.contrib.gis.geos import GEOSGeometry
+        zone_polygon = zone.polygon
+
+        # Find users with profiles having phone/email and within the zone
+        from core.models import UserProfile
+        profiles = UserProfile.objects.filter(
+            user__is_active=True,
+            sms_enabled=True
+        ).select_related('user')
+
+        # Filter users whose location is within the zone polygon (if they have location)
+        target_users = []
+        for profile in profiles:
+            if profile.location and profile.location.within(zone_polygon):
+                target_users.append(profile.user)
+            # Also include users with no location (fallback to zone-based subscription)
+            elif not profile.location:
+                # In production, you'd have a ZoneSubscription model
+                # For now, include all verified profiles
+                if profile.phone_verified:
+                    target_users.append(profile.user)
+
+        # Build alert message
+        message = test_message if test_message else (
+            f"MANUAL ALERT: {zone.name} - Risk level: {zone.risk_score:.2f}. "
+            f"Status: {'OVERRIDE ACTIVE' if zone.is_override_active else 'Normal monitoring'}"
+        )
+
+        if test_mode:
+            # Return preview without sending
+            return Response({
+                'status': 'preview',
+                'zone': zone.name,
+                'channels': channels,
+                'target_user_count': len(target_users),
+                'message': message,
+                'note': 'Test mode - no messages actually sent. Set test_mode=false to dispatch.'
+            })
+
+        # Trigger actual alert dispatch using existing task
+        try:
+            from core.tasks import dispatch_manual_alert
+
+            # Use async task for dispatch
+            task = dispatch_manual_alert.delay(
+                zone_id=zone.id,
+                user_ids=[u.id for u in target_users],
+                channels=channels,
+                message=message
+            )
+
+            return Response({
+                'status': 'dispatched',
+                'zone': zone.name,
+                'channels': channels,
+                'target_user_count': len(target_users),
+                'task_id': task.id,
+                'message': message
+            })
+        except Exception as e:
+            return Response({
+                'error': f'Failed to dispatch alert: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class FloodReadingViewSet(viewsets.ModelViewSet):
-    queryset = FloodReading.objects.all()
+    queryset = FloodReading.objects.all().order_by('-timestamp')
     serializer_class = FloodReadingSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = None
 
     def get_queryset(self):
         """Optimize readings query with filtering by bbox, time range, and limit."""
-        queryset = FloodReading.objects.all()
-        
+        queryset = FloodReading.objects.all().order_by('-timestamp')
+
         # Bounding box filter
         bbox_param = self.request.query_params.get('bbox')
         if bbox_param:
@@ -111,38 +206,34 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
                 coords = [float(c) for c in bbox_param.split(',')]
                 if len(coords) == 4:
                     min_lon, min_lat, max_lon, max_lat = coords
-                    from django.contrib.gis.geos import Polygon
                     bbox_polygon = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
                     queryset = queryset.filter(location__intersects=bbox_polygon)
             except (ValueError, TypeError):
                 pass
-        
+
         # Time range filter (last N hours)
         hours_param = self.request.query_params.get('hours')
         if hours_param:
             try:
                 hours = int(hours_param)
                 if hours > 0:
-                    from django.utils import timezone
-                    import datetime
                     cutoff = timezone.now() - datetime.timedelta(hours=hours)
                     queryset = queryset.filter(timestamp__gte=cutoff)
             except ValueError:
                 pass
-        
-        # Limit results (default 100, max 1000)
+
+        # Limit results (max 500, default 200)
         limit = self.request.query_params.get('limit')
         if limit:
             try:
                 limit_val = int(limit)
-                if 0 < limit_val <= 1000:
+                if 0 < limit_val <= 500:
                     queryset = queryset[:limit_val]
             except ValueError:
                 pass
         else:
-            # Default limit for performance
             queryset = queryset[:200]
-        
+
         return queryset
 
     @action(detail=False, methods=['get'])
@@ -190,11 +281,11 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
 
 
 class IncidentReportViewSet(viewsets.ModelViewSet):
-    queryset = IncidentReport.objects.all()
+    queryset = IncidentReport.objects.all().select_related('submitted_by', 'reviewed_by', 'acknowledged_by').order_by('-created_at')
     serializer_class = IncidentReportSerializer
 
     def get_queryset(self):
-        queryset = IncidentReport.objects.all()
+        queryset = IncidentReport.objects.all().select_related('submitted_by', 'reviewed_by', 'acknowledged_by').order_by('-created_at')
         status_filter = self.request.query_params.get('status')
         submitted_by = self.request.query_params.get('submitted_by')
         if status_filter:
@@ -235,7 +326,7 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
 
 
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = AlertLog.objects.all().select_related('alert_zone')
+    queryset = AlertLog.objects.all().select_related('alert_zone').order_by('-triggered_at')
     serializer_class = AlertLogSerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = None
@@ -340,8 +431,11 @@ def register_view(request):
         try:
             with transaction.atomic():
                 user = User.objects.create_user(username=username, email=email, password=password1)
-                # Update the auto-created profile (signal creates it with role='citizen')
-                profile = user.profile
+                # Ensure profile exists (signal should create it, but use get_or_create for safety)
+                profile, created = UserProfile.objects.get_or_create(
+                    user=user,
+                    defaults={'role': 'citizen'}
+                )
                 if phone_number:
                     profile.phone_number = phone_number
                     profile.sms_enabled = True
