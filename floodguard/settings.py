@@ -190,6 +190,10 @@ REST_FRAMEWORK = {
 # FloodGuard specific settings
 FLOOD_MODEL_PATH = os.path.join(BASE_DIR, 'ml_model', 'flood_model.pkl')
 
+# Redis configuration
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+
 # Logging configuration
 LOGGING = {
     'version': 1,

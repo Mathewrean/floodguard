@@ -4,10 +4,10 @@ from . import views
 from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet
 
 router = DefaultRouter()
-router.register(r'zones', AlertZoneViewSet, basename='zone')
-router.register(r'readings', FloodReadingViewSet, basename='reading')
-router.register(r'reports', IncidentReportViewSet, basename='report')
-router.register(r'alerts', AlertLogViewSet, basename='alert')
+router.register(r'zones', AlertZoneViewSet)
+router.register(r'readings', FloodReadingViewSet)
+router.register(r'reports', IncidentReportViewSet)
+router.register(r'alerts', AlertLogViewSet)
 
 urlpatterns = [
     # Landing page and user interface routes
