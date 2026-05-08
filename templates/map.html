@@ -9,6 +9,24 @@
             <p>Current flood zones, risk levels, and user location.</p>
         </div>
     </div>
+    <!-- Top metrics header -->
+    <div class="map-metrics-bar" id="map-metrics-bar">
+        <div class="metric-card">
+            <span class="metric-label">Water Level (m)</span>
+            <strong class="metric-value" id="metric-levels">--</strong>
+            <small class="metric-desc">Average of latest readings</small>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Alert Rate</span>
+            <strong class="metric-value" id="metric-rate">--</strong>
+            <small class="metric-desc">Alerts sent in past 24h</small>
+        </div>
+        <div class="metric-card">
+            <span class="metric-label">Max Risk Score</span>
+            <strong class="metric-value" id="metric-risk">--</strong>
+            <small class="metric-desc">Across all monitored zones</small>
+        </div>
+    </div>
     <div class="map-shell full-screen-map">
         <div id="map" class="map-container full-map"></div>
         <div class="map-controls-panel">

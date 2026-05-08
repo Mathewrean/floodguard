@@ -84,24 +84,46 @@ function renderZones(zones) {
     
     zones.forEach(zone => {
         const score = Number(zone.risk_score || 0);
-        const color = zoneColour(score);
         
-        // Draw polygon
+        // Draw polygon with enhanced styling
         const polygon = L.geoJSON(zone.polygon, {
-            style: {
-                color: color,
-                fillColor: color,
-                fillOpacity: 0.3,
-                weight: 2
+            style: function(feature) {
+                return zoneStyle(score, false);
             }
         }).bindPopup(`
             <strong>${escapeHTML(zone.name)}</strong><br>
             Risk: ${(score * 100).toFixed(1)}%<br>
             Threshold: ${(zone.risk_threshold * 100).toFixed(1)}%<br>
-        // Status: ${zoneStatus(score)}<br>
-        <button onclick="triggerOverride(${zone.id})" class="btn btn-sm">Override</button>
-        <button onclick="triggerDispatch(${zone.id})" class="btn btn-sm btn-accent">Send Alert</button>
+            Status: ${zoneStatus(score)}<br>
+            <button onclick="triggerOverride(${zone.id})" class="btn btn-sm">Override</button>
+            <button onclick="triggerDispatch(${zone.id})" class="btn btn-sm btn-accent">Send Alert</button>
         `);
+        
+        // Store original style for hover reset
+        polygon.riskScore = score;
+        polygon.originalStyle = zoneStyle(score, false);
+        
+        // Hover: bring to front and dim others
+        polygon.on('mouseover', function() {
+            this.setStyle(zoneStyle(score, true));
+            this.bringToFront();
+            // Dim all other zones
+            zonesLayer.eachLayer(other => {
+                if (other !== polygon && other.setStyle) {
+                    other.setStyle({ fillOpacity: 0.06, weight: 1 });
+                }
+            });
+        });
+        
+        polygon.on('mouseout', function() {
+            this.setStyle(this.originalStyle);
+            // Restore all zones
+            zonesLayer.eachLayer(other => {
+                if (other.setStyle && other.originalStyle) {
+                    other.setStyle(other.originalStyle);
+                }
+            });
+        });
         
         polygon.addTo(zonesLayer);
         
@@ -153,6 +175,18 @@ function zoneColour(score) {
     if (score > 0.7) return '#C0392B';
     if (score > 0.4) return '#E67E22';
     return '#27AE60';
+}
+
+function zoneStyle(score, isHovered = false) {
+    const baseColor = zoneColour(score);
+    return {
+        color: isHovered ? '#ffffff' : baseColor,
+        weight: isHovered ? 4 : 3,
+        fillColor: baseColor,
+        fillOpacity: isHovered ? 0.25 : 0.12,
+        dashArray: score > 0.7 ? null : (score > 0.4 ? '8, 4' : '2, 4'),
+        className: 'zone-polygon'
+    };
 }
 
 function zoneStatus(score) {

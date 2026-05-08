@@ -339,6 +339,55 @@ main { min-height: calc(100vh - 64px); }
 .map-titlebar { padding: 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .map-titlebar h1 { color: var(--primary-dark); }
 .map-titlebar p { color: var(--text-muted); }
+
+/* Map metrics header - high-contrast, legible typography */
+.map-metrics-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    padding: 20px 24px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+.metric-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, rgba(255,255,255,.6), rgba(255,255,255,.2));
+    border: 1px solid rgba(148,163,184,.25);
+    backdrop-filter: blur(8px);
+}
+.metric-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+}
+.metric-value {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--primary-dark);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+.metric-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+[data-theme="dark"] .metric-card {
+    background: linear-gradient(135deg, rgba(30,41,59,.6), rgba(30,41,59,.2));
+    border-color: rgba(71,85,105,.3);
+}
+[data-theme="dark"] .metric-value {
+    color: var(--primary-light);
+}
+
 .map-controls-panel {
   position: absolute;
   top: 16px;

@@ -18,9 +18,23 @@ const BASEMAPS = [
 ];
 
 function zoneColour(score) {
-    if (score > 0.7) return '#C0392B';
-    if (score > 0.4) return '#E67E22';
-    return '#27AE60';
+    if (score > 0.7) return '#C0392B';   // High risk: red
+    if (score > 0.4) return '#E67E22';   // Moderate: orange
+    return '#27AE60';                      // Safe: green
+}
+
+function zoneStyle(score, isHovered = false) {
+    const baseColor = zoneColour(score);
+    // High-contrast borders + semi-transparent fill for legibility
+    return {
+        color: isHovered ? '#ffffff' : baseColor,        // white border on hover, else risk color
+        weight: isHovered ? 4 : 3,                     // thicker border when hovered
+        fillColor: baseColor,
+        fillOpacity: isHovered ? 0.25 : 0.12,          // slightly stronger fill on hover
+        // Dash array for overlapping zones: high-risk gets solid, moderate dashed, safe dotted
+        dashArray: score > 0.7 ? null : (score > 0.4 ? '8, 4' : '2, 4'),
+        className: 'zone-polygon'
+    };
 }
 
 function zoneStatus(score) {
@@ -70,9 +84,10 @@ function showMapNotice(map, message) {
 async function renderZones(map) {
     const layer = L.layerGroup().addTo(map);
     const bounds = [];
+    let zonesLayerGroup = L.featureGroup();
 
     try {
-        const data = await fetch('/api/v1/zones/').then(r => r.json());
+        const data = await fetch('/api/v1/zones/?limit=500').then(r => r.json());
         const zones = Array.isArray(data) ? data : (data.results || []);
 
         if (!zones.length) {
@@ -82,20 +97,40 @@ async function renderZones(map) {
 
         zones.forEach(zone => {
             const score = Number(zone.risk_score || 0);
-            const colour = zoneColour(score);
             const geoLayer = L.geoJSON(zone.polygon, {
-                style: {
-                    color: colour,
-                    fillColor: colour,
-                    fillOpacity: 0.25,
-                    weight: 2
+                style: function(feature) {
+                    return zoneStyle(score, false);
                 }
             }).bindPopup(`
                 <strong>${escapeHTML(zone.name)}</strong><br>
                 Risk Score: ${(score * 100).toFixed(0)}%<br>
                 Status: ${zoneStatus(score)}
             `);
+
+            geoLayer.riskScore = score;
+            geoLayer.originalStyle = zoneStyle(score, false);
+
+            // Hover: bring to front and dim others
+            geoLayer.on('mouseover', function() {
+                this.setStyle(zoneStyle(score, true));
+                this.bringToFront();
+                zonesLayerGroup.eachLayer(other => {
+                    if (other !== geoLayer && other.setStyle) {
+                        other.setStyle({ fillOpacity: 0.06, weight: 1 });
+                    }
+                });
+            });
+            geoLayer.on('mouseout', function() {
+                this.setStyle(this.originalStyle);
+                zonesLayerGroup.eachLayer(other => {
+                    if (other.setStyle && other.originalStyle) {
+                        other.setStyle(other.originalStyle);
+                    }
+                });
+            });
+
             geoLayer.addTo(layer);
+            zonesLayerGroup.addLayer(geoLayer);
             geoLayer.eachLayer(item => bounds.push(item.getBounds ? item.getBounds() : null));
         });
 
@@ -138,6 +173,47 @@ async function renderReadings(map) {
         console.error('Error loading readings:', error);
     }
     return layer;
+}
+
+// Update the top metrics bar with aggregated data
+async function updateMetricsBar() {
+    try {
+        const [zonesRes, readingsRes, statsRes] = await Promise.all([
+            fetch('/api/v1/zones/?limit=500').then(r => r.json()),
+            fetch('/api/v1/readings/?limit=1000').then(r => r.json()),
+            fetch('/api/v1/stats/').then(r => r.json())
+        ]);
+
+        const zones = Array.isArray(zonesRes) ? zonesRes : (zonesRes.results || []);
+        const readings = Array.isArray(readingsRes) ? readingsRes : (readingsRes.results || []);
+        const stats = statsRes; // plain object
+
+        // Compute max risk from zones
+        const maxRisk = zones.length
+            ? Math.max(...zones.map(z => Number(z.risk_score) || 0))
+            : 0;
+
+        // Compute average water level from readings
+        const validReadings = readings.filter(r => r.water_level_metres != null);
+        const avgLevel = validReadings.length
+            ? (validReadings.reduce((sum, r) => sum + Number(r.water_level_metres), 0) / validReadings.length)
+            : null;
+
+        // Alerts today (as rate indicator)
+        const alertsToday = stats.alerts_today || 0;
+
+        // Update DOM with high-contrast values
+        const riskEl = document.getElementById('metric-risk');
+        const levelEl = document.getElementById('metric-levels');
+        const rateEl = document.getElementById('metric-rate');
+
+        if (riskEl) riskEl.textContent = `${(maxRisk * 100).toFixed(0)}%`;
+        if (levelEl) levelEl.textContent = avgLevel !== null ? avgLevel.toFixed(2) : '--';
+        if (rateEl) rateEl.textContent = alertsToday;
+
+    } catch (error) {
+        console.error('Failed to update metrics bar:', error);
+    }
 }
 
 function locateUser(map) {
@@ -190,6 +266,11 @@ async function initFullMap() {
 
     const zonesLayer = await renderZones(map);
     const readingsLayer = await renderReadings(map);
+
+    // Update metrics bar (Levels, Rate, Risk)
+    updateMetricsBar();
+    // Refresh metrics every 30 seconds
+    setInterval(updateMetricsBar, 30000);
 
     const zonesToggle = document.getElementById('toggle-zones');
     const readingsToggle = document.getElementById('toggle-readings');
