@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework_gis.serializers import GeometryField
 from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog
 
 
@@ -52,12 +53,17 @@ class IncidentReportSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def validate_location(self, value):
-        # Validate location is within supported region (Kenya/East Africa bounds)
+        # Validate location is within configured geographic bounds
         lon = value.x
         lat = value.y
-        # Kenya approximate bounds: longitude 33.0 to 42.0, latitude -5.0 to 5.0
-        if not (33.0 <= lon <= 42.0 and -5.0 <= lat <= 5.0):
-            raise serializers.ValidationError("Location outside supported area")
+        # Use configured bounds from settings (default: Kenya/East Africa)
+        bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
+        if len(bounds) == 4:
+            min_lon, min_lat, max_lon, max_lat = bounds
+            if not (min_lon <= lon <= max_lon and min_lat <= lat <= max_lat):
+                raise serializers.ValidationError(
+                    f"Location outside supported area (bounds: {bounds})"
+                )
         return value
 
 

@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -11,6 +11,7 @@ from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfi
 from django.contrib.gis.geos import Point
 from datetime import timedelta
 from django.utils import timezone
+from django.conf import settings
 
 # REST API imports
 from rest_framework import viewsets, permissions, status, serializers as drf_serializers
@@ -31,7 +32,37 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
     queryset = AlertZone.objects.all()
     serializer_class = AlertZoneSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    pagination_class = None  # Return list directly
+    pagination_class = None  # Return list directly for small datasets, but support limit/offset
+    
+    def get_queryset(self):
+        """Support filtering by bounding box for map viewport loading."""
+        queryset = AlertZone.objects.all()
+        
+        # Bounding box filter: ?bbox=min_lon,min_lat,max_lon,max_lat
+        bbox_param = self.request.query_params.get('bbox')
+        if bbox_param:
+            try:
+                coords = [float(c) for c in bbox_param.split(',')]
+                if len(coords) == 4:
+                    min_lon, min_lat, max_lon, max_lat = coords
+                    # Create polygon from bbox
+                    from django.contrib.gis.geos import Polygon
+                    bbox_polygon = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
+                    queryset = queryset.filter(polygon__intersects=bbox_polygon)
+            except (ValueError, TypeError):
+                pass  # Invalid bbox, return all zones
+        
+        # Limit results for performance (default 100, max 500)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit_val = int(limit)
+                if 0 < limit_val <= 500:
+                    queryset = queryset[:limit_val]
+            except ValueError:
+                pass
+        
+        return queryset
 
     @action(detail=True, methods=['post'])
     def manual_override(self, request, pk=None):
@@ -69,6 +100,51 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = None
 
+    def get_queryset(self):
+        """Optimize readings query with filtering by bbox, time range, and limit."""
+        queryset = FloodReading.objects.all()
+        
+        # Bounding box filter
+        bbox_param = self.request.query_params.get('bbox')
+        if bbox_param:
+            try:
+                coords = [float(c) for c in bbox_param.split(',')]
+                if len(coords) == 4:
+                    min_lon, min_lat, max_lon, max_lat = coords
+                    from django.contrib.gis.geos import Polygon
+                    bbox_polygon = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
+                    queryset = queryset.filter(location__intersects=bbox_polygon)
+            except (ValueError, TypeError):
+                pass
+        
+        # Time range filter (last N hours)
+        hours_param = self.request.query_params.get('hours')
+        if hours_param:
+            try:
+                hours = int(hours_param)
+                if hours > 0:
+                    from django.utils import timezone
+                    import datetime
+                    cutoff = timezone.now() - datetime.timedelta(hours=hours)
+                    queryset = queryset.filter(timestamp__gte=cutoff)
+            except ValueError:
+                pass
+        
+        # Limit results (default 100, max 1000)
+        limit = self.request.query_params.get('limit')
+        if limit:
+            try:
+                limit_val = int(limit)
+                if 0 < limit_val <= 1000:
+                    queryset = queryset[:limit_val]
+            except ValueError:
+                pass
+        else:
+            # Default limit for performance
+            queryset = queryset[:200]
+        
+        return queryset
+
     @action(detail=False, methods=['get'])
     def predict(self, request):
         """
@@ -87,6 +163,30 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
             return Response({'risk_score': risk_score})
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=False, methods=['get'])
+    def heatmap(self, request):
+        """
+        Return heatmap data: points with risk intensity for visualization.
+        Supports bbox and time filtering.
+        """
+        # Get latest readings within optional bbox and time window
+        queryset = self.get_queryset()
+        # Only readings with risk_score
+        queryset = queryset.filter(risk_score__isnull=False).order_by('-timestamp')
+        
+        data = []
+        for reading in queryset[:500]:  # Cap at 500 points for performance
+            if reading.location:
+                data.append({
+                    'lat': reading.location.y,
+                    'lng': reading.location.x,
+                    'intensity': float(reading.risk_score),
+                    'timestamp': reading.timestamp.isoformat(),
+                    'water_level': reading.water_level_metres,
+                })
+        
+        return Response({'heatmap': data})
 
 
 class IncidentReportViewSet(viewsets.ModelViewSet):
@@ -213,6 +313,7 @@ def register_view(request):
         email = request.POST.get('email')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
+        phone_number = request.POST.get('phone_number', '').strip()
         
         if password1 != password2:
             return render(request, 'auth/register.html', {'error': 'Passwords do not match'})
@@ -222,14 +323,29 @@ def register_view(request):
         
         if User.objects.filter(email=email).exists():
             return render(request, 'auth/register.html', {'error': 'Email already exists'})
-
+        
+        # Validate phone number if provided
+        if phone_number:
+            cleaned = phone_number.replace(' ', '').replace('-', '')
+            if not cleaned.startswith('+'):
+                return render(request, 'auth/register.html', {
+                    'error': 'Phone number must be in international format (e.g., +254712345678)'
+                })
+            digits = cleaned[1:]
+            if not digits.isdigit() or not (10 <= len(digits) <= 15):
+                return render(request, 'auth/register.html', {
+                    'error': 'Phone number must be 10-15 digits after country code'
+                })
+        
         try:
             with transaction.atomic():
                 user = User.objects.create_user(username=username, email=email, password=password1)
-                UserProfile.objects.get_or_create(
-                    user=user,
-                    defaults={'role': 'citizen'}
-                )
+                # Update the auto-created profile (signal creates it with role='citizen')
+                profile = user.profile
+                if phone_number:
+                    profile.phone_number = phone_number
+                    profile.sms_enabled = True
+                profile.save()
         except IntegrityError:
             return render(request, 'auth/register.html', {
                 'error': 'Account creation could not be completed. Please try again.'
@@ -306,9 +422,12 @@ def report_submit(request):
             if len(description) < 10:
                 raise ValueError("Description must be at least 10 characters")
             
-            # Validate coordinates within Kenya bounds
-            if not (33.0 <= longitude <= 42.0 and -5.0 <= latitude <= 5.0):
-                raise ValueError("Location outside supported area")
+            # Validate coordinates within configured geographic bounds
+            bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
+            if len(bounds) == 4:
+                min_lon, min_lat, max_lon, max_lat = bounds
+                if not (min_lon <= longitude <= max_lon and min_lat <= latitude <= max_lat):
+                    raise ValueError(f"Location outside supported area (bounds: {bounds})")
             
             # Create point
             location = Point(longitude, latitude, srid=4326)

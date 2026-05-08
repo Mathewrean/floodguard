@@ -8,6 +8,7 @@ import json
 import redis
 from django.conf import settings
 import logging
+from core.alerts.email import send_email_alert
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ def run_risk_scoring(reading_id):
 def dispatch_alerts(zone_id, risk_score):
     """
     Dispatch alerts for a given zone when risk score exceeds threshold.
+    Sends SMS (primary) and Email (fallback) to authority users.
     """
     try:
         zone = AlertZone.objects.get(id=zone_id)
@@ -109,86 +111,114 @@ def dispatch_alerts(zone_id, risk_score):
     from core.alerts.messages import build_alert_message
     message, severity_label = build_alert_message(zone, risk_score)
 
-    # Get users within the zone (simplified: for now, we'll alert all authority users)
-    # In a real system, we would use spatial query to find users within the zone
+    # Get users within the zone (authority team)
     authority_users = User.objects.filter(
         groups__name='EmergencyTeam',
         is_active=True
-    ).distinct()
+    ).prefetch_related('profile').distinct()
 
-    # For each user, check Redis deduplication
+    alert_logs_created = []
+    
     for user in authority_users:
-        # Create a Redis key for this user/zone pair
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            logger.warning(f"User {user.username} has no profile, skipping")
+            continue
+        
+        # Create Redis key for deduplication (3 hours)
         redis_key = f"alert:{zone.id}:{user.id}"
-
+        
         # Check if we have sent an alert in the last 3 hours
         if redis_client.exists(redis_key):
             logger.info(f"Alert deduplication: Skipping alert for user {user.username} in zone {zone.name}")
             continue
+        
+        delivery_success = False
+        provider_message_id = None
+        
+        # Try SMS first if phone number available and SMS enabled
+        if profile.phone_number and profile.sms_enabled:
+            delivery_success, provider_message_id = _send_sms_alert(user, zone, message, redis_key)
+        
+        # Fallback to email if SMS failed or not available
+        if not delivery_success and user.email:
+            delivery_success = _send_email_alert_fallback(user, zone, message, severity_label)
+            # Email doesn't have provider message ID like SMS
+            provider_message_id = None
+        
+        # Create AlertLog record
+        alert_log = AlertLog.objects.create(
+            alert_zone=zone,
+            message=message,
+            channel='SMS' if delivery_success and profile.phone_number else 'Email',
+            recipient_count=1,
+            triggered_at=timezone.now(),
+            delivery_status='sent' if delivery_success else 'failed',
+            provider_message_id=provider_message_id,
+        )
+        alert_logs_created.append(alert_log)
+    
+    logger.info(f"Alert dispatch completed for zone {zone.name} with risk score {risk_score}. Sent to {len(alert_logs_created)} recipients")
+    return alert_logs_created
 
-        # Send SMS via Africa's Talking
+
+def _send_sms_alert(user, zone, message, redis_key):
+    """Send SMS via Africa's Talking API. Returns (success: bool, provider_message_id: str)"""
+    try:
+        profile = user.profile
+        
+        # Africa's Talking API endpoint
+        sms_endpoint = "https://api.africastalking.com/version1/messaging"
+        
+        payload = {
+            'username': getattr(settings, 'AFRICASTALKING_USERNAME', ''),
+            'to': profile.phone_number,
+            'message': message[:159]  # Ensure within 160 chars
+        }
+        headers = {
+            'apikey': getattr(settings, 'AFRICASTALKING_API_KEY', ''),
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        response = requests.post(sms_endpoint, data=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Parse response
         try:
-            from django.conf import settings
-            import requests
-            
-            # Get user's phone number from profile
-            try:
-                phone_number = user.profile.phone_number
-            except UserProfile.DoesNotExist:
-                logger.warning(f"User {user.username} has no profile, skipping SMS")
-                continue
-            
-            if not phone_number:
-                logger.warning(f"User {user.username} has no phone number, skipping SMS")
-                continue
+            result = response.json()
+            provider_message_id = result.get('SMSMessageData', {}).get('Recipients', [{}])[0].get('messageId', '')
+        except Exception:
+            provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
+        
+        # Set Redis deduplication key (3 hours)
+        redis_client.setex(redis_key, 3 * 60 * 60, 1)
+        
+        logger.info(f"SMS sent to {profile.phone_number} for zone {zone.name}")
+        return True, provider_message_id
+        
+    except Exception as e:
+        logger.error(f"Failed to send SMS to {user.username}: {str(e)}")
+        return False, None
 
-            # Africa's Talking API endpoint
-            sms_endpoint = "https://api.africastalking.com/version1/messaging"
-            
-            payload = {
-                'username': getattr(settings, 'AFRICASTALKING_USERNAME', ''),
-                'to': phone_number,
-                'message': message[:159]  # Ensure within 160 chars
-            }
-            headers = {
-                'apikey': getattr(settings, 'AFRICASTALKING_API_KEY', ''),
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-            
-            response = requests.post(sms_endpoint, data=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            
-            # Parse response to get message ID
-            try:
-                result = response.json()
-                provider_message_id = result.get('SMSMessageData', {}).get('Recipients', [{}])[0].get('messageId', '')
-            except Exception:
-                provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
-            
-            # Set Redis key with 3-hour expiry
-            redis_client.setex(redis_key, 3*60*60, 1)  # 3 hours in seconds
-            
-            # Create AlertLog record with delivery tracking
-            alert_log = AlertLog.objects.create(
-                alert_zone=zone,
-                message=message,
-                channel='SMS',
-                recipient_count=1,
-                triggered_at=timezone.now(),
-                delivery_status='sent',
-                provider_message_id=provider_message_id
-            )
-            
-        except Exception as e:
-            logger.error(f"Failed to send alert to user {user.username}: {str(e)}")
-            # Create failed alert log
-            AlertLog.objects.create(
-                alert_zone=zone,
-                message=message,
-                channel='SMS',
-                recipient_count=1,
-                triggered_at=timezone.now(),
-                delivery_status='failed'
-            )
 
-    logger.info(f"Alert dispatch completed for zone {zone.name} with risk score {risk_score}")
+def _send_email_alert_fallback(user, zone, message, severity_label):
+    """Send email alert as fallback when SMS fails or not available."""
+    try:
+        success = send_email_alert(
+            recipient_email=user.email,
+            subject=f"{severity_label} FLOOD ALERT - {zone.name}",
+            template='emails/flood_alert.html',
+            context={
+                'zone_name': zone.name,
+                'message': message,
+                'severity': severity_label,
+                'risk_score': None,  # Will be retrieved from zone if needed
+            }
+        )
+        if success:
+            logger.info(f"Email alert sent to {user.email} for zone {zone.name}")
+        return success
+    except Exception as e:
+        logger.error(f"Failed to send email to {user.username}: {str(e)}")
+        return False

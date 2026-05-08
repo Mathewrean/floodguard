@@ -4,7 +4,7 @@
 {% block content %}
 <div class="auth-container">
     <div class="auth-box">
-        <h2>Join FloodGuard</h2>
+        <h2>Create Your FloodGuard Account</h2>
         {% if error %}
             <div class="alert alert-error">{{ error }}</div>
         {% endif %}
@@ -12,24 +12,32 @@
             {% csrf_token %}
             <div class="form-group">
                 <label for="username">Username</label>
-                <input type="text" id="username" name="username" required>
+                <input type="text" id="username" name="username" required maxlength="150">
             </div>
             <div class="form-group">
-                <label for="email">Email Address</label>
+                <label for="email">Email</label>
                 <input type="email" id="email" name="email" required>
             </div>
             <div class="form-group">
                 <label for="password1">Password</label>
-                <input type="password" id="password1" name="password1" required>
+                <input type="password" id="password1" name="password1" required minlength="8">
             </div>
             <div class="form-group">
                 <label for="password2">Confirm Password</label>
-                <input type="password" id="password2" name="password2" required>
+                <input type="password" id="password2" name="password2" required minlength="8">
             </div>
-            <button type="submit" class="btn-primary btn-block">Register</button>
+            <div class="form-group">
+                <label for="phone_number">Phone Number (optional, for SMS alerts)</label>
+                <input type="tel" id="phone_number" name="phone_number" 
+                       placeholder="+254712345678" 
+                       pattern="^\+[1-9]\d{1,14}$"
+                       title="International format: +[country code][number] (e.g., +254712345678)">
+                <small>Include country code. Required for emergency SMS alerts.</small>
+            </div>
+            <button type="submit" class="btn-primary btn-block">Create Account</button>
         </form>
         <p class="auth-footer">
-            Already have an account? <a href="{% url 'login' %}">Login here</a>
+            Already have an account? <a href="{% url 'login' %}">Sign in</a>
         </p>
     </div>
 </div>

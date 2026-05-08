@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ severity }} FLOOD ALERT - {{ zone_name }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #C0392B; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 8px 8px; }
+        .severity { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+        .severity.CRITICAL { color: #C0392B; }
+        .severity.HIGH { color: #E67E22; }
+        .severity.MODERATE { color: #D97706; }
+        .severity.ADVISORY { color: #16A34A; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+        .button { display: inline-block; padding: 12px 24px; background: #155E9F; color: white; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+        .alert-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>FLOOD ALERT</h1>
+    </div>
+    <div class="content">
+        <div class="severity {{ severity }}">{{ severity }}</div>
+        
+        <h2>{{ zone_name }}</h2>
+        
+        <p><strong>Current Risk Level:</strong> {{ risk_score }}%</p>
+        <p><strong>Alert Threshold:</strong> {{ risk_threshold }}%</p>
+        
+        <div class="alert-box">
+            <strong>Immediate Action Required:</strong><br>
+            {{ message }}
+        </div>
+        
+        <p><strong>What to do:</strong></p>
+        <ul>
+            <li>Avoid low-lying areas and drainage channels</li>
+            <li>Do not attempt to cross flooded roads</li>
+            <li>Stay tuned to official emergency channels</li>
+            <li>Follow evacuation orders if issued</li>
+        </ul>
+        
+        <a href="{{ frontend_url|default:'https://floodguard.app' }}" class="button">View Live Map</a>
+        
+        <div class="footer">
+            <p><strong>FloodGuard Early Warning System</strong></p>
+            <p>This is an automated alert. Reply to this email with questions or visit the dashboard for more info.</p>
+            <p>To unsubscribe from alerts, update your profile settings.</p>
+        </div>
+    </div>
+</body>
+</html>

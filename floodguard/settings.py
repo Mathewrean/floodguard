@@ -122,6 +122,10 @@ DATABASES = {
         'PASSWORD': project_config('DB_PASSWORD'),
         'HOST': project_config('DB_HOST'),
         'PORT': project_config('DB_PORT', default='5432'),
+        'CONN_MAX_AGE': project_config('DB_CONN_MAX_AGE', default=60, cast=int),  # Persistent connections for 60s
+        'OPTIONS': {
+            'connect_timeout': project_config('DB_CONNECT_TIMEOUT', default=10, cast=int),  # Connection timeout in seconds
+        },
     }
 }
 
@@ -189,6 +193,18 @@ REST_FRAMEWORK = {
 
 # FloodGuard specific settings
 FLOOD_MODEL_PATH = os.path.join(BASE_DIR, 'ml_model', 'flood_model.pkl')
+
+# Geographic boundary validation (format: min_lon,min_lat,max_lon,max_lat)
+# Default to Kenya/East Africa bounds; override for other regions
+DEFAULT_GEO_BOUNDS = project_config(
+    'GEO_BOUNDS',
+    default='33.0,-5.0,42.0,5.0',  # Kenya/East Africa
+    cast=lambda v: [float(c) for c in v.split(',')]
+)
+
+# Validation: ensure 4 values
+if len(DEFAULT_GEO_BOUNDS) != 4:
+    raise ValueError("GEO_BOUNDS must be min_lon,min_lat,max_lon,max_lat")
 
 # Redis configuration
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')

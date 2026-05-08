@@ -4,6 +4,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.contrib.gis.geos import Polygon
+from django.conf import settings
 
 
 class AlertZone(models.Model):
@@ -59,15 +60,15 @@ class AlertZone(models.Model):
             if not self.polygon.valid:
                 raise ValidationError({'polygon': 'Invalid polygon geometry'})
             
-            # Optional: Check if polygon is within reasonable bounds (e.g., Kenya/Kampala area)
-            # This is just an example - adjust bounds as needed for your application
-            # Kenya approximate bounds: lat -5.0 to 5.0, lon 33.0 to 42.0
-            # Kampala approximate bounds: lat 0.1 to 0.5, lon 32.4 to 33.0
-            # For Nairobi area: lat -1.5 to -1.1, lon 36.6 to 37.2
-            # For this example, we'll use a broader East Africa bound
-            kenya_bounds = Polygon.from_bbox((33.0, -5.0, 42.0, 5.0))  # lon_min, lat_min, lon_max, lat_max
-            if not self.polygon.within(kenya_bounds):
-                raise ValidationError({'polygon': 'Polygon must be within Kenya bounds'})
+            # Check if polygon is within configured geographic bounds
+            # Settings: GEO_BOUNDS = min_lon,min_lat,max_lon,max_lat
+            bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
+            if len(bounds) == 4:
+                allowed_bounds = Polygon.from_bbox(tuple(bounds))  # (min_lon, min_lat, max_lon, max_lat)
+                if not self.polygon.within(allowed_bounds):
+                    raise ValidationError({
+                        'polygon': f'Polygon must be within allowed geographic bounds ({bounds})'
+                    })
 
     def save(self, *args, **kwargs):
         """Override save to run validation and auto-deactivate expired overrides"""
@@ -305,7 +306,20 @@ class UserProfile(models.Model):
         default='citizen',
         help_text="User role in the system"
     )
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    phone_number = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+        help_text="Phone number for SMS alerts (international format: +[country code][number])"
+    )
+    phone_verified = models.BooleanField(
+        default=False,
+        help_text="Whether the phone number has been verified via OTP"
+    )
+    sms_enabled = models.BooleanField(
+        default=True,
+        help_text="User consent to receive SMS alerts"
+    )
 
     def __str__(self):
         return f"{self.user.username} - {self.get_role_display()}"

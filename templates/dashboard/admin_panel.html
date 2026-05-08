@@ -2,55 +2,112 @@
 {% load static %}
 
 {% block content %}
-<section class="dashboard">
+<section class="dashboard admin-dashboard">
     <aside class="dashboard-sidebar">
-        <a class="active" href="{% url 'admin_dashboard' %}">System</a>
-        <a href="/admin/">Django Admin</a>
-        <a href="{% url 'map_view' %}">Map</a>
-        <a href="{% url 'report_list' %}">Reports</a>
+        <a class="active" href="{% url 'admin_dashboard' %}">Overview</a>
+        <a href="{% url 'admin_dashboard' %}?view=zones">Zones</a>
+        <a href="{% url 'admin_dashboard' %}?view=alerts">Alerts</a>
+        <a href="{% url 'admin_dashboard' %}?view=reports">Reports</a>
+        <a href="{% url 'admin_dashboard' %}?view=users">Users</a>
+        <a href="{% url 'admin_panel' %}">Django Admin</a>
     </aside>
     <div class="container dashboard-content">
         <div class="dashboard-header">
-            <h1 class="section-title">Admin Dashboard</h1>
-            <p class="section-subtitle">System health, live counts, and zone management.</p>
+            <h1 class="section-title">Command Center</h1>
+            <p class="section-subtitle">System-wide flood monitoring and emergency oversight</p>
         </div>
 
+        <!-- KPI Cards Row -->
         <div class="stats-grid">
-            <div class="stat-card card"><span>Zones</span><strong class="stat-value" data-stat="zones_count">0</strong><small>Monitored polygons</small></div>
-            <div class="stat-card card"><span>Alerts Today</span><strong class="stat-value" data-stat="alerts_today">0</strong><small>AlertLog entries</small></div>
-            <div class="stat-card card"><span>Reports This Week</span><strong class="stat-value" data-stat="reports_this_week">0</strong><small>Incident reports</small></div>
-            <div class="stat-card card"><span>System Health</span><strong id="system-health">--</strong><small id="last-poll-time">Waiting</small></div>
+            <div class="stat-card card">
+                <span>Active Zones</span>
+                <strong id="total-zones">--</strong>
+                <small>Monitored areas</small>
+            </div>
+            <div class="stat-card card">
+                <span>Critical Zones</span>
+                <strong id="critical-zones" class="text-danger">0</strong>
+                <small>Immediate attention</small>
+            </div>
+            <div class="stat-card card">
+                <span>Pending Reports</span>
+                <strong id="pending-reports">0</strong>
+                <small>Awaiting review</small>
+            </div>
+            <div class="stat-card card">
+                <span>Alerts Sent (24h)</span>
+                <strong id="alerts-24h">0</strong>
+                <small>SMS + Email</small>
+            </div>
         </div>
 
+        <!-- Global Map Section -->
         <section class="dashboard-section card">
             <div class="section-header compact">
-                <h2 class="card-title">Service Health</h2>
-                <span class="card-meta">Live from /health/</span>
+                <h2 class="card-title">Global Zone Status</h2>
+                <div class="map-controls-mini">
+                    <label><input type="checkbox" id="show-heatmap" checked> Heatmap</label>
+                    <label><input type="checkbox" id="show-clusters" checked> Clusters</label>
+                </div>
             </div>
-            <div class="health-grid">
-                <div><span id="celery-dot" class="health-dot"></span> Celery <strong id="celery-status">unknown</strong></div>
-                <div><span id="redis-dot" class="health-dot"></span> Redis <strong id="redis-status">unknown</strong></div>
+            <div id="admin-map" class="map-container large" style="height: 600px;"></div>
+        </section>
+
+        <!-- Zone Status Table -->
+        <section class="dashboard-section">
+            <div class="card">
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Zone</th>
+                                <th>Risk Score</th>
+                                <th>Threshold</th>
+                                <th>Status</th>
+                                <th>Override</th>
+                                <th>Last Reading</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="zones-table-body">
+                            <tr><td colspan="7"><span class="skeleton skeleton-line"></span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
+        <!-- Recent Alerts Feed -->
         <section class="dashboard-section card">
             <div class="section-header compact">
-                <h2 class="card-title">Zone Management</h2>
-                <a href="/admin/core/alertzone/" class="btn btn-sm btn-primary">Open Admin</a>
+                <h2 class="card-title">Recent Alerts</h2>
+                <a href="#" class="btn btn-sm">View All</a>
             </div>
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>Name</th><th>Risk Score</th><th>Threshold</th><th>Action</th></tr>
-                    </thead>
-                    <tbody id="zone-management-table">
-                        <tr><td colspan="4"><span class="skeleton skeleton-line"></span></td></tr>
-                    </tbody>
-                </table>
+            <div class="alerts-feed" id="alerts-feed">
+                <div class="skeleton skeleton-line"></div>
             </div>
         </section>
     </div>
 </section>
+
+<!-- Authority Quick Actions Modal (for override) -->
+<div id="override-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>Manual Override</h3>
+        <form id="override-form">
+            <input type="hidden" id="override-zone-id">
+            <div class="form-group">
+                <label>Duration (hours)</label>
+                <input type="number" id="override-duration" value="2" min="1" max="24">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeOverrideModal()">Cancel</button>
+                <button type="submit" class="btn btn-accent">Set Override</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
