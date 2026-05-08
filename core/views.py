@@ -14,7 +14,7 @@ from django.utils import timezone
 # REST API imports
 from rest_framework import viewsets, permissions, status, serializers as drf_serializers
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework_gis.serializers import GeometryField
 
 # Serializers for API
@@ -23,7 +23,7 @@ class AlertZoneSerializer(drf_serializers.ModelSerializer):
 
     class Meta:
         model = AlertZone
-        fields = ['id', 'name', 'risk_threshold', 'manual_override_active', 'manual_override_until', 'polygon']
+        fields = ['id', 'name', 'risk_threshold', 'risk_score', 'manual_override_active', 'manual_override_until', 'polygon']
 
 class FloodReadingSerializer(drf_serializers.ModelSerializer):
     location = drf_serializers.SerializerMethodField()
@@ -38,7 +38,10 @@ class FloodReadingSerializer(drf_serializers.ModelSerializer):
         return None
 
 class IncidentReportSerializer(drf_serializers.ModelSerializer):
-    location = GeometryField()
+    location = GeometryField(required=False)
+    latitude = drf_serializers.FloatField(write_only=True, required=False)
+    longitude = drf_serializers.FloatField(write_only=True, required=False)
+    water_depth_cm = drf_serializers.IntegerField(write_only=True, required=False)
     photo = drf_serializers.ImageField(write_only=True, required=False, allow_null=True)
     photo_url = drf_serializers.SerializerMethodField()
     submitted_by = drf_serializers.SerializerMethodField()
@@ -46,7 +49,12 @@ class IncidentReportSerializer(drf_serializers.ModelSerializer):
 
     class Meta:
         model = IncidentReport
-        fields = ['id', 'location', 'severity', 'description', 'photo', 'photo_url', 'status', 'submitted_by', 'reviewed_by', 'created_at', 'updated_at']
+        fields = [
+            'id', 'location', 'latitude', 'longitude', 'severity', 'description',
+            'water_depth_cm', 'photo', 'photo_url', 'status', 'submitted_by',
+            'reviewed_by', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['status', 'submitted_by', 'reviewed_by', 'created_at', 'updated_at']
 
     def get_photo_url(self, obj):
         if obj.photo:
@@ -74,6 +82,17 @@ class IncidentReportSerializer(drf_serializers.ModelSerializer):
         if not (33.0 <= lon <= 42.0 and -5.0 <= lat <= 5.0):
             raise drf_serializers.ValidationError("Location outside supported area")
         return value
+
+    def validate(self, attrs):
+        latitude = attrs.pop('latitude', None)
+        longitude = attrs.pop('longitude', None)
+        attrs.pop('water_depth_cm', None)
+        if not attrs.get('location') and latitude is not None and longitude is not None:
+            attrs['location'] = Point(longitude, latitude, srid=4326)
+        if not attrs.get('location'):
+            raise drf_serializers.ValidationError({'location': 'Location or latitude/longitude is required.'})
+        self.validate_location(attrs['location'])
+        return attrs
 
 class AlertLogSerializer(drf_serializers.ModelSerializer):
     zone_name = drf_serializers.SerializerMethodField()
@@ -150,10 +169,30 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
     queryset = IncidentReport.objects.all()
     serializer_class = IncidentReportSerializer
 
+    def get_queryset(self):
+        queryset = IncidentReport.objects.all()
+        status_filter = self.request.query_params.get('status')
+        submitted_by = self.request.query_params.get('submitted_by')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if submitted_by == 'me':
+            if not self.request.user.is_authenticated:
+                return queryset.none()
+            queryset = queryset.filter(submitted_by=self.request.user)
+        return queryset
+
     def get_permissions(self):
+        if self.action in ['create', 'list', 'retrieve']:
+            return [permissions.AllowAny()]
+        if self.action == 'verify':
+            return [permissions.IsAuthenticated()]
         if self.action == 'create':
             return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
+
+    def perform_create(self, serializer):
+        user = self.request.user if self.request.user.is_authenticated else None
+        serializer.save(submitted_by=user)
 
     @action(detail=True, methods=['patch'])
     def verify(self, request, pk=None):
@@ -173,8 +212,32 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertLog.objects.all().select_related('alert_zone')
     serializer_class = AlertLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     pagination_class = None
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def stats_view(request):
+    today = timezone.now().date()
+    return Response({
+        'zones_count': AlertZone.objects.count(),
+        'alerts_today': AlertLog.objects.filter(triggered_at__date=today).count(),
+        'reports_this_week': IncidentReport.objects.filter(
+            created_at__gte=timezone.now() - timedelta(days=7)
+        ).count(),
+        'high_risk_zones': AlertZone.objects.filter(risk_score__gt=0.7).count(),
+    })
+
+
+@require_http_methods(["GET"])
+def health_view(request):
+    return JsonResponse({
+        'status': 'ok',
+        'celery_status': 'unknown',
+        'redis_status': 'unknown',
+        'last_poll_time': timezone.now().isoformat(),
+    })
 
 def landing_index(request):
     """Public landing page"""

@@ -16,18 +16,46 @@ from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BASE_DIR / '.env'
+
+
+def _project_env():
+    values = {}
+    if not ENV_FILE.exists():
+        return values
+    for line in ENV_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+PROJECT_ENV = _project_env()
+
+
+def project_config(key, default=None, cast=None):
+    value = PROJECT_ENV.get(key)
+    if value is None:
+        return config(key, default=default, cast=cast)
+    if cast is bool:
+        return value.lower() in {'1', 'true', 'yes', 'on'}
+    if cast:
+        return cast(value)
+    return value
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
+SECRET_KEY = project_config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = project_config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
 
 
 # Application definition
@@ -85,11 +113,11 @@ WSGI_APPLICATION = 'floodguard.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT', default='5432'),
+        'NAME': project_config('DB_NAME'),
+        'USER': project_config('DB_USER'),
+        'PASSWORD': project_config('DB_PASSWORD'),
+        'HOST': project_config('DB_HOST'),
+        'PORT': project_config('DB_PORT', default='5432'),
     }
 }
 
@@ -139,6 +167,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -159,6 +188,7 @@ FLOOD_MODEL_PATH = os.path.join(BASE_DIR, 'ml_model', 'flood_model.pkl')
 
 # Channels
 ASGI_APPLICATION = 'floodguard.asgi.application'
+LOGIN_URL = 'login'
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',

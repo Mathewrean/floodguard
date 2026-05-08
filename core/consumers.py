@@ -1,7 +1,5 @@
 import json
-from channels.generic.websocket import AsyncWebsocketChannel
-from channels.db import database_sync_to_async
-from .models import AlertLog
+from channels.generic.websocket import AsyncWebsocketConsumer
 
 class AlertConsumer(AsyncWebsocketConsumer):
     async def connect(self):

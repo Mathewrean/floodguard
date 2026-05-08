@@ -12,10 +12,14 @@
 <body>
     <header>
         <nav class="navbar">
-            <div class="container">
-                <div class="logo">
-                    <h1>FloodGuard</h1>
-                </div>
+            <div class="nav-shell">
+                <a class="logo" href="{% url 'landing_index' %}" aria-label="FloodGuard home">
+                    <svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true">
+                        <path d="M5 19c5-9 7-12 11-17 4 5 6 8 11 17 3 7-2 12-11 12S2 26 5 19z" fill="currentColor" opacity=".28"/>
+                        <path d="M7 22c3 2 6 2 9 0s6-2 9 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                    </svg>
+                    <span>FloodGuard</span>
+                </a>
                 <ul class="nav-menu">
                     <li><a href="{% url 'landing_index' %}">Home</a></li>
                     <li><a href="{% url 'about' %}">About</a></li>
@@ -28,8 +32,18 @@
                         <li><a href="{% url 'register' %}">Register</a></li>
                     {% endif %}
                 </ul>
+                <button class="mobile-menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
             </div>
         </nav>
+        <div id="status-strip" class="status-strip" aria-live="polite">
+            <span class="skeleton skeleton-pill"></span>
+            <span class="skeleton skeleton-pill"></span>
+            <span class="skeleton skeleton-pill"></span>
+        </div>
     </header>
 
     <main>
@@ -38,15 +52,29 @@
     </main>
 
     <footer>
-        <div class="container">
-            <p>&copy; 2026 FloodGuard. All rights reserved.</p>
+        <div class="container footer-grid">
+            <div>
+                <h3>FloodGuard</h3>
+                <p>Real-time flood intelligence for faster community response.</p>
+            </div>
             <div class="footer-links">
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Service</a>
-                <a href="#">Contact Us</a>
+                <h4>Links</h4>
+                <a href="{% url 'map_view' %}">Live Map</a>
+                <a href="{% url 'report_submit' %}">Report a Flood</a>
+                <a href="{% url 'alert_history' %}">Alert History</a>
+            </div>
+            <div>
+                <h4>Emergency Contacts</h4>
+                <p>Kenya Red Cross: 1199</p>
+                <p>Emergency Response: 999 / 112</p>
             </div>
         </div>
+        <div class="footer-bottom">FloodGuard — Protecting Communities Through Intelligence</div>
     </footer>
+
+    <div id="alerts-ticker" class="alerts-ticker" aria-live="polite">
+        <div class="ticker-track">Loading latest alerts...</div>
+    </div>
 
     <script src="{% static 'js/main.js' %}"></script>
     <script src="{% static 'js/alerts.js' %}"></script>

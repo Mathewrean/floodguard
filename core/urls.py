@@ -24,8 +24,10 @@ urlpatterns = [
     path('reports/', views.report_list, name='report_list'),
     path('alerts/history/', views.alert_history, name='alert_history'),
     path('map/', views.map_view, name='map_view'),
+    path('health/', views.health_view, name='health'),
     
     # API routes
+    path('api/v1/stats/', views.stats_view, name='stats'),
     path('api/v1/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
     path('api/v1/', include(router.urls)),
 ]

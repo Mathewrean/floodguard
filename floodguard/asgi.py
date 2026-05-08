@@ -11,7 +11,4 @@ import os
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'floodguard.settings')
 
-import django
-django.setup()
-
 from .routing import application

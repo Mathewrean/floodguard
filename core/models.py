@@ -13,6 +13,11 @@ class AlertZone(models.Model):
         validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
         help_text="Risk threshold (0.0-1.0) for triggering alerts"
     )
+    risk_score = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Current calculated risk score (0.0-1.0)"
+    )
     # Manual alert override fields
     manual_override_active = models.BooleanField(
         default=False,
