@@ -1,80 +1,148 @@
-from django.contrib.gis.geos import Point, Polygon
-from django.core.management.base import BaseCommand
+"""
+Management command to create initial data for FloodGuard.
+Creates user groups, sample zones, and other essential initial data.
+"""
 
-from core.models import AlertLog, AlertZone, FloodReading
+from django.core.management.base import BaseCommand
+from django.contrib.auth.models import Group, User
+from django.contrib.gis.geos import Polygon, Point
+from core.models import AlertZone, IncidentReport, UserProfile
+from django.utils import timezone
 
 
 class Command(BaseCommand):
-    help = 'Create demo zones, readings, and alerts for local UI verification.'
+    help = 'Create initial demo data for FloodGuard development and testing'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--force',
+            action='store_true',
+            help='Force recreation of demo data (deletes existing)',
+        )
 
     def handle(self, *args, **options):
-        demo_zones = [
+        force = options['force']
+        
+        if force:
+            self.stdout.write(self.style.WARNING('Deleting existing demo data...'))
+            AlertZone.objects.all().delete()
+            IncidentReport.objects.all().delete()
+            # Keep users but remove profiles
+            UserProfile.objects.all().delete()
+        
+        self.stdout.write(self.style.SUCCESS('Creating initial data...'))
+        
+        # Create groups
+        citizen_group, _ = Group.objects.get_or_create(name='Citizen')
+        authority_group, _ = Group.objects.get_or_create(name='EmergencyTeam')
+        
+        # Create demo users
+        demo_citizen, created = User.objects.get_or_create(
+            username='citizen',
+            defaults={
+                'email': 'citizen@example.com',
+                'is_staff': False,
+                'is_superuser': False,
+            }
+        )
+        if created:
+            demo_citizen.set_password('citizen123')
+            demo_citizen.save()
+            demo_citizen.profile.role = 'citizen'
+            demo_citizen.profile.phone_number = '+254700000001'
+            demo_citizen.profile.save()
+            self.stdout.write(f'  Created citizen user: citizen / citizen123')
+        
+        demo_authority, created = User.objects.get_or_create(
+            username='authority',
+            defaults={
+                'email': 'authority@example.com',
+                'is_staff': False,
+                'is_superuser': False,
+            }
+        )
+        if created:
+            demo_authority.set_password('authority123')
+            demo_authority.save()
+            demo_authority.profile.role = 'authority'
+            demo_authority.profile.phone_number = '+254700000002'
+            demo_authority.profile.save()
+            demo_authority.groups.add(authority_group)
+            self.stdout.write(f'  Created authority user: authority / authority123')
+        
+        demo_admin, created = User.objects.get_or_create(
+            username='admin',
+            defaults={
+                'email': 'admin@example.com',
+                'is_staff': True,
+                'is_superuser': True,
+            }
+        )
+        if created:
+            demo_admin.set_password('admin123')
+            demo_admin.save()
+            demo_admin.profile.role = 'admin'
+            demo_admin.profile.phone_number = '+254700000000'
+            demo_admin.profile.save()
+            self.stdout.write(f'  Created admin user: admin / admin123')
+        
+        # Create sample flood zones around Nairobi
+        zones_data = [
             {
-                'name': 'Westlands',
-                'coords': [(36.80, -1.28), (36.84, -1.28), (36.84, -1.25), (36.80, -1.25), (36.80, -1.28)],
+                'name': 'Nairobi CBD',
+                'polygon': Polygon.from_bbox((
+                    36.8150, -1.2950, 36.8350, -1.2750
+                )),
                 'risk_threshold': 0.6,
-                'risk_score': 0.82,
-                'water_level': 3.2,
-                'reading': Point(36.82, -1.265, srid=4326),
-                'alert': 'High flood risk in Westlands. Avoid low-lying roads and monitor official updates.',
             },
             {
-                'name': 'South B',
-                'coords': [(36.82, -1.32), (36.86, -1.32), (36.86, -1.29), (36.82, -1.29), (36.82, -1.32)],
-                'risk_threshold': 0.6,
-                'risk_score': 0.45,
-                'water_level': 1.8,
-                'reading': Point(36.84, -1.305, srid=4326),
-                'alert': 'Moderate flood watch for South B. Response teams are monitoring water levels.',
+                'name': 'Kibera Settlement',
+                'polygon': Polygon.from_bbox((
+                    36.7150, -1.3150, 36.7450, -1.2950
+                )),
+                'risk_threshold': 0.55,
             },
             {
-                'name': 'Kibera',
-                'coords': [(36.77, -1.32), (36.81, -1.32), (36.81, -1.29), (36.77, -1.29), (36.77, -1.32)],
+                'name': 'Mathare Valley',
+                'polygon': Polygon.from_bbox((
+                    36.8450, -1.2550, 36.8750, -1.2350
+                )),
+                'risk_threshold': 0.5,
+            },
+            {
+                'name': 'Dandora Estate',
+                'polygon': Polygon.from_bbox((
+                    36.8650, -1.2650, 36.8950, -1.2450
+                )),
+                'risk_threshold': 0.65,
+            },
+            {
+                'name': 'Mukuru kwa Njenga',
+                'polygon': Polygon.from_bbox((
+                    36.8250, -1.2850, 36.8550, -1.2650
+                )),
                 'risk_threshold': 0.6,
-                'risk_score': 0.25,
-                'water_level': 0.7,
-                'reading': Point(36.79, -1.305, srid=4326),
-                'alert': '',
             },
         ]
-
-        created_zones = 0
-        created_readings = 0
-        created_alerts = 0
-
-        for item in demo_zones:
-            zone, was_created = AlertZone.objects.update_or_create(
-                name=item['name'],
+        
+        zones_created = 0
+        for zone_data in zones_data:
+            zone, created = AlertZone.objects.get_or_create(
+                name=zone_data['name'],
                 defaults={
-                    'polygon': Polygon(item['coords'], srid=4326),
-                    'risk_threshold': item['risk_threshold'],
-                    'risk_score': item['risk_score'],
-                },
+                    'polygon': zone_data['polygon'],
+                    'risk_threshold': zone_data['risk_threshold'],
+                    'risk_score': 0.0,
+                }
             )
-            created_zones += int(was_created)
-
-            if not FloodReading.objects.filter(location=item['reading'], source='demo_seed').exists():
-                FloodReading.objects.create(
-                    location=item['reading'],
-                    water_level_metres=item['water_level'],
-                    risk_score=item['risk_score'],
-                    source='demo_seed',
-                    verified=True,
-                )
-                created_readings += 1
-
-            if item['alert'] and not AlertLog.objects.filter(alert_zone=zone, message=item['alert']).exists():
-                AlertLog.objects.create(
-                    alert_zone=zone,
-                    message=item['alert'],
-                    channel='Dashboard',
-                    recipient_count=0,
-                    delivery_status='sent',
-                )
-                created_alerts += 1
-
+            if created:
+                zones_created += 1
+                self.stdout.write(f'  Created zone: {zone.name}')
+        
         self.stdout.write(self.style.SUCCESS(
-            f'Demo data ready: {AlertZone.objects.count()} zones, '
-            f'{created_readings} new readings, {created_alerts} new alerts '
-            f'({created_zones} zones newly created).'
+            f'Demo data setup complete. {zones_created} zones created.'
         ))
+        self.stdout.write('\nLogin credentials:')
+        self.stdout.write('  Citizen:  citizen / citizen123')
+        self.stdout.write('  Authority: authority / authority123')
+        self.stdout.write('  Admin:     admin / admin123')

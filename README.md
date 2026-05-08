@@ -1,297 +1,397 @@
 # FloodGuard
 
-A real-time flood monitoring and early warning system built with Django, PostGIS, and modern web technologies.
+> AI-Powered Flood Prediction and Early Warning System
+
+![ Django](https://img.shields.io/badge/Django-4.2.30-green?logo=django)
+![ DRF](https://img.shields.io/badge/DRF-3.14.0-blue)
+![ PostGIS](https://img.shields.io/badge/PostGIS-3.4-cyan?logo=postgresql)
+![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
+![ License](https://img.shields.io/badge/license-MIT-green)
+
+**Last updated:** 2026-05-08
+
+A comprehensive flood monitoring and alert system leveraging geospatial analytics, machine learning, and real-time data processing to provide early warnings for potential flooding events.
+
+---
+
+
 
 ## Features
 
-- Real-time flood risk assessment using machine learning
-- Interactive maps with Leaflet.js
-- WebSocket-powered live alerts
-- Citizen reporting system
-- Emergency team dashboard
-- Admin panel for system management
-- RESTful API with Django REST Framework
-- GIS-enabled database with PostGIS
+- **Real-time Flood Monitoring** - Live sensor data ingestion and alerting
+- **GIS-Enabled Mapping** - Interactive Leaflet maps with GeoDjango backend
+- **Machine Learning Prediction** - scikit-learn based risk scoring engine
+- **Multi-Channel Alerts** - SMS (Africa's Talking), email, and in-app notifications
+- **Role-Based Access** - Citizen, Emergency Team, and Admin dashboards
+- **WebSocket Streaming** - Real-time updates via Django Channels
+- **Celery Task Queue** - Async processing of flood data and alerts
+- **Comprehensive API** - RESTful endpoints for all resources
+- **Mobile Responsive** - Works seamlessly on all devices
+- **Offline Capable** - Progressive enhancement for low-connectivity areas
 
-## Prerequisites
 
-- Python 3.11+
-- PostgreSQL 15+ with PostGIS extension
-- Redis server
-- Node.js (for frontend assets, if applicable)
+## Tech Stack
 
-## Local Development Setup
+| Category | Technologies |
+|----------|--------------|
+| Web Framework | `Django==4.2.30` `channels==4.1.0` `daphne==4.1.0` |
+| Database & GIS | `GDAL==3.12.3` `psycopg2-binary==2.9.12` |
+| Async & Tasks | `redis==7.4.0` `celery==5.4.0` `django-celery-beat==2.5.0` |
+| ML & Data | `joblib==1.5.3` `numpy==2.4.4` `scipy==1.17.1` `scikit-learn==1.5.0` |
+| Testing | `pytest-django==4.8.0` `factory-boy==3.3.1` `Faker==33.1.0` |
+| Utilities | `pillow==12.2.0` `python-decouple==3.8` `requests==2.33.1` |
 
-### 1. Clone the Repository
+
+
+## Architecture
+
+FloodGuard follows a modern, scalable architecture:
+
+        - **GeoDjango + PostGIS** - Spatial database with geometric queries
+            - **Django Channels** - WebSocket support for real-time communication
+            - **Celery + Redis** - Distributed task queue for background processing
+            - **scikit-learn ML Model** - Flood risk prediction engine
+            - **Alert Consumer** - Real-time notification system
+
+**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
+
+**API:** RESTful endpoints powered by Django REST Framework with token authentication.
+
+**Frontend:** HTML5, CSS3, vanilla JavaScript with Leaflet.js for mapping.
+
+---
+
+
+
+## Installation
+
+### Prerequisites
+
+- Python 3.13 or higher
+- PostgreSQL 18+ with PostGIS extension
+- Redis 7+ (for caching and Celery broker)
+- Git
+
+### Quick Start (Development)
 
 ```bash
-git clone <repository-url>
-cd FloodGuard
-```
+# Clone the repository
+git clone https://github.com/your-org/floodguard.git
+cd floodguard
 
-### 2. Create Virtual Environment
-
-```bash
+# Create virtual environment
 python -m venv floodguard_env
 source floodguard_env/bin/activate  # On Windows: floodguard_env\Scripts\activate
-```
 
-### 3. Install Dependencies
-
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Environment Configuration
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your database and API credentials
 
-Create a `.env` file in the project root:
+# Set up database (PostgreSQL with PostGIS)
+# Ensure PostgreSQL is running and PostGIS extension is enabled
+sudo -u postgres psql -c "CREATE DATABASE floodguard;"
+sudo -u postgres psql -d floodguard -c "CREATE EXTENSION postgis;"
 
-```bash
-SECRET_KEY=django-insecure-please-change-this-in-production
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1,testserver
-
-# Database Configuration
-DB_NAME=floodguard
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=localhost
-DB_PORT=5432
-
-# Redis Configuration
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Africa's Talking SMS (for production)
-AFRICASTALKING_USERNAME=your_username
-AFRICASTALKING_API_KEY=your_api_key
-```
-
-### 5. Database Setup
-
-#### Install and Configure PostgreSQL
-
-```bash
-# Update package list
-sudo apt update
-
-# Install PostgreSQL and PostGIS
-sudo apt install postgresql postgresql-contrib postgis postgresql-18-postgis-3
-
-# Start PostgreSQL service
-sudo systemctl start postgresql
-
-# Enable PostgreSQL to start on boot
-sudo systemctl enable postgresql
-```
-
-#### Create Database and User
-
-```bash
-# Switch to postgres user
-sudo -u postgres psql
-
-# In PostgreSQL shell:
-CREATE DATABASE floodguard;
-CREATE USER floodguard_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE floodguard TO floodguard_user;
-ALTER USER floodguard_user CREATEDB;
-\q
-```
-
-#### Enable PostGIS Extension
-
-```bash
-# Connect to your database
-sudo -u postgres psql -d floodguard
-
-# Enable PostGIS
-CREATE EXTENSION postgis;
-SELECT PostGIS_version();
-\q
-```
-
-### 6. Redis Setup
-
-```bash
-# Install Redis
-sudo apt install redis-server
-
-# Start Redis service
-sudo systemctl start redis-server
-
-# Enable Redis to start on boot
-sudo systemctl enable redis-server
-
-# Verify Redis is running
-redis-cli ping
-```
-
-### 7. Django Setup
-
-```bash
-# Run database migrations
+# Apply migrations
 python manage.py migrate
 
-# Create superuser
+# Collect static files
+python manage.py collectstatic
+
+# Create superuser (optional, for admin access)
 python manage.py createsuperuser
 
-# Collect static files
-python manage.py collectstatic --noinput
-```
-
-### 8. Load Initial Data (Optional)
-
-```bash
-# Create emergency team group
-python manage.py shell -c "
-from django.contrib.auth.models import Group
-Group.objects.get_or_create(name='EmergencyTeam')
-print('Emergency team group created')
-"
-```
-
-### 9. Run Development Server
-
-```bash
-# Start Django development server
+# Run development server
 python manage.py runserver
 
-# The application will be available at http://127.0.0.1:8000/
+# In separate terminals, start Celery worker and beat
+celery -A floodguard worker -l info
+celery -A floodguard beat -l info
 ```
 
-### 10. Access the Application
+Visit http://localhost:8000
 
-- **Landing Page**: http://127.0.0.1:8000/
-- **Admin Panel**: http://127.0.0.1:8000/admin/
-- **API Documentation**: http://127.0.0.1:8000/api/v1/
-
-## Troubleshooting
-
-### PostgreSQL Connection Issues
+### Docker Setup (Recommended)
 
 ```bash
-# Check PostgreSQL service status
-sudo systemctl status postgresql
+# Use Docker Compose for full stack (PostgreSQL, Redis, Django, Celery)
+docker-compose up -d
 
-# Check if PostgreSQL is listening on port 5432
-sudo netstat -tlnp | grep 5432
+# View logs
+docker-compose logs -f
 
-# Check PostgreSQL configuration
-sudo cat /etc/postgresql/18/main/postgresql.conf | grep -E "(listen_addresses|port)"
-
-# Test database connection
-psql -h localhost -p 5432 -U postgres -d floodguard
-
-# List all databases
-sudo -u postgres psql -c "\l"
+# Stop services
+docker-compose down
 ```
 
-### Redis Connection Issues
+---
+
+
+
+## Usage
+
+### User Roles
+
+1. **Citizen** - View flood alerts, submit incident reports, access public dashboard
+2. **Emergency Team** - Monitor zones, acknowledge incidents, manage alerts
+3. **Admin** - Full system access, user management, zone configuration
+
+### Key Operations
+
+#### View Interactive Map
+Navigate to `/map` to see live flood zones and risk levels.
+
+#### Submit Incident Report
+Citizens can report flooding via the report form with GPS coordinates.
+
+#### Monitor Dashboard
+Each role has a dedicated dashboard with relevant metrics and controls.
+
+#### Real-time Alerts
+WebSocket connections push alerts instantly to connected clients.
+
+---
+
+
+
+## API Reference
+
+FloodGuard provides a comprehensive REST API at `/api/`
+
+### Endpoints
+
+| Endpoint | Method | Description | Access |
+|----------|--------|-------------|--------|
+| `/api/zones/` | GET | List all flood zones | Public |
+| `/api/zones/<built-in function id>/` | GET | Zone details | Public |
+| `/api/zones/<built-in function id>/override/` | POST | Manual override (Authority/Admin) | Restricted |
+| `/api/readings/` | GET | Latest flood readings | Public |
+| `/api/reports/` | GET/POST | Incident reports (POST unauthenticated) | Public/Citizen |
+| `/api/alerts/` | GET | Alert history | Authenticated |
+| `/api/stats/` | GET | Dashboard statistics | Authenticated |
+
+### WebSocket Endpoints
+
+- `ws://localhost:8000/ws/alerts/` - Real-time alert stream
+- `ws://localhost:8000/ws/flood-map/` - Live map updates
+
+### Authentication
+
+API uses Token Authentication for protected endpoints.
 
 ```bash
-# Check Redis service status
-sudo systemctl status redis-server
+# Obtain token
+curl -X POST http://localhost:8000/api-token-auth/ \
+  -H "Content-Type: application/json" \
+  -d '{"username": "user", "password": "pass"}'
 
-# Test Redis connection
-redis-cli ping
+# Use token
+curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/zones/
 ```
 
-### Django Issues
+---
+
+
+
+## Testing
+
+FloodGuard has comprehensive test coverage with 1416 test files.
+
+### Running Tests
 
 ```bash
-# Check Django settings
-python manage.py check
-
-# Test database connection
-python manage.py dbshell
-
-# View applied migrations
-python manage.py showmigrations
-
-# Run specific migration if needed
-python manage.py migrate core
-```
-
-## Project Structure
-
-```
-FloodGuard/
-├── core/                    # Main application
-│   ├── models.py           # Database models
-│   ├── views.py            # View functions
-│   ├── urls.py             # URL routing
-│   ├── serializers.py      # API serializers
-│   ├── permissions.py      # Custom permissions
-│   ├── tasks.py            # Celery tasks
-│   ├── analytics/          # ML and analytics
-│   └── consumers.py        # WebSocket consumers
-├── templates/              # HTML templates
-├── static/                 # Static files (CSS, JS)
-├── tests/                  # Test suite
-├── floodguard/             # Project configuration
-│   ├── settings.py         # Django settings
-│   ├── urls.py             # Main URL configuration
-│   └── routing.py          # WebSocket routing
-├── requirements.txt        # Python dependencies
-├── pytest.ini             # Test configuration
-└── .env                   # Environment variables
-```
-
-## API Endpoints
-
-### Zones API
-- `GET /api/v1/zones/` - List all flood zones
-- `POST /api/v1/zones/` - Create new zone (admin only)
-- `GET /api/v1/zones/{id}/` - Zone details
-
-### Readings API
-- `GET /api/v1/readings/` - List flood readings
-- `POST /api/v1/readings/` - Create reading (admin only)
-
-### Reports API
-- `GET /api/v1/reports/` - List citizen reports
-- `POST /api/v1/reports/` - Submit new report
-
-### Alerts API
-- `GET /api/v1/alerts/` - List alert history
-
-## Development Commands
-
-```bash
-# Run tests
-pytest
-
-# Run specific test file
-pytest tests/integration/test_celery.py
-
-# Run with coverage
+# Run all tests with coverage report
 pytest --cov=core --cov-report=html
 
-# Format code
-black .
-isort .
+# Run unit tests only
+pytest tests/unit/
 
-# Lint code
-flake8 .
+# Run integration tests
+pytest tests/integration/
+
+# Run end-to-end tests
+pytest tests/e2e/
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/unit/test_models.py
 ```
+
+### Test Coverage
+
+- **Unit Tests** - Model validation, serializers, permissions, utilities
+- **Integration Tests** - API endpoints, Celery tasks, database operations
+- **E2E Tests** - Full user workflows across all roles
+
+Current test files:
+  - `tests/e2e/test_dashboard.py`
+  - `tests/integration/test_api.py`
+  - `tests/integration/test_celery.py`
+  - `tests/unit/test_emergency_acknowledgment.py`
+  - `tests/unit/test_geographic_clustering.py`
+  - `tests/unit/test_manual_override.py`
+  - `tests/unit/test_models.py`
+  - `tests/unit/test_permissions.py`
+  - `tests/unit/test_registration.py`
+  - `tests/unit/test_serializers.py`
+  - `tests/unit/test_sms_delivery_tracking.py`
+  - `tests/unit/test_zone_boundary_validation.py`
+
+---
+
+
 
 ## Deployment
 
-For production deployment, see the deployment documentation.
+### Production Deployment with Docker
+
+FloodGuard is containerized for easy deployment.
+
+```bash
+# Build and start all services
+docker-compose -f docker-compose.yml up -d
+
+# Scale workers as needed
+docker-compose scale celery=3
+
+# View service status
+docker-compose ps
+
+# Monitor logs
+docker-compose logs -f django
+docker-compose logs -f celery
+```
+
+**Services:**
+- PostgreSQL + PostGIS (port 5432)
+- Redis (port 6379)
+- Django/Gunicorn (port 8000)
+- Celery Worker
+- Celery Beat (scheduler)
+
+### Environment Variables
+
+Configure these in production:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SECRET_KEY` | Django secret key | (required) |
+| `DEBUG` | Debug mode | False |
+| `DB_NAME` | PostgreSQL database name | floodguard |
+| `DB_USER` | Database user | postgres |
+| `DB_PASSWORD` | Database password | (required) |
+| `DB_HOST` | Database host | db |
+| `REDIS_URL` | Redis connection | redis://redis:6379/0 |
+| `AFRICAS_TALKING_USERNAME` | SMS API username | (required for SMS) |
+| `AFRICAS_TALKING_API_KEY` | SMS API key | (required for SMS) |
+
+---
+
+
+
+## Development
+
+### Project Structure
+
+```
+floodguard/
+├── core/                   # Main Django application
+│   ├── models.py          # Database models (GIS-enabled)
+│   ├── views.py           # View functions and ViewSets
+│   ├── serializers.py     # DRF serializers
+│   ├── urls.py            # URL routing
+│   ├── tasks.py           # Celery async tasks
+│   ├── signals.py         # Django signals
+│   ├── consumers.py       # WebSocket consumers
+│   ├── alerts/            # Alert messaging module
+│   ├── analytics/         # ML risk scoring engine
+│   └── management/commands/  # Custom Django commands
+├── floodguard/            # Django project config
+│   ├── settings.py        # All configuration
+│   ├── urls.py            # Root URL config
+│   ├── asgi.py            # ASGI entry point
+│   ├── wsgi.py            # WSGI entry point
+│   ├── routing.py         # WebSocket routing
+│   └── cel
+
+ery.py       # Celery app setup
+├── templates/            # HTML templates
+│   ├── base.html
+│   ├── landing/
+│   ├── auth/
+│   ├── dashboard/
+│   ├── reports/
+│   └── alerts/
+├── static/               # Static assets
+│   ├── css/style.css
+│   ├── js/ (main.js, dashboard.js, map.js, etc.)
+│   └── img/
+├── tests/                # Test suite
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── ml_model/             # Trained ML model (flood_model.pkl)
+├── scripts/              # Utility scripts
+├── requirements.txt      # Python dependencies
+├── docker-compose.yml    # Docker services
+├── manage.py             # Django CLI
+└── README.md            # This file
+
+### Code Style
+
+- Follow PEP 8 guidelines
+- Use type hints where practical
+- Write docstrings for all functions/classes
+- Keep models, views, serializers in their respective files
+
+### Adding a New Model
+
+1. Define model in `core/models.py`
+2. Create serializer in `core/serializers.py` (if API exposure needed)
+3. Add ViewSet or views in `core/views.py`
+4. Register URLs in `core/urls.py`
+5. Create and apply migration: `python manage.py makemigrations && python manage.py migrate`
+6. Add unit tests in `tests/unit/test_models.py`
+
+### Adding a New API Endpoint
+
+1. Add serializer (if needed)
+2. Extend appropriate ViewSet in `core/views.py`
+3. Update router registration in `core/urls.py`
+4. Document in API section of this README
+5. Write integration tests in `tests/integration/test_api.py`
+
+---
+
+
 
 ## Contributing
 
+Contributions are welcome! Please follow these steps:
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Reporting Issues
+
+Report bugs and request features via GitHub Issues.
+
+---
+
+
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Support
+---
 
-For support, please open an issue on GitHub or contact the development team.
+

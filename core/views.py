@@ -18,92 +18,13 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework_gis.serializers import GeometryField
 
-# Serializers for API
-class AlertZoneSerializer(drf_serializers.ModelSerializer):
-    polygon = GeometryField()
-
-    class Meta:
-        model = AlertZone
-        fields = ['id', 'name', 'risk_threshold', 'risk_score', 'manual_override_active', 'manual_override_until', 'polygon']
-
-class FloodReadingSerializer(drf_serializers.ModelSerializer):
-    location = drf_serializers.SerializerMethodField()
-
-    class Meta:
-        model = FloodReading
-        fields = ['id', 'location', 'water_level_metres', 'risk_score', 'source', 'verified', 'timestamp']
-
-    def get_location(self, obj):
-        if obj.location:
-            return [obj.location.x, obj.location.y]
-        return None
-
-class IncidentReportSerializer(drf_serializers.ModelSerializer):
-    location = GeometryField(required=False)
-    latitude = drf_serializers.FloatField(write_only=True, required=False)
-    longitude = drf_serializers.FloatField(write_only=True, required=False)
-    water_depth_cm = drf_serializers.IntegerField(write_only=True, required=False)
-    photo = drf_serializers.ImageField(write_only=True, required=False, allow_null=True)
-    photo_url = drf_serializers.SerializerMethodField()
-    submitted_by = drf_serializers.SerializerMethodField()
-    reviewed_by = drf_serializers.SerializerMethodField()
-
-    class Meta:
-        model = IncidentReport
-        fields = [
-            'id', 'location', 'latitude', 'longitude', 'severity', 'description',
-            'water_depth_cm', 'photo', 'photo_url', 'status', 'submitted_by',
-            'reviewed_by', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['status', 'submitted_by', 'reviewed_by', 'created_at', 'updated_at']
-
-    def get_photo_url(self, obj):
-        if obj.photo:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.photo.url)
-            return obj.photo.url
-        return None
-
-    def get_submitted_by(self, obj):
-        if obj.submitted_by:
-            return obj.submitted_by.username
-        return None
-
-    def get_reviewed_by(self, obj):
-        if obj.reviewed_by:
-            return obj.reviewed_by.username
-        return None
-
-    def validate_location(self, value):
-        # Validate location is within supported region (Kenya/East Africa bounds)
-        lon = value.x
-        lat = value.y
-        # Kenya approximate bounds: longitude 33.0 to 42.0, latitude -5.0 to 5.0
-        if not (33.0 <= lon <= 42.0 and -5.0 <= lat <= 5.0):
-            raise drf_serializers.ValidationError("Location outside supported area")
-        return value
-
-    def validate(self, attrs):
-        latitude = attrs.pop('latitude', None)
-        longitude = attrs.pop('longitude', None)
-        attrs.pop('water_depth_cm', None)
-        if not attrs.get('location') and latitude is not None and longitude is not None:
-            attrs['location'] = Point(longitude, latitude, srid=4326)
-        if not attrs.get('location'):
-            raise drf_serializers.ValidationError({'location': 'Location or latitude/longitude is required.'})
-        self.validate_location(attrs['location'])
-        return attrs
-
-class AlertLogSerializer(drf_serializers.ModelSerializer):
-    zone_name = drf_serializers.SerializerMethodField()
-
-    class Meta:
-        model = AlertLog
-        fields = ['id', 'zone_name', 'message', 'channel', 'recipient_count', 'triggered_at', 'delivery_status']
-
-    def get_zone_name(self, obj):
-        return obj.alert_zone.name
+# Serializers for API (imported from serializers.py)
+from .serializers import (
+    AlertZoneSerializer,
+    FloodReadingSerializer,
+    IncidentReportSerializer,
+    AlertLogSerializer
+)
 
 # ViewSets
 class AlertZoneViewSet(viewsets.ModelViewSet):
@@ -141,6 +62,7 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
             'manual_override_until': zone.manual_override_until.isoformat() if zone.manual_override_until else None
         })
 
+
 class FloodReadingViewSet(viewsets.ModelViewSet):
     queryset = FloodReading.objects.all()
     serializer_class = FloodReadingSerializer
@@ -166,6 +88,7 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class IncidentReportViewSet(viewsets.ModelViewSet):
     queryset = IncidentReport.objects.all()
     serializer_class = IncidentReportSerializer
@@ -183,12 +106,12 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action in ['create', 'list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'create']:
             return [permissions.AllowAny()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [permissions.IsAuthenticated()]
         if self.action == 'verify':
             return [permissions.IsAuthenticated()]
-        if self.action == 'create':
-            return [permissions.AllowAny()]
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
@@ -209,6 +132,7 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
         report.reviewed_by = request.user
         report.save()
         return Response({'status': report.status})
+
 
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertLog.objects.all().select_related('alert_zone')
@@ -251,8 +175,11 @@ def landing_index(request):
     """Public landing page"""
     # Get active zones count for the hero section
     zones_count = AlertZone.objects.count()
+    # Get recent high-risk zones for preview
+    high_risk_zones = AlertZone.objects.filter(risk_score__gt=0.7)[:3]
     context = {
         'zones_count': zones_count,
+        'high_risk_zones': high_risk_zones,
     }
     return render(request, 'landing/index.html', context)
 
@@ -371,6 +298,18 @@ def report_submit(request):
             severity = int(request.POST.get('severity', 1))
             description = request.POST.get('description', '')
             
+            # Validate severity range
+            if severity < 1 or severity > 5:
+                raise ValueError("Severity must be between 1 and 5")
+            
+            # Validate description length
+            if len(description) < 10:
+                raise ValueError("Description must be at least 10 characters")
+            
+            # Validate coordinates within Kenya bounds
+            if not (33.0 <= longitude <= 42.0 and -5.0 <= latitude <= 5.0):
+                raise ValueError("Location outside supported area")
+            
             # Create point
             location = Point(longitude, latitude, srid=4326)
             
@@ -384,7 +323,11 @@ def report_submit(request):
             
             # Handle photo upload if present
             if 'photo' in request.FILES:
-                report.photo = request.FILES['photo']
+                photo = request.FILES['photo']
+                # Validate file size (max 5MB)
+                if photo.size > 5 * 1024 * 1024:
+                    raise ValueError("Photo must be under 5MB")
+                report.photo = photo
                 report.save()
             
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -395,12 +338,20 @@ def report_submit(request):
                     'report_id': report.id
                 })
                 
-        except Exception as e:
+        except ValueError as e:
+            error_msg = str(e)
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': False, 'error': str(e)})
+                return JsonResponse({'success': False, 'error': error_msg})
             else:
                 return render(request, 'reports/submit.html', {
-                    'error': str(e)
+                    'error': error_msg
+                })
+        except Exception as e:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': 'An unexpected error occurred'})
+            else:
+                return render(request, 'reports/submit.html', {
+                    'error': 'An unexpected error occurred. Please try again.'
                 })
     
     # GET request - show form
@@ -408,7 +359,11 @@ def report_submit(request):
 
 def report_list(request):
     """List all reports"""
-    reports = IncidentReport.objects.all().order_by('-created_at')
+    reports = IncidentReport.objects.select_related(
+        'submitted_by', 
+        'reviewed_by',
+        'acknowledged_by'
+    ).all().order_by('-created_at')
     context = {
         'reports': reports,
     }
@@ -416,7 +371,7 @@ def report_list(request):
 
 def alert_history(request):
     """Alert history view"""
-    alerts = AlertLog.objects.all().order_by('-triggered_at')
+    alerts = AlertLog.objects.select_related('alert_zone').all().order_by('-triggered_at')
     context = {
         'alerts': alerts,
     }
@@ -424,7 +379,7 @@ def alert_history(request):
 
 def map_view(request):
     """Full screen map view"""
-    zones = AlertZone.objects.all()
+    zones = AlertZone.objects.all().only('id', 'name', 'polygon', 'risk_score', 'risk_threshold')
     context = {
         'zones': zones,
     }

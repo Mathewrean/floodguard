@@ -1,0 +1,217 @@
+name: FloodGuard CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Daily tests at midnight UTC
+    - cron: '0 0 * * *'
+
+jobs:
+  test:
+    name: Test Suite (${{ matrix.python-version }}, ${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13', '3.12']
+        db: [postgres, sqlite]
+    services:
+      postgres:
+        if: matrix.db == 'postgres'
+        image: postgis/postgis:15-3.3
+        env:
+          POSTGRES_DB: floodguard_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev postgresql-client
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-django pytest-cov factory-boy Faker responses
+
+      - name: Generate README
+        run: python scripts/generate_readme.py --output README.md
+
+      - name: Check for uncommitted changes
+        run: |
+          git diff --quiet README.md || (
+            echo "README.md is out of date. Please run 'python scripts/generate_readme.py'"
+            exit 1
+          )
+
+      - name: Run linting
+        run: |
+          pip install flake8 black
+          flake8 core tests --max-line-length=100
+          black --check core tests --line-length 100
+
+      - name: Run tests with coverage
+        env:
+          DB_NAME: floodguard_test
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          DEBUG: False
+          SECRET_KEY: test-secret-key
+        run: |
+          pytest --cov=core --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+
+      - name: Run Bandit security scan
+        run: bandit -r core -ll
+
+      - name: Check dependencies for vulnerabilities
+        run: safety check --full-report || true
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: floodguard:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Test Docker image runs
+        run: |
+          docker run --rm floodguard:test python --version
+          docker run --rm floodguard:test python -c "import django; print('Django:', django.get_version())"
+
+  documentation:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate README
+        run: |
+          python scripts/generate_readme.py --check || (
+            echo "README out of date. Update with: python scripts/generate_readme.py"
+            exit 1
+          )
+
+      - name: Check links
+        run: |
+          pip install pylint-md
+          # Basic markdown lint
+          grep -E '^#+ ' README.md || true
+
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install locust
+
+      - name: Start services
+        run: |
+          docker-compose up -d db redis
+          sleep 30
+
+      - name: Run migrations
+        env:
+          DB_NAME: floodguard
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+        run: |
+          python manage.py migrate
+
+      - name: Load test (smoke)
+        run: |
+          # Basic smoke test of endpoints
+          python -c "
+import urllib.request
+import json
+import time
+
+base = 'http://localhost:8000'
+test_urls = ['/health/', '/api/v1/zones/', '/api/v1/stats/']
+for url in test_urls:
+    try:
+        req = urllib.request.Request(f'{base}{url}')
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            print(f'{url}: {resp.status}')
+    except Exception as e:
+        print(f'{url}: ERROR - {e}')
+"

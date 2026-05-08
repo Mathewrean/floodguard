@@ -4,10 +4,10 @@ from . import views
 from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet
 
 router = DefaultRouter()
-router.register(r'zones', AlertZoneViewSet)
-router.register(r'readings', FloodReadingViewSet)
-router.register(r'reports', IncidentReportViewSet)
-router.register(r'alerts', AlertLogViewSet)
+router.register(r'zones', AlertZoneViewSet, basename='zone')
+router.register(r'readings', FloodReadingViewSet, basename='reading')
+router.register(r'reports', IncidentReportViewSet, basename='report')
+router.register(r'alerts', AlertLogViewSet, basename='alert')
 
 urlpatterns = [
     # Landing page and user interface routes
@@ -26,7 +26,7 @@ urlpatterns = [
     path('map/', views.map_view, name='map_view'),
     path('health/', views.health_view, name='health'),
     
-    # API routes
+    # API routes (versioned)
     path('api/v1/stats/', views.stats_view, name='stats'),
     path('api/v1/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
     path('api/v1/', include(router.urls)),

@@ -81,6 +81,11 @@ class AlertZone(models.Model):
 
     class Meta:
         verbose_name_plural = "Alert Zones"
+        indexes = [
+            models.Index(fields=['risk_score']),
+            models.Index(fields=['manual_override_active']),
+            models.Index(fields=['-updated_at']),
+        ]
 
 
 class FloodReading(models.Model):
@@ -101,6 +106,12 @@ class FloodReading(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['risk_score']),
+            models.Index(fields=['location']),  # GIST index will be created automatically for geometry field
+        ]
 
 
 class IncidentReport(models.Model):
@@ -226,6 +237,14 @@ class IncidentReport(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['severity']),
+            models.Index(fields=['cluster_id']),
+            models.Index(fields=['location']),
+            models.Index(fields=['submitted_by', '-created_at']),
+        ]
 
 
 class AlertLog(models.Model):
@@ -265,6 +284,11 @@ class AlertLog(models.Model):
     class Meta:
         ordering = ['-triggered_at']
         verbose_name_plural = "Alert Logs"
+        indexes = [
+            models.Index(fields=['-triggered_at']),
+            models.Index(fields=['delivery_status']),
+            models.Index(fields=['alert_zone', '-triggered_at']),
+        ]
 
 
 class UserProfile(models.Model):

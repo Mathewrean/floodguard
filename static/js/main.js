@@ -51,7 +51,7 @@ async function fetchJSON(url, options = {}) {
     return response.json();
 }
 
-async function initLiveStats() {
+function initLiveStats() {
     const statElements = document.querySelectorAll('.stat-value[data-stat]');
     if (!statElements.length) return;
 
@@ -80,8 +80,15 @@ async function initLiveStats() {
         });
     }
 
-    // Delay initial load to improve page load performance
-    setTimeout(refresh, 1000);
+    // Use requestIdleCallback for non-critical updates
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+            setTimeout(refresh, 1000);
+        });
+    } else {
+        setTimeout(refresh, 1000);
+    }
+    // Refresh every minute
     setInterval(refresh, 60000);
 }
 
@@ -133,6 +140,37 @@ async function initAlertsTicker() {
     setInterval(refresh, 30000);
 }
 
+function initThemeToggle() {
+    const toggle = document.getElementById('theme-toggle');
+    if (!toggle) return;
+    
+    const sunIcon = toggle.querySelector('.sun-icon');
+    const moonIcon = toggle.querySelector('.moon-icon');
+    
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateIcons(savedTheme);
+    
+    toggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme');
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', newTheme);
+        localStorage.setItem('theme', newTheme);
+        updateIcons(newTheme);
+    });
+    
+    function updateIcons(theme) {
+        if (theme === 'dark') {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+        } else {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+        }
+    }
+}
+
 function initHamburgerMenu() {
     const nav = document.querySelector('.navbar');
     const toggle = document.querySelector('.mobile-menu-toggle');
@@ -161,6 +199,7 @@ function markActiveNav() {
 
 document.addEventListener('DOMContentLoaded', function() {
     markActiveNav();
+    initThemeToggle();
     initHamburgerMenu();
     initLiveStats();
     initStatusStrip();

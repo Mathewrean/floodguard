@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: update-readme
+        name: Auto-update README.md
+        description: Keep README synchronized with codebase changes
+        entry: python scripts/update_readme.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        verbose: true

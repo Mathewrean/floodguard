@@ -38,3 +38,7 @@ daphne==4.1.0
 celery==5.4.0
 django-celery-beat==2.5.0
 scikit-learn==1.5.0
+django-cors-headers==4.3.1  # CORS support
+django-extensions==3.2.0  # Development utilities
+gunicorn==21.2.0  # WSGI/ASGI server
+uvicorn[standard]==0.27.0  # ASGI server for gunicorn workers
