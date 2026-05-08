@@ -94,10 +94,23 @@ class AlertWebSocket {
 // Global WebSocket instance
 const alertWS = new AlertWebSocket();
 
-// Initialize WebSocket connection when DOM loads
+// Initialize WebSocket connection after user interaction or delay
 document.addEventListener('DOMContentLoaded', function() {
-    alertWS.connect();
-    
+    // Delay WebSocket connection to improve initial page load
+    let connectTimeout;
+    function connectWebSocket() {
+        if (connectTimeout) clearTimeout(connectTimeout);
+        alertWS.connect();
+    }
+
+    // Connect after 3 seconds of inactivity or on user interaction
+    connectTimeout = setTimeout(connectWebSocket, 3000);
+
+    // Connect immediately on user interaction
+    ['click', 'scroll', 'keydown', 'touchstart'].forEach(event => {
+        document.addEventListener(event, connectWebSocket, { once: true });
+    });
+
     // Register UI update callback
     alertWS.registerCallback({
         onMessage: function(data) {

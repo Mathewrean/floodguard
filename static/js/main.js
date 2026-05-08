@@ -80,7 +80,8 @@ async function initLiveStats() {
         });
     }
 
-    refresh();
+    // Delay initial load to improve page load performance
+    setTimeout(refresh, 1000);
     setInterval(refresh, 60000);
 }
 
@@ -100,7 +101,8 @@ async function initStatusStrip() {
         }
     }
 
-    refresh();
+    // Delay initial load to improve page load performance
+    setTimeout(refresh, 1500);
     setInterval(refresh, 60000);
 }
 
@@ -126,7 +128,8 @@ async function initAlertsTicker() {
         }
     }
 
-    refresh();
+    // Delay initial load to improve page load performance
+    setTimeout(refresh, 2000);
     setInterval(refresh, 30000);
 }
 

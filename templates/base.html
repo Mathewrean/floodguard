@@ -76,8 +76,8 @@
         <div class="ticker-track">Loading latest alerts...</div>
     </div>
 
-    <script src="{% static 'js/main.js' %}"></script>
-    <script src="{% static 'js/alerts.js' %}"></script>
+    <script src="{% static 'js/main.js' %}" defer></script>
+    <script src="{% static 'js/alerts.js' %}" defer></script>
     {% block extra_js %}
     {% endblock %}
 </body>

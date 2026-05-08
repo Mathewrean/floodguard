@@ -34,7 +34,8 @@ function createBaseMap(elementId, zoom = 12) {
     if (!element || typeof L === 'undefined') return null;
     if (element._leaflet_id) return null;
 
-    const map = L.map(elementId).setView(NAIROBI, zoom);
+    // Start with a neutral view, will be updated by locateUser
+    const map = L.map(elementId).setView([0, 0], zoom);
     addBasemap(map, 0);
     return map;
 }
@@ -140,28 +141,43 @@ async function renderReadings(map) {
 }
 
 function locateUser(map) {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(pos => {
-            const { latitude, longitude } = pos.coords;
-            L.marker([latitude, longitude], {
-                icon: L.divIcon({
-                    className: 'user-marker',
-                    html: '📍',
-                    iconSize: [24, 24]
-                })
-            }).bindPopup('Your Location').addTo(map);
-            map.setView([latitude, longitude], 13);
-        }, () => {
+    return new Promise((resolve) => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                const { latitude, longitude } = pos.coords;
+                L.marker([latitude, longitude], {
+                    icon: L.divIcon({
+                        className: 'user-marker',
+                        html: '📍',
+                        iconSize: [24, 24]
+                    })
+                }).bindPopup('Your Location').addTo(map);
+                map.setView([latitude, longitude], 13);
+                resolve([latitude, longitude]);
+            }, (error) => {
+                console.warn('Geolocation failed:', error.message);
+                // Fallback to Nairobi only if geolocation fails
+                map.setView(NAIROBI, 12);
+                resolve(NAIROBI);
+            }, {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 300000 // 5 minutes
+            });
+        } else {
+            console.warn('Geolocation not supported');
             map.setView(NAIROBI, 12);
-        });
-    } else {
-        map.setView(NAIROBI, 12);
-    }
+            resolve(NAIROBI);
+        }
+    });
 }
 
 async function initMapPreview() {
     const map = createBaseMap('map-preview', 11);
     if (!map) return;
+
+    // Wait for user location before rendering zones
+    await locateUser(map);
     await renderZones(map);
 }
 
@@ -169,9 +185,11 @@ async function initFullMap() {
     const map = createBaseMap('map', 12);
     if (!map) return;
 
+    // Wait for user location before rendering zones
+    await locateUser(map);
+
     const zonesLayer = await renderZones(map);
     const readingsLayer = await renderReadings(map);
-    locateUser(map);
 
     const zonesToggle = document.getElementById('toggle-zones');
     const readingsToggle = document.getElementById('toggle-readings');
