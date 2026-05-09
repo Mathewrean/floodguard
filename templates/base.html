@@ -8,8 +8,7 @@
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://basemaps.cartocdn.com">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     <header>
