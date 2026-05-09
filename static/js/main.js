@@ -80,14 +80,7 @@ function initLiveStats() {
         });
     }
 
-    // Use requestIdleCallback for non-critical updates
-    if ('requestIdleCallback' in window) {
-        requestIdleCallback(() => {
-            setTimeout(refresh, 1000);
-        });
-    } else {
-        setTimeout(refresh, 1000);
-    }
+    refresh();
     // Refresh every minute
     setInterval(refresh, 60000);
 }
@@ -108,8 +101,7 @@ async function initStatusStrip() {
         }
     }
 
-    // Delay initial load to improve page load performance
-    setTimeout(refresh, 1500);
+    refresh();
     setInterval(refresh, 60000);
 }
 
@@ -135,8 +127,7 @@ async function initAlertsTicker() {
         }
     }
 
-    // Delay initial load to improve page load performance
-    setTimeout(refresh, 2000);
+    refresh();
     setInterval(refresh, 30000);
 }
 

@@ -54,7 +54,7 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
         
         # Permissions-Policy - limit browser features
         permissions = [
-            "geolocation=()",
+            "geolocation=(self)",
             "microphone=()",
             "camera=()",
         ]

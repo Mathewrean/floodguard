@@ -81,7 +81,8 @@ function showMapNotice(map, message) {
     return notice;
 }
 
-async function renderZones(map) {
+async function renderZones(map, options = {}) {
+    const shouldFitBounds = options.fitBounds !== false;
     const layer = L.layerGroup().addTo(map);
     const bounds = [];
     let zonesLayerGroup = L.featureGroup();
@@ -135,7 +136,7 @@ async function renderZones(map) {
         });
 
         const realBounds = bounds.filter(Boolean);
-        if (realBounds.length) {
+        if (shouldFitBounds && realBounds.length) {
             const group = L.featureGroup(realBounds.map(bound => L.rectangle(bound, { opacity: 0, fillOpacity: 0 })));
             map.fitBounds(group.getBounds(), { padding: [28, 28] });
         }
@@ -219,27 +220,52 @@ async function updateMetricsBar() {
 function locateUser(map) {
     return new Promise((resolve) => {
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
+            let resolved = false;
+            let marker = null;
+
+            const acceptPosition = pos => {
                 const { latitude, longitude } = pos.coords;
-                L.marker([latitude, longitude], {
-                    icon: L.divIcon({
-                        className: 'user-marker',
-                        html: '📍',
-                        iconSize: [24, 24]
-                    })
-                }).bindPopup('Your Location').addTo(map);
-                map.setView([latitude, longitude], 13);
-                resolve([latitude, longitude]);
-            }, (error) => {
+                const latLng = [latitude, longitude];
+                if (!marker) {
+                    marker = L.marker(latLng, {
+                        icon: L.divIcon({
+                            className: 'user-marker',
+                            html: '📍',
+                            iconSize: [24, 24]
+                        })
+                    }).bindPopup('Your Location').addTo(map);
+                } else {
+                    marker.setLatLng(latLng);
+                }
+                map.setView(latLng, Math.max(map.getZoom(), 15), { animate: true });
+                window._lastKnownPosition = { lat: latitude, lng: longitude, accuracy: pos.coords.accuracy };
+                if (!resolved) {
+                    resolved = true;
+                    resolve(latLng);
+                }
+            };
+
+            const watchId = navigator.geolocation.watchPosition(acceptPosition, (error) => {
                 console.warn('Geolocation failed:', error.message);
-                // Fallback to Nairobi only if geolocation fails
-                map.setView(NAIROBI, 12);
-                resolve(NAIROBI);
+                if (!resolved) {
+                    resolved = true;
+                    map.setView(NAIROBI, 12);
+                    resolve(NAIROBI);
+                }
             }, {
                 enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 300000 // 5 minutes
+                timeout: 20000,
+                maximumAge: 0
             });
+
+            setTimeout(() => {
+                if (!resolved) {
+                    resolved = true;
+                    resolve(window._lastKnownPosition ? [window._lastKnownPosition.lat, window._lastKnownPosition.lng] : map.getCenter());
+                }
+            }, 2500);
+
+            window.addEventListener('beforeunload', () => navigator.geolocation.clearWatch(watchId), { once: true });
         } else {
             console.warn('Geolocation not supported');
             map.setView(NAIROBI, 12);
@@ -252,19 +278,16 @@ async function initMapPreview() {
     const map = createBaseMap('map-preview', 11);
     if (!map) return;
 
-    // Wait for user location before rendering zones
-    await locateUser(map);
-    await renderZones(map);
+    renderZones(map, { fitBounds: true });
+    locateUser(map);
 }
 
 async function initFullMap() {
     const map = createBaseMap('map', 12);
     if (!map) return;
 
-    // Wait for user location before rendering zones
-    await locateUser(map);
-
-    const zonesLayer = await renderZones(map);
+    const userLocation = await locateUser(map);
+    const zonesLayer = await renderZones(map, { fitBounds: !userLocation });
     const readingsLayer = await renderReadings(map);
 
     // Update metrics bar (Levels, Rate, Risk)
@@ -293,3 +316,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 window.initMapPreview = initMapPreview;
 window.initFullMap = initFullMap;
+window.createBaseMap = createBaseMap;
+window.renderZones = renderZones;
+window.renderReadings = renderReadings;
+window.locateUser = locateUser;
+window.zoneColour = zoneColour;

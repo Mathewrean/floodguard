@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="safe-route-page">
+    <div class="safe-route-panel">
+        <div class="safe-route-header">
+            <span class="eyebrow">Safe-Route Navigation</span>
+            <h1>Choose a safer path before you move.</h1>
+            <p>Pick your current location and destination, then compare fastest, balanced, and safest route options based on live FloodGuard risk data.</p>
+        </div>
+
+        <div class="route-picker-card">
+            <div class="route-field-group">
+                <label>Origin</label>
+                <div class="route-field-row">
+                    <input id="origin-input" type="text" placeholder="Use GPS or click the map" readonly>
+                    <button id="use-current-location" class="btn btn-primary btn-sm" type="button">Use GPS</button>
+                </div>
+                <small id="origin-snap-status">Waiting for origin.</small>
+            </div>
+
+            <div class="route-field-group">
+                <label>Destination</label>
+                <input id="destination-input" type="text" placeholder="Click the map to set destination" readonly>
+                <small id="destination-snap-status">Waiting for destination.</small>
+            </div>
+
+            <div class="route-mode-selector" role="group" aria-label="Route preference">
+                <button type="button" class="mode-chip active" data-profile="balanced">Balanced</button>
+                <button type="button" class="mode-chip" data-profile="safest">Safest</button>
+                <button type="button" class="mode-chip" data-profile="fastest">Fastest</button>
+            </div>
+
+            <button id="calculate-route" class="btn btn-accent btn-block" type="button">Calculate Safe Route</button>
+            <div id="route-status" class="route-status" aria-live="polite">Tip: first click sets origin, second click sets destination.</div>
+        </div>
+
+        <div id="route-results" class="route-results"></div>
+    </div>
+
+    <div class="safe-route-map-shell">
+        <div id="safe-route-map" class="safe-route-map"></div>
+        <div class="precision-crosshair" aria-hidden="true"></div>
+        <div class="safe-route-map-tools">
+            <strong>Precision Picker</strong>
+            <span><i class="legend-dot safe"></i> Safer route</span>
+            <span><i class="legend-dot warning"></i> Balanced route</span>
+            <span><i class="legend-dot danger"></i> Risk exposure</span>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/map.js' %}"></script>
+<script src="{% static 'js/safe_route.js' %}"></script>
+{% endblock %}

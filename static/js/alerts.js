@@ -136,22 +136,13 @@ class AlertWebSocket {
 // Global WebSocket instance
 const alertWS = new AlertWebSocket();
 
-// Initialize WebSocket connection after user interaction or delay
+// Initialize WebSocket connection after the first paint so alerts feel live without blocking render
 document.addEventListener('DOMContentLoaded', function() {
-    // Delay WebSocket connection to improve initial page load
-    let connectTimeout;
     function connectWebSocket() {
-        if (connectTimeout) clearTimeout(connectTimeout);
         alertWS.connect();
     }
 
-    // Connect after 3 seconds of inactivity or on user interaction
-    connectTimeout = setTimeout(connectWebSocket, 3000);
-
-    // Connect immediately on user interaction
-    ['click', 'scroll', 'keydown', 'touchstart'].forEach(event => {
-        document.addEventListener(event, connectWebSocket, { once: true });
-    });
+    requestAnimationFrame(() => setTimeout(connectWebSocket, 250));
 
     // Register UI update callback
     alertWS.registerCallback({
@@ -177,7 +168,7 @@ function updateAlertUI(data) {
 }
 
 function showAlertNotification(alertData) {
-    const message = alertData.message || alertData.zone_name ? 
+    const message = alertData.message || alertData.zone_name ?
         `${alertData.zone_name}: ${alertData.message || 'Alert issued'}` : 
         'New flood alert received';
     

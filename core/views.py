@@ -7,8 +7,9 @@ from django.http import JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
+import math
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
-from django.contrib.gis.geos import Point
+from django.contrib.gis.geos import LineString, Point, Polygon
 from datetime import timedelta
 from django.utils import timezone
 from django.conf import settings
@@ -362,6 +363,204 @@ def health_view(request):
         'last_poll_time': timezone.now().isoformat(),
     })
 
+
+def _parse_route_coord(value, label):
+    if isinstance(value, dict):
+        lat = value.get('lat', value.get('latitude'))
+        lng = value.get('lng', value.get('lon', value.get('longitude')))
+    elif isinstance(value, (list, tuple)) and len(value) >= 2:
+        lat, lng = value[0], value[1]
+    else:
+        raise ValueError(f'{label} must include latitude and longitude')
+
+    lat = float(lat)
+    lng = float(lng)
+    bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
+    min_lng, min_lat, max_lng, max_lat = bounds
+    if not (min_lat <= lat <= max_lat and min_lng <= lng <= max_lng):
+        raise ValueError(f'{label} is outside supported bounds')
+    return {'lat': lat, 'lng': lng}
+
+
+def _haversine_m(a, b):
+    radius = 6371000
+    lat1 = math.radians(a['lat'])
+    lat2 = math.radians(b['lat'])
+    dlat = math.radians(b['lat'] - a['lat'])
+    dlng = math.radians(b['lng'] - a['lng'])
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(h))
+
+
+def _line_for_points(points):
+    return LineString([(point['lng'], point['lat']) for point in points], srid=4326)
+
+
+def _snap_to_navigable(coord):
+    point = Point(coord['lng'], coord['lat'], srid=4326)
+    high_risk_zone = AlertZone.objects.filter(risk_score__gt=0.7, polygon__contains=point).order_by('-risk_score').first()
+    if not high_risk_zone:
+        return {
+            'coordinate': coord,
+            'status': 'SNAPPED',
+            'edge_id': 'pedestrian_network_estimate',
+            'confidence': 0.92,
+            'note': 'Coordinate accepted within the supported navigable area.',
+        }
+
+    min_lng, min_lat, max_lng, max_lat = high_risk_zone.polygon.extent
+    candidates = [
+        {'lat': max_lat + 0.002, 'lng': coord['lng']},
+        {'lat': min_lat - 0.002, 'lng': coord['lng']},
+        {'lat': coord['lat'], 'lng': max_lng + 0.002},
+        {'lat': coord['lat'], 'lng': min_lng - 0.002},
+    ]
+    snapped = min(candidates, key=lambda candidate: _haversine_m(coord, candidate))
+    return {
+        'coordinate': snapped,
+        'status': 'SNAPPED_WITH_RISK_OFFSET',
+        'edge_id': f'zone-{high_risk_zone.id}-perimeter',
+        'confidence': 0.74,
+        'note': f'Point was inside high-risk zone {high_risk_zone.name}; shifted to nearest safer perimeter estimate.',
+    }
+
+
+def _candidate_detours(origin, destination):
+    direct_line = _line_for_points([origin, destination])
+    candidates = [{'profile': 'fastest', 'waypoints': [origin, destination]}]
+    risky_zones = AlertZone.objects.filter(risk_score__gt=0.35, polygon__intersects=direct_line).order_by('-risk_score')[:4]
+
+    for zone in risky_zones:
+        min_lng, min_lat, max_lng, max_lat = zone.polygon.extent
+        padding = 0.006 + (zone.risk_score * 0.004)
+        detours = {
+            'north': {'lat': max_lat + padding, 'lng': (min_lng + max_lng) / 2},
+            'south': {'lat': min_lat - padding, 'lng': (min_lng + max_lng) / 2},
+            'east': {'lat': (min_lat + max_lat) / 2, 'lng': max_lng + padding},
+            'west': {'lat': (min_lat + max_lat) / 2, 'lng': min_lng - padding},
+        }
+        for name, waypoint in detours.items():
+            candidates.append({
+                'profile': f'{name}_detour',
+                'waypoints': [origin, waypoint, destination],
+                'detour_zone': zone.name,
+            })
+
+    return candidates
+
+
+def _score_route(points, weights):
+    distance_m = sum(_haversine_m(points[index], points[index + 1]) for index in range(len(points) - 1))
+    risk_exposure = 0.0
+    crossed_zones = []
+
+    for index in range(len(points) - 1):
+        segment = _line_for_points([points[index], points[index + 1]])
+        for zone in AlertZone.objects.filter(polygon__intersects=segment):
+            exposure = float(zone.risk_score or 0)
+            risk_exposure += exposure
+            if zone.name not in crossed_zones:
+                crossed_zones.append(zone.name)
+
+    low_light_penalty = 0.18 if distance_m > 1800 else 0.08
+    isolation_penalty = 0.10 if len(points) <= 2 else 0.04
+    confidence_penalty = 0.06 if not crossed_zones else 0.12
+    safety_cost = (
+        distance_m * weights['distance']
+        + risk_exposure * 1000 * weights['risk']
+        + low_light_penalty * 400 * weights['lighting']
+        + isolation_penalty * 350 * weights['flow']
+        + confidence_penalty * 250 * weights['confidence']
+    )
+    safety_score = max(0, min(100, 100 - (risk_exposure * 24) - (low_light_penalty * 12) - (isolation_penalty * 10)))
+
+    return {
+        'distance_m': round(distance_m, 1),
+        'duration_min': round(distance_m / 75, 1),
+        'risk_exposure': round(risk_exposure, 3),
+        'safety_cost': round(safety_cost, 2),
+        'safety_score': round(safety_score, 1),
+        'crossed_zones': crossed_zones,
+    }
+
+
+def _route_weights(profile):
+    profiles = {
+        'fastest': {'distance': 1.0, 'risk': 0.35, 'lighting': 0.2, 'flow': 0.2, 'confidence': 0.1},
+        'balanced': {'distance': 1.0, 'risk': 0.75, 'lighting': 0.45, 'flow': 0.35, 'confidence': 0.2},
+        'safest': {'distance': 1.0, 'risk': 1.35, 'lighting': 0.8, 'flow': 0.7, 'confidence': 0.35},
+    }
+    return profiles.get(profile, profiles['balanced'])
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def safe_route_view(request):
+    try:
+        raw_origin = _parse_route_coord(request.data.get('origin'), 'origin')
+        raw_destination = _parse_route_coord(request.data.get('destination'), 'destination')
+    except (TypeError, ValueError) as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    snapped_origin = _snap_to_navigable(raw_origin)
+    snapped_destination = _snap_to_navigable(raw_destination)
+    origin = snapped_origin['coordinate']
+    destination = snapped_destination['coordinate']
+    requested_profile = request.data.get('profile', 'balanced')
+
+    route_options = []
+    for candidate in _candidate_detours(origin, destination):
+        profile = candidate['profile'] if candidate['profile'] in {'fastest', 'balanced', 'safest'} else requested_profile
+        metrics = _score_route(candidate['waypoints'], _route_weights(profile))
+        route_options.append({
+            **metrics,
+            'id': candidate['profile'],
+            'profile': profile,
+            'label': candidate['profile'].replace('_', ' ').title(),
+            'geometry': [[point['lat'], point['lng']] for point in candidate['waypoints']],
+            'detour_zone': candidate.get('detour_zone'),
+        })
+
+    direct = [route for route in route_options if route['id'] == 'fastest']
+    sorted_by_safety = sorted(route_options, key=lambda route: (-route['safety_score'], route['safety_cost']))
+    sorted_by_cost = sorted(route_options, key=lambda route: route['safety_cost'])
+    selected = []
+    if direct:
+        selected.append({**direct[0], 'profile': 'fastest', 'label': 'Fastest'})
+    if sorted_by_cost:
+        selected.append({**sorted_by_cost[0], 'profile': 'balanced', 'label': 'Balanced'})
+    if sorted_by_safety:
+        selected.append({**sorted_by_safety[0], 'profile': 'safest', 'label': 'Safest'})
+
+    unique_routes = []
+    seen = set()
+    for route in selected:
+        route_key = tuple(tuple(point) for point in route['geometry'])
+        if route_key not in seen:
+            seen.add(route_key)
+            unique_routes.append(route)
+
+    return Response({
+        'origin': snapped_origin,
+        'destination': snapped_destination,
+        'routes': unique_routes,
+        'engine': {
+            'algorithm': 'SCF-weighted A* prototype over generated pedestrian candidate graph',
+            'weights_profile': requested_profile,
+            'updated_at': timezone.now().isoformat(),
+        }
+    })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def snap_coordinate_view(request):
+    try:
+        coordinate = _parse_route_coord(request.data.get('coordinate'), 'coordinate')
+    except (TypeError, ValueError) as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    return Response(_snap_to_navigable(coordinate))
+
 def landing_index(request):
     """Public landing page"""
     # Get active zones count for the hero section
@@ -597,6 +796,11 @@ def map_view(request):
         'zones': zones,
     }
     return render(request, 'map.html', context)
+
+
+def safe_route_page(request):
+    """Safe-route navigation prototype."""
+    return render(request, 'safe_route.html')
 
 # API endpoints for dashboard data
 @require_http_methods(["GET"])

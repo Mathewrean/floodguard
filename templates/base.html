@@ -5,9 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FloodGuard - Flood Monitoring & Alert System</title>
+    <link rel="preconnect" href="https://unpkg.com">
+    <link rel="preconnect" href="https://basemaps.cartocdn.com">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
 <body>
     <header>
@@ -24,6 +26,7 @@
                     <li><a href="{% url 'landing_index' %}">Home</a></li>
                     <li><a href="{% url 'about' %}">About</a></li>
                     <li><a href="{% url 'map_view' %}">Live Map</a></li>
+                    <li><a href="{% url 'safe_route' %}">Safe Route</a></li>
                     {% if user.is_authenticated %}
                         <li><a href="{% url 'dashboard_redirect' %}">Dashboard</a></li>
                         <li><a href="{% url 'logout' %}">Logout</a></li>
