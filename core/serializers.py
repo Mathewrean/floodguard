@@ -27,7 +27,10 @@ class FloodReadingSerializer(serializers.ModelSerializer):
 
 
 class IncidentReportSerializer(serializers.ModelSerializer):
-    location = GeometryField()
+    location = GeometryField(required=False)
+    latitude = serializers.FloatField(write_only=True, required=False)
+    longitude = serializers.FloatField(write_only=True, required=False)
+    water_depth_cm = serializers.IntegerField(write_only=True, required=False)
     photo = serializers.ImageField(write_only=True, required=False, allow_null=True)
     # Validate photo: max 5MB, dimensions max 2000x2000
     def validate_photo(self, value):
@@ -50,7 +53,15 @@ class IncidentReportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = IncidentReport
-        fields = '__all__'
+        fields = [
+            'id', 'location', 'latitude', 'longitude', 'severity', 'description',
+            'water_depth_cm', 'photo', 'status', 'submitted_by', 'reviewed_by',
+            'acknowledged_by', 'acknowledged_at', 'cluster_id', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'status', 'submitted_by', 'reviewed_by', 'acknowledged_by',
+            'acknowledged_at', 'cluster_id', 'created_at', 'updated_at',
+        ]
 
     def validate_location(self, value):
         # Validate location is within configured geographic bounds
@@ -66,8 +77,27 @@ class IncidentReportSerializer(serializers.ModelSerializer):
                 )
         return value
 
+    def validate(self, attrs):
+        latitude = attrs.pop('latitude', None)
+        longitude = attrs.pop('longitude', None)
+        attrs.pop('water_depth_cm', None)
+        if not attrs.get('location') and latitude is not None and longitude is not None:
+            attrs['location'] = Point(longitude, latitude, srid=4326)
+        if not attrs.get('location'):
+            raise serializers.ValidationError({'location': 'Location or latitude/longitude is required.'})
+        self.validate_location(attrs['location'])
+        return attrs
+
 
 class AlertLogSerializer(serializers.ModelSerializer):
+    zone_name = serializers.SerializerMethodField()
+
     class Meta:
         model = AlertLog
-        fields = '__all__'
+        fields = [
+            'id', 'zone_name', 'message', 'channel', 'recipient_count',
+            'triggered_at', 'delivery_status', 'provider_message_id', 'delivered_at',
+        ]
+
+    def get_zone_name(self, obj):
+        return obj.alert_zone.name if obj.alert_zone_id else None

@@ -135,17 +135,12 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
             sms_enabled=True
         ).select_related('user')
 
-        # Filter users whose location is within the zone polygon (if they have location)
+        # Profiles do not currently store live location. In production this should
+        # target explicit zone subscriptions or recent device presence.
         target_users = []
         for profile in profiles:
-            if profile.location and profile.location.within(zone_polygon):
+            if profile.phone_verified:
                 target_users.append(profile.user)
-            # Also include users with no location (fallback to zone-based subscription)
-            elif not profile.location:
-                # In production, you'd have a ZoneSubscription model
-                # For now, include all verified profiles
-                if profile.phone_verified:
-                    target_users.append(profile.user)
 
         # Build alert message
         message = test_message if test_message else (
@@ -218,7 +213,7 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
             try:
                 hours = int(hours_param)
                 if hours > 0:
-                    cutoff = timezone.now() - datetime.timedelta(hours=hours)
+                    cutoff = timezone.now() - timedelta(hours=hours)
                     queryset = queryset.filter(timestamp__gte=cutoff)
             except ValueError:
                 pass
@@ -375,10 +370,8 @@ def _parse_route_coord(value, label):
 
     lat = float(lat)
     lng = float(lng)
-    bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
-    min_lng, min_lat, max_lng, max_lat = bounds
-    if not (min_lat <= lat <= max_lat and min_lng <= lng <= max_lng):
-        raise ValueError(f'{label} is outside supported bounds')
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        raise ValueError(f'{label} has invalid latitude or longitude')
     return {'lat': lat, 'lng': lng}
 
 
