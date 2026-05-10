@@ -94,7 +94,7 @@ async function initStatusStrip() {
             const zones = normaliseList(await fetchJSON('/api/v1/zones/'));
             strip.innerHTML = zones.length ? zones.map(zone => {
                 const score = Number(zone.risk_score || 0);
-                return `<span class="zone-pill ${riskClass(score)}">${escapeHTML(zone.name)}: ${(score * 100).toFixed(0)}%</span>`;
+                return `<span class="zone-pill ${riskClass(score)}" data-zone-id="${zone.id}">${escapeHTML(zone.name)}: ${(score * 100).toFixed(0)}%</span>`;
             }).join('') : '<span class="zone-pill standby">Monitoring standby: add flood zones</span>';
         } catch (error) {
             strip.innerHTML = '<span class="zone-pill standby">Zone service reconnecting</span>';

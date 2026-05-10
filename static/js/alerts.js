@@ -1,227 +1,96 @@
-// WebSocket connection for real-time alerts
-class AlertWebSocket {
-    constructor() {
-        this.socket = null;
-        this.reconnectInterval = 5000; // 5 seconds
-        this.maxReconnectAttempts = 10;
-        this.reconnectAttempts = 0;
-        this.isConnected = false;
-        this.messageCallbacks = [];
-        this.fallbackPolling = null;
-        this.useFallback = false;
-    }
+let alertSocket = null;
+let reconnectTimer = null;
+let reconnectCount = 0;
 
-    connect() {
-        if (this.useFallback) {
-            this.startPollingFallback();
-            return;
-        }
+function safeAlertText(value) {
+    if (window.escapeHTML) return window.escapeHTML(value);
+    const template = document.createElement('template');
+    template.textContent = value == null ? '' : String(value);
+    return template.innerHTML;
+}
 
-        // Determine the WebSocket protocol based on current page protocol
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/alerts/`;
-        
+function setWsStatus(text, colour) {
+    const indicator = document.getElementById('ws-status');
+    if (!indicator) return;
+    indicator.textContent = text;
+    indicator.style.color = colour;
+}
+
+function initAlertSocket() {
+    if (alertSocket && alertSocket.readyState === WebSocket.OPEN) return;
+
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    alertSocket = new WebSocket(`${proto}//${window.location.host}/ws/alerts/`);
+
+    alertSocket.onopen = () => {
+        reconnectCount = 0;
+        console.info('Alert WebSocket connected');
+        setWsStatus('Live', '#27AE60');
+    };
+
+    alertSocket.onclose = (e) => {
+        if (e.wasClean) return;
+        const delay = Math.min(2000 * Math.pow(2, reconnectCount), 30000);
+        reconnectCount += 1;
+        console.info(`Alert WebSocket closed - reconnecting in ${delay}ms`);
+        setWsStatus('Reconnecting...', '#E67E22');
+        clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(initAlertSocket, delay);
+    };
+
+    alertSocket.onerror = () => {
+        // onclose handles reconnect scheduling.
+    };
+
+    alertSocket.onmessage = (e) => {
         try {
-            this.socket = new WebSocket(wsUrl);
-            
-            this.socket.onopen = () => {
-                console.log('WebSocket connected');
-                this.isConnected = true;
-                this.reconnectAttempts = 0;
-                this.onConnect();
-            };
-            
-            this.socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    this.onMessage(data);
-                } catch (e) {
-                    console.error('Failed to parse WebSocket message:', e);
-                }
-            };
-            
-            this.socket.onclose = (event) => {
-                console.log('WebSocket disconnected', event);
-                this.isConnected = false;
-                this.onDisconnect();
-                
-                // Attempt to reconnect unless max attempts exceeded
-                if (this.reconnectAttempts < this.maxReconnectAttempts) {
-                    this.reconnectAttempts++;
-                    setTimeout(() => this.connect(), this.reconnectInterval);
-                } else {
-                    console.warn('Max reconnect attempts reached, switching to polling fallback');
-                    this.useFallback = true;
-                    this.startPollingFallback();
-                }
-            };
-            
-            this.socket.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                this.onError(error);
-            };
-        } catch (e) {
-            console.error('Failed to create WebSocket:', e);
-            this.useFallback = true;
-            this.startPollingFallback();
+            const data = JSON.parse(e.data);
+            if (data.type === 'connected') return;
+            if (data.type === 'flood.update') handleFloodUpdate(data);
+            if (data.type === 'alert_message' || data.message) handleAlertMessage(data);
+        } catch (err) {
+            console.warn('Alert WS message parse error:', err);
         }
-    }
-
-    disconnect() {
-        if (this.socket) {
-            this.socket.close();
-        }
-        if (this.fallbackPolling) {
-            clearInterval(this.fallbackPolling);
-        }
-    }
-
-    onConnect() {
-        this.messageCallbacks.forEach(callback => {
-            if (callback.onConnect) callback.onConnect();
-        });
-    }
-
-    onDisconnect() {
-        this.messageCallbacks.forEach(callback => {
-            if (callback.onDisconnect) callback.onDisconnect();
-        });
-    }
-
-    onMessage(data) {
-        this.messageCallbacks.forEach(callback => {
-            if (callback.onMessage) callback.onMessage(data);
-        });
-    }
-
-    onError(error) {
-        this.messageCallbacks.forEach(callback => {
-            if (callback.onError) callback.onError(error);
-        });
-    }
-
-    registerCallback(callback) {
-        this.messageCallbacks.push(callback);
-    }
-
-    unregisterCallback(callback) {
-        const index = this.messageCallbacks.indexOf(callback);
-        if (index > -1) {
-            this.messageCallbacks.splice(index, 1);
-        }
-    }
-
-    startPollingFallback() {
-        console.log('Starting HTTP polling fallback for alerts');
-        this.fallbackPolling = setInterval(() => {
-            fetch('/api/v1/alerts/?limit=5')
-                .then(res => res.json())
-                .then(data => {
-                    const alerts = Array.isArray(data) ? data : (data.results || []);
-                    if (alerts.length > 0) {
-                        // Send as WebSocket-style message
-                        this.onMessage({
-                            type: 'alert_batch',
-                            alerts: alerts
-                        });
-                    }
-                })
-                .catch(err => {
-                    console.error('Polling fetch error:', err);
-                });
-        }, 30000); // Poll every 30 seconds
-    }
+    };
 }
 
-// Global WebSocket instance
-const alertWS = new AlertWebSocket();
-
-// Initialize WebSocket connection after the first paint so alerts feel live without blocking render
-document.addEventListener('DOMContentLoaded', function() {
-    function connectWebSocket() {
-        alertWS.connect();
-    }
-
-    requestAnimationFrame(() => setTimeout(connectWebSocket, 250));
-
-    // Register UI update callback
-    alertWS.registerCallback({
-        onMessage: function(data) {
-            // Handle incoming alert messages
-            updateAlertUI(data);
-        }
-    });
-});
-
-// Function to update UI with new alert data
-function updateAlertUI(data) {
-    // Handle batch of alerts (from polling fallback)
-    if (data.alerts) {
-        data.alerts.forEach(alert => {
-            showAlertNotification(alert);
-        });
-        return;
-    }
-    
-    // Handle single alert (from WebSocket)
-    showAlertNotification(data);
+function handleFloodUpdate(data) {
+    const pill = document.querySelector(`[data-zone-id="${data.zone_id}"]`);
+    if (!pill) return;
+    const score = Number(data.risk_score || 0);
+    const colour = score > 0.7 ? '#C0392B' : score > 0.4 ? '#E67E22' : '#27AE60';
+    pill.style.borderColor = colour;
+    pill.style.color = colour;
+    pill.textContent = `${data.zone_name || 'Zone'}: ${Math.round(score * 100)}%`;
 }
 
-function showAlertNotification(alertData) {
-    const message = alertData.message || alertData.zone_name ?
-        `${alertData.zone_name}: ${alertData.message || 'Alert issued'}` : 
-        'New flood alert received';
-    
-    const notification = document.createElement('div');
-    notification.className = 'alert-notification';
-    notification.innerHTML = `
+function handleAlertMessage(data) {
+    const message = data.message || `${data.zone_name || 'FloodGuard'} alert issued`;
+    const track = document.querySelector('.ticker-track');
+    if (track) {
+        track.innerHTML = `${safeAlertText(message)} &bull; ${track.innerHTML}`;
+    }
+    showToast(message, data.severity);
+}
+
+function showToast(message, severity) {
+    const toast = document.createElement('div');
+    toast.className = `alert-notification ${severity ? String(severity).toLowerCase() : ''}`;
+    toast.innerHTML = `
         <div class="alert-content">
-            <strong>Flood Alert:</strong> ${escapeHTML(message)}
+            <strong>Flood Alert:</strong> ${safeAlertText(message)}
             <br>
             <small>${new Date().toLocaleTimeString()}</small>
         </div>
     `;
-    
-    // Prepend to alerts ticker or body
-    const ticker = document.querySelector('.alerts-ticker .ticker-track');
-    if (ticker) {
-        ticker.insertBefore(notification, ticker.firstChild);
-        // Keep only last 5 notifications
-        const notifications = ticker.querySelectorAll('.alert-notification');
-        if (notifications.length > 5) {
-            notifications[notifications.length - 1].remove();
-        }
-    } else {
-        document.body.appendChild(notification);
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 8000);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.querySelector('.ticker-track') || document.getElementById('map')) {
+        initAlertSocket();
     }
-    
-    // Remove after 8 seconds
-    setTimeout(() => {
-        notification.remove();
-    }, 8000);
-    
-    // Also update any dashboard elements if present
-    updateDashboardAlerts();
-}
+});
 
-// Function to update dashboard alerts (if on dashboard page)
-function updateDashboardAlerts() {
-    // This would typically fetch fresh data from API
-    // For now, we'll just indicate that new data is available
-    const dashboardElements = document.querySelectorAll('[data-alerts-count]');
-    dashboardElements.forEach(el => {
-        const currentCount = parseInt(el.textContent) || 0;
-        el.textContent = currentCount + 1;
-        el.style.backgroundColor = '#ffebee';
-        el.style.color = '#c62828';
-        
-        // Reset color after 2 seconds
-        setTimeout(() => {
-            el.style.backgroundColor = '';
-            el.style.color = '';
-        }, 2000);
-    });
-}
-
-// Export for use in other modules
-window.alertWS = alertWS;
+window.initAlertSocket = initAlertSocket;

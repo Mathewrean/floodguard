@@ -33,4 +33,4 @@ celery -A floodguard worker --loglevel=warning --detach \
 
 # Start development server
 echo "Starting development server on http://0.0.0.0:8000"
-python manage.py runserver 0.0.0.0:8000
+daphne -b 0.0.0.0 -p 8000 floodguard.asgi:application

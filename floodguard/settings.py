@@ -103,12 +103,20 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.static_version',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'floodguard.wsgi.application'
+ASGI_APPLICATION = 'floodguard.routing.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
 
 
 # Database

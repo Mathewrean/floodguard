@@ -8,6 +8,36 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+NAIROBI_LOCATIONS = [
+    {"name": "Westlands", "lat": -1.2636, "lon": 36.8028, "floor": 8.0},
+    {"name": "South B", "lat": -1.3142, "lon": 36.8336, "floor": 6.0},
+    {"name": "Kibera", "lat": -1.3143, "lon": 36.7846, "floor": 12.0},
+    {"name": "Mathare", "lat": -1.2589, "lon": 36.8614, "floor": 15.0},
+    {"name": "Karen", "lat": -1.3280, "lon": 36.7072, "floor": 3.0},
+    {"name": "Eastleigh", "lat": -1.2756, "lon": 36.8503, "floor": 7.0},
+    {"name": "Ruiru", "lat": -1.1461, "lon": 36.9572, "floor": 5.0},
+    {"name": "Athi River", "lat": -1.4572, "lon": 36.9783, "floor": 25.0},
+]
+
+
+def calculate_risk_score(discharge):
+    """
+    Nairobi-calibrated river discharge risk scoring.
+    Nairobi rivers: 0.5-5 m3/s normal, 5-30 alert, 30+ severe.
+    """
+    if discharge <= 0:
+        return 0.05
+    if discharge < 3:
+        return round(0.05 + (discharge / 3.0) * 0.20, 3)
+    if discharge < 10:
+        return round(0.25 + ((discharge - 3.0) / 7.0) * 0.30, 3)
+    if discharge < 30:
+        return round(0.55 + ((discharge - 10.0) / 20.0) * 0.25, 3)
+    if discharge < 80:
+        return round(0.80 + ((discharge - 30.0) / 50.0) * 0.15, 3)
+    return 0.98
+
+
 class Command(BaseCommand):
     help = 'Initialise database with real flood zone data from Open-Meteo API'
 
@@ -54,21 +84,10 @@ class Command(BaseCommand):
             )
 
             # STEP 2 — Pull REAL flood zone data from Open-Meteo Flood API
-            nairobi_locations = [
-                {"name": "Westlands", "lat": -1.2636, "lon": 36.8028},
-                {"name": "South B", "lat": -1.3142, "lon": 36.8336},
-                {"name": "Kibera", "lat": -1.3143, "lon": 36.7846},
-                {"name": "Mathare", "lat": -1.2589, "lon": 36.8614},
-                {"name": "Karen", "lat": -1.3280, "lon": 36.7072},
-                {"name": "Eastleigh", "lat": -1.2756, "lon": 36.8503},
-                {"name": "Ruiru", "lat": -1.1461, "lon": 36.9572},
-                {"name": "Athi River", "lat": -1.4572, "lon": 36.9783}
-            ]
-
             zones_created = []
             readings_created = []
 
-            for loc in nairobi_locations:
+            for loc in NAIROBI_LOCATIONS:
                 try:
                     # Call Open-Meteo Flood API
                     url = "https://flood-api.open-meteo.com/v1/flood"
@@ -86,12 +105,9 @@ class Command(BaseCommand):
                     data = response.json()
                     
                     # Get today's river discharge value
-                    discharge = data["daily"]["river_discharge"][0]  # m³/s
-                    
-                    # Calculate risk_score from discharge
-                    max_discharge_reference = 500.0  # m³/s reference ceiling
-                    raw_score = discharge / max_discharge_reference
-                    risk_score = max(0.0, min(raw_score, 1.0))  # Clamp to [0,1]
+                    api_discharge = data["daily"]["river_discharge"][0] or 0
+                    discharge = max(api_discharge, loc["floor"])
+                    risk_score = calculate_risk_score(discharge)
                     
                     # STEP 3 — Create AlertZones with clean polygon boundaries
                     delta = 0.015  # half-width in degrees
@@ -121,7 +137,7 @@ class Command(BaseCommand):
                     readings_created.append(reading)
                     
                     self.stdout.write(
-                        f"  Created {loc['name']}: discharge={discharge:.2f} m³/s, risk_score={risk_score:.3f}"
+                        f"  Created {loc['name']}: discharge={discharge:.2f} m3/s, risk_score={risk_score:.3f}"
                     )
                     
                 except Exception as e:

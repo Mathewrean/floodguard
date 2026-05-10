@@ -359,6 +359,14 @@ def health_view(request):
     })
 
 
+@require_http_methods(["GET"])
+def service_worker_view(request):
+    response = render(request, 'service_worker.js', content_type='application/javascript')
+    response['Service-Worker-Allowed'] = '/'
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
+
 def _parse_route_coord(value, label):
     if isinstance(value, dict):
         lat = value.get('lat', value.get('latitude'))
@@ -883,7 +891,18 @@ def dynamic_zone_check(request):
         resp.raise_for_status()
         data = resp.json()
         discharge = data['daily']['river_discharge'][0] or 0
-        risk_score = min(discharge / 500.0, 1.0)
+        if discharge <= 0:
+            risk_score = 0.05
+        elif discharge < 3:
+            risk_score = 0.05 + (discharge / 3.0) * 0.20
+        elif discharge < 10:
+            risk_score = 0.25 + ((discharge - 3.0) / 7.0) * 0.30
+        elif discharge < 30:
+            risk_score = 0.55 + ((discharge - 10.0) / 20.0) * 0.25
+        elif discharge < 80:
+            risk_score = 0.80 + ((discharge - 30.0) / 50.0) * 0.15
+        else:
+            risk_score = 0.98
 
         # Get location name via reverse geocoding (Nominatim — free)
         geo = req.get(

@@ -7,7 +7,7 @@
     <title>FloodGuard - Flood Monitoring & Alert System</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://basemaps.cartocdn.com">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=1.0.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v={{ STATIC_VERSION }}">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -95,11 +95,21 @@
     </footer>
 
     <div id="alerts-ticker" class="alerts-ticker" aria-live="polite">
+        <span id="ws-status" class="ws-status">Connecting...</span>
         <div class="ticker-track">Loading latest alerts...</div>
     </div>
 
-    <script src="{% static 'js/main.js' %}?v=1.0.0" defer></script>
-    <script src="{% static 'js/alerts.js' %}?v=1.0.0" defer></script>
+    <script src="{% static 'js/main.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    <script src="{% static 'js/alerts.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/service-worker.js?v={{ STATIC_VERSION }}').catch(function(error) {
+                    console.warn('Service worker registration failed:', error);
+                });
+            });
+        }
+    </script>
     {% block extra_js %}
     {% endblock %}
 </body>

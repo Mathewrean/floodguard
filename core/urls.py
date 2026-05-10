@@ -26,6 +26,7 @@ urlpatterns = [
     path('map/', views.map_view, name='map_view'),
     path('safe-route/', views.safe_route_page, name='safe_route'),
     path('health/', views.health_view, name='health'),
+    path('service-worker.js', views.service_worker_view, name='service-worker'),
     
     # API routes (versioned)
     path('api/v1/stats/', views.stats_view, name='stats'),

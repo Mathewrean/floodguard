@@ -34,6 +34,14 @@
     </div>
     <div class="map-shell full-screen-map">
         <div id="map" class="map-container full-map"></div>
+        <div id="location-status" style="
+            display:none; position:absolute; bottom:24px; left:50%;
+            transform:translateX(-50%); z-index:1000;
+            background:rgba(13,46,82,0.92); color:white;
+            padding:10px 20px; border-radius:20px; font-size:13px;
+            white-space:nowrap; pointer-events:none;
+            backdrop-filter:blur(4px)">
+        </div>
         <div class="map-controls-panel">
             <strong>Layers</strong>
             <label><input type="checkbox" id="toggle-zones" checked> Zones</label>

@@ -23,7 +23,7 @@ CACHE_TIMEOUT = 60 * 60 * 24  # 24 hours
 def create_user_profile(sender, instance, created, **kwargs):
     """Automatically create a UserProfile for each new User."""
     if created:
-        UserProfile.objects.create(user=instance, role='citizen')
+        UserProfile.objects.get_or_create(user=instance, defaults={'role': 'citizen'})
 
 
 @receiver(post_save, sender=AlertZone)

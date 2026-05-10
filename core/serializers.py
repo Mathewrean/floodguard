@@ -8,10 +8,20 @@ from .models import AlertZone, FloodReading, IncidentReport, AlertLog
 
 class AlertZoneSerializer(serializers.ModelSerializer):
     polygon = GeometryField()
+    centroid = serializers.SerializerMethodField()
 
     class Meta:
         model = AlertZone
-        fields = '__all__'
+        fields = [
+            'id', 'name', 'polygon', 'centroid', 'risk_threshold', 'risk_score',
+            'manual_override_active', 'manual_override_until', 'created_at', 'updated_at',
+        ]
+
+    def get_centroid(self, obj):
+        if not obj.polygon:
+            return None
+        centroid = obj.polygon.centroid
+        return [centroid.x, centroid.y]
 
 
 class FloodReadingSerializer(serializers.ModelSerializer):
