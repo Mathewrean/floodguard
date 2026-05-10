@@ -3,9 +3,9 @@ set -e
 echo "Starting FloodGuard development environment..."
 
 # Start PostgreSQL if not running
-if ! systemctl is-active --quiet postgresql@18-main.service; then
+if ! pg_ctlcluster 18 main status > /dev/null 2>&1; then
     echo "Starting PostgreSQL 18..."
-    sudo systemctl start postgresql@18-main.service
+    sudo pg_ctlcluster 18 main start
 else
     echo "PostgreSQL 18 is already running."
 fi

@@ -107,18 +107,16 @@ class Command(BaseCommand):
                         name=loc["name"],
                         polygon=polygon,
                         risk_score=round(risk_score, 3),
-                        risk_threshold=0.65,
-                        description=f"Real-time flood monitoring zone — {loc['name']}, Nairobi"
+                        risk_threshold=0.65
                     )
                     zones_created.append(zone)
                     
-                    # STEP 4 — Create FloodReading records from real API data
                     reading = FloodReading.objects.create(
                         location=Point(loc["lon"], loc["lat"], srid=4326),
                         water_level_metres=round(discharge / 100.0, 2),
                         risk_score=round(risk_score, 3),
                         source='open_meteo',
-                        is_verified=True
+                        verified=True
                     )
                     readings_created.append(reading)
                     
