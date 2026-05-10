@@ -850,3 +850,77 @@ def api_dashboard_stats(request):
         'high_risk_zones': AlertZone.objects.filter(risk_threshold__gte=0.7).count(),
     }
     return JsonResponse(stats)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def dynamic_zone_check(request):
+    """
+    On-demand zone creation for any location
+    Returns live flood assessment or info about existing zones
+    """
+    try:
+        lat = float(request.GET.get('lat', 0))
+        lon = float(request.GET.get('lon', 0))
+    except (TypeError, ValueError):
+        return Response({'error': 'Invalid latitude or longitude parameters'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check existing zones within 50km
+    from django.contrib.gis.geos import Point
+    from django.contrib.gis.measure import D
+    user_point = Point(lon, lat, srid=4326)
+    nearby = AlertZone.objects.filter(
+        polygon__distance_lte=(user_point, D(km=50))
+    )
+
+    if nearby.exists():
+        return Response({'has_zone': True, 'zones': nearby.count()})
+
+    # No nearby zone — fetch live from Open-Meteo
+    import requests as req
+    try:
+        resp = req.get(
+            'https://flood-api.open-meteo.com/v1/flood',
+            params={
+                'latitude': lat, 'longitude': lon,
+                'daily': 'river_discharge',
+                'forecast_days': 1, 'models': 'seamless_v4'
+            }, timeout=10
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        discharge = data['daily']['river_discharge'][0] or 0
+        risk_score = min(discharge / 500.0, 1.0)
+
+        # Get location name via reverse geocoding (Nominatim — free)
+        geo = req.get(
+            'https://nominatim.openstreetmap.org/reverse',
+            params={'lat': lat, 'lon': lon, 'format': 'json'},
+            headers={'User-Agent': 'FloodGuard/1.0'},
+            timeout=8
+        )
+        geo.raise_for_status()
+        geo_data = geo.json()
+        # Extract clean neighbourhood/suburb name
+        address = geo_data.get('address', {})
+        zone_name = (address.get('suburb')
+                or address.get('neighbourhood')
+                or address.get('city_district')
+                or address.get('town')
+                or address.get('city')
+                or f"Zone {lat:.2f},{lon:.2f}")
+
+        return Response({
+            'has_zone': False,
+            'live_assessment': True,
+            'zone_name': zone_name,
+            'risk_score': round(risk_score, 3),
+            'river_discharge_m3s': round(discharge, 2),
+            'severity': ('CRITICAL' if risk_score > 0.85
+                        else 'HIGH' if risk_score > 0.7
+                        else 'MODERATE' if risk_score > 0.4
+                        else 'LOW'),
+            'message': f'Live flood assessment for {zone_name}'
+        })
+    except Exception as e:
+        return Response({'has_zone': False, 'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)

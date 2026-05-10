@@ -66,7 +66,7 @@ class TestRunRiskScoringTask:
 
 @pytest.mark.django_db
 class TestDispatchAlertsTask:
-    def test_writes_alert_log(self, mocker):
+    def test_writes_alert_log(self, mock_redis_for_tests, mocker):
         # Mock SMS API
         mock_post = mocker.patch('requests.post')
         class MockResp:
@@ -74,6 +74,9 @@ class TestDispatchAlertsTask:
             def json(self):
                 return {'SMSMessageData': {'Recipients': [{'messageId': 'msg_123'}]}}
         mock_post.return_value = MockResp()
+        # Configure Redis mock for this test: alert not sent yet
+        mock_redis_for_tests.exists.return_value = False
+        mock_redis_for_tests.setex.return_value = True
         from django.contrib.gis.geos import Polygon
         zone = AlertZoneFactory(
             risk_threshold=0.5,
@@ -91,12 +94,7 @@ class TestDispatchAlertsTask:
 
 @pytest.mark.django_db
 class TestAlertDeduplication:
-    def setup_method(self):
-        # Clear Redis before each test to avoid interference
-        from core.tasks import redis_client
-        redis_client.flushdb()
-
-    def test_first_alert_sends_second_does_not(self, mocker):
+    def test_first_alert_sends_second_does_not(self, mock_redis_for_tests, mocker):
         mock_sms = mocker.patch('requests.post')
         class MockResp:
             def raise_for_status(self): pass
@@ -113,6 +111,9 @@ class TestAlertDeduplication:
         profile, _ = UserProfile.objects.get_or_create(user=authority)
         profile.phone_number = '+254712345678'
         profile.save()
+        # Configure Redis mock: first call -> not sent (False), second call -> sent (True)
+        mock_redis_for_tests.exists.side_effect = [False, True]
+        mock_redis_for_tests.setex.return_value = True
         # First dispatch
         dispatch_alerts(zone.id, 0.8)
         assert mock_sms.call_count == 1

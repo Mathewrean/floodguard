@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/v1/stats/', views.stats_view, name='stats'),
     path('api/v1/safe-route/', views.safe_route_view, name='safe-route'),
     path('api/v1/safe-route/snap/', views.snap_coordinate_view, name='safe-route-snap'),
+    path('api/v1/dynamic-zone/', views.dynamic_zone_check, name='dynamic-zone'),
     path('api/v1/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
     path('api/v1/', include(router.urls)),
 ]
