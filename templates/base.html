@@ -7,7 +7,7 @@
     <title>FloodGuard - Flood Monitoring & Alert System</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://basemaps.cartocdn.com">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=1.0.0">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -98,8 +98,8 @@
         <div class="ticker-track">Loading latest alerts...</div>
     </div>
 
-    <script src="{% static 'js/main.js' %}" defer></script>
-    <script src="{% static 'js/alerts.js' %}" defer></script>
+    <script src="{% static 'js/main.js' %}?v=1.0.0" defer></script>
+    <script src="{% static 'js/alerts.js' %}?v=1.0.0" defer></script>
     {% block extra_js %}
     {% endblock %}
 </body>

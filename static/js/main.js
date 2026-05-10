@@ -82,7 +82,7 @@ function initLiveStats() {
 
     refresh();
     // Refresh every minute
-    setInterval(refresh, 60000);
+    setInterval(refresh, 5000);
 }
 
 async function initStatusStrip() {
@@ -102,7 +102,7 @@ async function initStatusStrip() {
     }
 
     refresh();
-    setInterval(refresh, 60000);
+    setInterval(refresh, 5000);
 }
 
 async function initAlertsTicker() {
@@ -128,7 +128,7 @@ async function initAlertsTicker() {
     }
 
     refresh();
-    setInterval(refresh, 30000);
+    setInterval(refresh, 5000);
 }
 
 function initThemeToggle() {
