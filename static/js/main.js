@@ -81,7 +81,7 @@ function initLiveStats() {
     }
 
     refresh();
-    // Refresh every minute
+    // Refresh every 5 seconds
     setInterval(refresh, 5000);
 }
 
