@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
 from django.db import IntegrityError, transaction
-from django.http import JsonResponse, Http404
+from django.http import FileResponse, JsonResponse, Http404
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -364,6 +364,14 @@ def service_worker_view(request):
     response = render(request, 'service_worker.js', content_type='application/javascript')
     response['Service-Worker-Allowed'] = '/'
     response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
+
+
+@require_http_methods(["GET"])
+def favicon_view(request):
+    favicon_path = settings.BASE_DIR / 'static' / 'favicon.ico'
+    response = FileResponse(open(favicon_path, 'rb'), content_type='image/x-icon')
+    response['Cache-Control'] = 'public, max-age=86400'
     return response
 
 
