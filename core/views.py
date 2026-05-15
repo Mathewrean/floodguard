@@ -17,8 +17,9 @@ from django.conf import settings
 # REST API imports
 from rest_framework import viewsets, permissions, status, serializers as drf_serializers
 from rest_framework.response import Response
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.pagination import LimitOffsetPagination
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework_gis.serializers import GeometryField
 
 # Serializers for API (imported from serializers.py)
@@ -29,18 +30,24 @@ from .serializers import (
     AlertLogSerializer
 )
 
-# ViewSets
-from rest_framework.pagination import LimitOffsetPagination
+class MonitoringRateThrottle(UserRateThrottle):
+    """Higher limit for read-heavy monitoring/dashboard endpoints."""
+    rate = '2000/hour'
 
-# ... other imports ...
+
+class ReportSubmissionThrottle(AnonRateThrottle):
+    """Strict public throttle for citizen report submission spam prevention."""
+    rate = '10/hour'
+
 
 class AlertZoneViewSet(viewsets.ModelViewSet):
     queryset = AlertZone.objects.all().prefetch_related('alert_logs').order_by('-risk_score', 'name')
     serializer_class = AlertZoneSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = LimitOffsetPagination
-    pagination_class.default_limit = 10
+    pagination_class.default_limit = 100
     pagination_class.max_limit = 500
+    throttle_classes = [MonitoringRateThrottle]
 
     def get_queryset(self):
         """Support filtering by bounding box for map viewport loading."""
@@ -190,6 +197,7 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
     serializer_class = FloodReadingSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = None
+    throttle_classes = [MonitoringRateThrottle]
 
     def get_queryset(self):
         """Optimize readings query with filtering by bbox, time range, and limit."""
@@ -301,6 +309,11 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated()]
 
+    def get_throttles(self):
+        if self.action == 'create':
+            return [ReportSubmissionThrottle()]
+        return super().get_throttles()
+
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
         serializer.save(submitted_by=user)
@@ -326,10 +339,12 @@ class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AlertLogSerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = None
+    throttle_classes = [MonitoringRateThrottle]
 
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([])
 def stats_view(request):
     today = timezone.now().date()
     return Response({
@@ -339,6 +354,21 @@ def stats_view(request):
             created_at__gte=timezone.now() - timedelta(days=7)
         ).count(),
         'high_risk_zones': AlertZone.objects.filter(risk_score__gt=0.7).count(),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAdminUser])
+@throttle_classes([])
+def data_sources_view(request):
+    from core.data_sources.aggregator import get_source_status
+
+    statuses = get_source_status()
+    active = sum(1 for item in statuses if item['configured'])
+    return Response({
+        'sources': statuses,
+        'active_sources': active,
+        'data_confidence': 'high' if active >= 3 else 'medium' if active >= 2 else 'low',
     })
 
 

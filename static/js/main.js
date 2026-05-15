@@ -1,3 +1,54 @@
+const API_CACHE = new Map();
+
+function showRateLimitWarning(endpoint) {
+    const key = `rl_warned_${endpoint}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      position:fixed; bottom:60px; left:50%;
+      transform:translateX(-50%); z-index:9999;
+      background:#E67E22; color:white; padding:10px 20px;
+      border-radius:8px; font-size:13px; font-weight:600;
+      box-shadow:0 4px 12px rgba(0,0,0,0.2)
+    `;
+    banner.textContent = 'API rate limit reached - data refresh paused';
+    document.body.appendChild(banner);
+    setTimeout(() => banner.remove(), 8000);
+}
+
+async function cachedFetch(url, maxAge = 10000) {
+    const now = Date.now();
+    const cached = API_CACHE.get(url);
+    if (cached && now - cached.time < maxAge) {
+        return cached.data;
+    }
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            if (response.status === 429) {
+                API_CACHE.set(url, {
+                    data: cached?.data || null,
+                    time: now + 50000,
+                });
+                showRateLimitWarning(url);
+                console.warn(`Rate limited on ${url}; backing off for 60s`);
+                return cached?.data || null;
+            }
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        API_CACHE.set(url, { data, time: now });
+        return data;
+    } catch (error) {
+        console.warn(`API fetch failed for ${url}:`, error.message);
+        return cached?.data || null;
+    }
+}
+
 function normaliseList(data) {
     return Array.isArray(data) ? data : (data.results || []);
 }
@@ -46,6 +97,11 @@ function countUp(element, target, duration = 1500) {
 }
 
 async function fetchJSON(url, options = {}) {
+    if (!Object.keys(options).length) {
+        const data = await cachedFetch(url);
+        if (data === null) throw new Error(`${url} unavailable`);
+        return data;
+    }
     const response = await fetch(url, options);
     if (!response.ok) throw new Error(`${url} returned ${response.status}`);
     return response.json();
@@ -81,8 +137,8 @@ function initLiveStats() {
     }
 
     refresh();
-    // Refresh every 5 seconds
-    setInterval(refresh, 5000);
+    // Refresh every 30 seconds
+    setInterval(refresh, 30000);
 }
 
 async function initStatusStrip() {
@@ -102,7 +158,7 @@ async function initStatusStrip() {
     }
 
     refresh();
-    setInterval(refresh, 5000);
+    setInterval(refresh, 30000);
 }
 
 async function initAlertsTicker() {
@@ -128,7 +184,7 @@ async function initAlertsTicker() {
     }
 
     refresh();
-    setInterval(refresh, 5000);
+    setInterval(refresh, 15000);
 }
 
 function initThemeToggle() {
@@ -198,6 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 window.countUp = countUp;
+window.cachedFetch = cachedFetch;
 window.fetchJSON = fetchJSON;
 window.normaliseList = normaliseList;
 window.escapeHTML = escapeHTML;

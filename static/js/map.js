@@ -26,6 +26,13 @@ function safeHTML(value) {
     return template.innerHTML;
 }
 
+async function apiData(url, maxAge = 10000) {
+    if (window.cachedFetch) return window.cachedFetch(url, maxAge);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
 function zoneColour(score) {
     if (score > 0.7) return '#C0392B';
     if (score > 0.4) return '#E67E22';
@@ -86,8 +93,7 @@ function showMapNotice(map, message) {
 
 async function renderZones(map, options = {}) {
     try {
-        const res = await fetch('/api/v1/zones/?limit=500');
-        const data = await res.json();
+        const data = await apiData('/api/v1/zones/');
         const zones = Array.isArray(data) ? data : (data.results || []);
 
         const dirty = ['zone', 'area', 'region', 'test', 'seed', '0,0', 'null'];
@@ -181,7 +187,7 @@ async function renderZones(map, options = {}) {
 async function renderReadings(map) {
     const layer = L.layerGroup().addTo(map);
     try {
-        const data = await fetch('/api/v1/readings/?limit=1000').then(r => r.json());
+        const data = await apiData('/api/v1/readings/');
         const readings = Array.isArray(data) ? data : (data.results || []);
         readings.forEach(reading => {
             if (!reading.location) return;
@@ -207,9 +213,9 @@ async function renderReadings(map) {
 async function updateMetricsBar() {
     try {
         const [zonesRes, readingsRes, statsRes] = await Promise.all([
-            fetch('/api/v1/zones/?limit=500').then(r => r.json()),
-            fetch('/api/v1/readings/?limit=1000').then(r => r.json()),
-            fetch('/api/v1/stats/').then(r => r.json())
+            apiData('/api/v1/zones/'),
+            apiData('/api/v1/readings/'),
+            apiData('/api/v1/stats/')
         ]);
 
         const zones = Array.isArray(zonesRes) ? zonesRes : (zonesRes.results || []);
@@ -369,7 +375,7 @@ async function initFullMap() {
     const readingsLayer = await renderReadings(map);
 
     updateMetricsBar();
-    setInterval(updateMetricsBar, 5000);
+    setInterval(updateMetricsBar, 30000);
 
     const zonesToggle = document.getElementById('toggle-zones');
     const readingsToggle = document.getElementById('toggle-readings');

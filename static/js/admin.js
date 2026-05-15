@@ -8,6 +8,13 @@ let zonesLayer = null;
 let heatmapLayer = null;
 let zoneMarkers = [];
 
+async function adminApiData(url, maxAge = 10000) {
+    if (window.cachedFetch) return window.cachedFetch(url, maxAge);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', function() {
     initAdminMap();
@@ -19,8 +26,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('show-heatmap').addEventListener('change', toggleHeatmap);
     document.getElementById('show-clusters').addEventListener('change', toggleClusters);
     
-    // Refresh data every 30 seconds
-    setInterval(fetchZones, 30000);
+    // WebSocket handles real-time changes; polling is a fallback.
+    setInterval(fetchZones, 60000);
     setInterval(fetchDashboardStats, 30000);
 });
 
@@ -62,8 +69,7 @@ function addBasemap(map, index) {
 }
 
 function fetchZones() {
-    fetch('/api/v1/zones/?limit=500')
-        .then(r => r.json())
+    adminApiData('/api/v1/zones/')
         .then(data => {
             const zones = Array.isArray(data) ? data : (data.results || []);
             renderZones(zones);
@@ -242,8 +248,7 @@ function toggleClusters() {
 }
 
 function fetchDashboardStats() {
-    fetch('/api/v1/dashboard/stats/')
-        .then(r => r.json())
+    adminApiData('/api/v1/dashboard/stats/')
         .then(stats => {
             document.getElementById('total-zones').textContent = stats.zones_count || 0;
             document.getElementById('critical-zones').textContent = stats.high_risk_zones || 0;
@@ -254,11 +259,10 @@ function fetchDashboardStats() {
 }
 
 function fetchAlertsFeed() {
-    fetch('/api/v1/alerts/?limit=10')
-        .then(r => r.json())
+    adminApiData('/api/v1/alerts/')
         .then(data => {
             const alerts = Array.isArray(data) ? data : (data.results || []);
-            renderAlertsFeed(alerts);
+            renderAlertsFeed(alerts.slice(0, 10));
         })
         .catch(err => console.error('Failed to fetch alerts:', err));
 }
@@ -281,7 +285,7 @@ function renderAlertsFeed(alerts) {
 
 function initAlertsFeed() {
     fetchAlertsFeed();
-    setInterval(fetchAlertsFeed, 30000);
+    setInterval(fetchAlertsFeed, 15000);
 }
 
 // Override modal
