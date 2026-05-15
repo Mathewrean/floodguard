@@ -99,6 +99,11 @@ class FloodReading(models.Model):
         blank=True
     )
     source = models.CharField(max_length=100, help_text="Data source (e.g., sensor, satellite)")
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Full multi-source feature vector from data ingestion"
+    )
     verified = models.BooleanField(default=False)
     timestamp = models.DateTimeField(auto_now_add=True)
 

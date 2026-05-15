@@ -12,10 +12,49 @@ class ModelNotAvailableError(Exception):
     pass
 
 
-def calculate_risk_score(zone_id):
+def calculate_discharge_risk(discharge):
+    if discharge <= 0:
+        return 0.05
+    if discharge < 3:
+        return 0.05 + (discharge / 3.0) * 0.20
+    if discharge < 10:
+        return 0.25 + ((discharge - 3.0) / 7.0) * 0.30
+    if discharge < 30:
+        return 0.55 + ((discharge - 10.0) / 20.0) * 0.25
+    if discharge < 80:
+        return 0.80 + ((discharge - 30.0) / 50.0) * 0.15
+    return 0.98
+
+
+def calculate_feature_risk(features):
+    weighted_precip = (
+        0.30 * features.get('rainfall_1h_mm', 0) +
+        0.25 * features.get('precip_intensity', 0) +
+        0.25 * features.get('total_precip_mm', 0) / 24 +
+        0.20 * features.get('nasa_precip', 0)
+    )
+    discharge_norm = calculate_discharge_risk(features.get('river_discharge', 0))
+    humidity_factor = features.get('humidity', 50) / 100
+    sar_factor = min(features.get('water_extent_km2', 0) / 10, 1.0)
+    raw_score = (
+        0.45 * discharge_norm +
+        0.25 * min(weighted_precip / 50, 1.0) +
+        0.15 * humidity_factor +
+        0.15 * sar_factor
+    )
+    if features.get('data_confidence') == 'low':
+        raw_score *= 0.80
+    return max(0.0, min(1.0, raw_score))
+
+
+def calculate_risk_score(zone_or_features):
     """
-    Calculate risk score for the given zone_id following the specified logic.
+    Calculate risk score from a feature vector or the latest reading for a zone.
     """
+    if isinstance(zone_or_features, dict):
+        return calculate_feature_risk(zone_or_features)
+
+    zone_id = zone_or_features
     try:
         zone = AlertZone.objects.get(id=zone_id)
     except AlertZone.DoesNotExist:
@@ -30,6 +69,14 @@ def calculate_risk_score(zone_id):
 
     if not latest_reading:
         return 0.0  # No recent reading
+
+    if latest_reading.metadata:
+        risk_score = calculate_feature_risk(latest_reading.metadata)
+        latest_reading.risk_score = risk_score
+        latest_reading.save(update_fields=['risk_score'])
+        if risk_score >= zone.risk_threshold:
+            dispatch_alerts.delay(zone_id, risk_score)
+        return risk_score
 
     current_water_level = latest_reading.water_level_metres
 

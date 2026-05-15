@@ -27,7 +27,10 @@ class AlertZoneSerializer(serializers.ModelSerializer):
 class FloodReadingSerializer(serializers.ModelSerializer):
     class Meta:
         model = FloodReading
-        fields = '__all__'
+        fields = [
+            'id', 'location', 'water_level_metres', 'risk_score', 'source',
+            'metadata', 'verified', 'timestamp',
+        ]
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

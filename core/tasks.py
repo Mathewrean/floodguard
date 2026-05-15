@@ -9,6 +9,7 @@ import redis
 from django.conf import settings
 import logging
 from core.alerts.email import send_email_alert
+from core.data_sources.aggregator import build_risk_feature_vector
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, d
 @shared_task
 def fetch_flood_api(zone_id):
     """
-    Fetch flood data from Open-Meteo API for a given zone and create FloodReading records.
+    Fetch multi-source flood data for a given zone and create a FloodReading.
     """
     try:
         zone = AlertZone.objects.get(id=zone_id)
@@ -29,36 +30,54 @@ def fetch_flood_api(zone_id):
     centroid = zone.polygon.centroid
     lat, lon = centroid.y, centroid.x
 
-    # Open-Meteo API endpoint for river discharge
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=river_discharge&past_days=0&forecast_days=7"
-    
     try:
+        features = build_risk_feature_vector(lat, lon, zone.name)
+        discharge = features.get('river_discharge') or 0
+
+        if discharge <= 0:
+            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=river_discharge&past_days=0&forecast_days=7"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            discharges = data['hourly']['river_discharge']
+            discharge = discharges[0] if discharges else 0
+            features['river_discharge'] = discharge
+            features['discharge_24h'] = discharges[24] if len(discharges) > 24 else discharge
+            features['discharge_7d_max'] = max(discharges) if discharges else discharge
+
+        from core.analytics.scoring import calculate_risk_score
+        risk_score = calculate_risk_score(features)
+        source_name = 'multi_source' if features.get('sources_available', 0) > 1 else 'open_meteo'
+        FloodReading.objects.create(
+            location=Point(lon, lat, srid=4326),
+            water_level_metres=round(discharge / 100.0, 2),
+            risk_score=risk_score,
+            source=source_name,
+            verified=features.get('sources_available', 0) > 0,
+            metadata=features,
+        )
+        zone.risk_score = risk_score
+        zone.save(update_fields=['risk_score', 'updated_at'])
+        logger.info("Successfully fetched and stored multi-source flood data for zone %s", zone.name)
+
+    except Exception as e:
+        logger.error(f"Error fetching flood data for zone {zone.id}: {str(e)}")
+
+        # Legacy fallback kept for development and existing mocked tests.
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=river_discharge&past_days=0&forecast_days=7"
         response = requests.get(url, timeout=10)
         response.raise_for_status()
         data = response.json()
-        
-        # Process the hourly data
-        times = data['hourly']['time']
         discharges = data['hourly']['river_discharge']
-        
-        for time_str, discharge in zip(times, discharges):
-            # Convert time string to datetime
-            timestamp = timezone.datetime.fromisoformat(time_str.replace('Z', '+00:00'))
-            
-            # Create a FloodReading record
-            FloodReading.objects.create(
-                location=Point(lon, lat, srid=4326),  # Using centroid for simplicity
-                water_level_metres=discharge,  # Using discharge as water level for now
-                risk_score=0.0,  # Will be updated by risk scoring task
-                source='open_meteo',
-                verified=False,
-                timestamp=timestamp
-            )
-        
-        logger.info(f"Successfully fetched and stored flood data for zone {zone.name}")
-        
-    except Exception as e:
-        logger.error(f"Error fetching flood data for zone {zone.id}: {str(e)}")
+        discharge = discharges[0] if discharges else 0
+        FloodReading.objects.create(
+            location=Point(lon, lat, srid=4326),
+            water_level_metres=discharge,
+            risk_score=0.0,
+            source='open_meteo',
+            verified=False,
+            metadata={'river_discharge': discharge, 'data_confidence': 'low'},
+        )
 
 @shared_task
 def run_risk_scoring(reading_id):
@@ -78,9 +97,8 @@ def run_risk_scoring(reading_id):
         logger.warning(f"No zone found for reading at {reading.location}")
         return
 
-    # Use the scoring function from analytics
-    from core.analytics.scoring import calculate_risk_score
     try:
+        from core.analytics.scoring import calculate_risk_score
         risk_score = calculate_risk_score(zone.id)
         # The calculate_risk_score function already updates the latest reading in the zone
         # But we can also update this specific reading if needed

@@ -1,9 +1,10 @@
-import requests
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.contrib.auth.models import User, Group
 from django.contrib.gis.geos import Point, Polygon
 from core.models import AlertZone, FloodReading, UserProfile
+from core.analytics.scoring import calculate_risk_score
+from core.data_sources.aggregator import build_risk_feature_vector
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,24 +19,6 @@ NAIROBI_LOCATIONS = [
     {"name": "Ruiru", "lat": -1.1461, "lon": 36.9572, "floor": 5.0},
     {"name": "Athi River", "lat": -1.4572, "lon": 36.9783, "floor": 25.0},
 ]
-
-
-def calculate_risk_score(discharge):
-    """
-    Nairobi-calibrated river discharge risk scoring.
-    Nairobi rivers: 0.5-5 m3/s normal, 5-30 alert, 30+ severe.
-    """
-    if discharge <= 0:
-        return 0.05
-    if discharge < 3:
-        return round(0.05 + (discharge / 3.0) * 0.20, 3)
-    if discharge < 10:
-        return round(0.25 + ((discharge - 3.0) / 7.0) * 0.30, 3)
-    if discharge < 30:
-        return round(0.55 + ((discharge - 10.0) / 20.0) * 0.25, 3)
-    if discharge < 80:
-        return round(0.80 + ((discharge - 30.0) / 50.0) * 0.15, 3)
-    return 0.98
 
 
 class Command(BaseCommand):
@@ -83,31 +66,17 @@ class Command(BaseCommand):
                 f"  AlertLog: {deleted_counts['alert_logs']}"
             )
 
-            # STEP 2 — Pull REAL flood zone data from Open-Meteo Flood API
+            # STEP 2 — Pull multi-source flood intelligence where configured.
             zones_created = []
             readings_created = []
 
             for loc in NAIROBI_LOCATIONS:
                 try:
-                    # Call Open-Meteo Flood API
-                    url = "https://flood-api.open-meteo.com/v1/flood"
-                    params = {
-                        "latitude": loc["lat"],
-                        "longitude": loc["lon"],
-                        "daily": "river_discharge",
-                        "forecast_days": 7,
-                        "models": "seamless_v4"
-                    }
-                    
                     self.stdout.write(f"Fetching data for {loc['name']}...")
-                    response = requests.get(url, params=params, timeout=15)
-                    response.raise_for_status()
-                    data = response.json()
-                    
-                    # Get today's river discharge value
-                    api_discharge = data["daily"]["river_discharge"][0] or 0
-                    discharge = max(api_discharge, loc["floor"])
-                    risk_score = calculate_risk_score(discharge)
+                    features = build_risk_feature_vector(loc["lat"], loc["lon"], loc["name"])
+                    discharge = max(features.get('river_discharge') or 0, loc["floor"])
+                    features['river_discharge'] = discharge
+                    risk_score = calculate_risk_score(features)
                     
                     # STEP 3 — Create AlertZones with clean polygon boundaries
                     delta = 0.015  # half-width in degrees
@@ -131,8 +100,9 @@ class Command(BaseCommand):
                         location=Point(loc["lon"], loc["lat"], srid=4326),
                         water_level_metres=round(discharge / 100.0, 2),
                         risk_score=round(risk_score, 3),
-                        source='open_meteo',
-                        verified=True
+                        source='multi_source',
+                        verified=features.get('sources_available', 0) > 0,
+                        metadata=features,
                     )
                     readings_created.append(reading)
                     
