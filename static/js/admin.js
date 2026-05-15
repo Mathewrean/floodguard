@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initAdminMap();
     fetchZones();
     fetchDashboardStats();
+    fetchDataSources();
     initAlertsFeed();
     
     // Setup controls
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // WebSocket handles real-time changes; polling is a fallback.
     setInterval(fetchZones, 60000);
     setInterval(fetchDashboardStats, 30000);
+    setInterval(fetchDataSources, 30000);
 });
 
 function initAdminMap() {
@@ -256,6 +258,50 @@ function fetchDashboardStats() {
             document.getElementById('alerts-24h').textContent = stats.alerts_today || 0;
         })
         .catch(err => console.error('Failed to fetch stats:', err));
+}
+
+function fetchDataSources() {
+    adminApiData('/api/v1/data-sources/', 30000)
+        .then(data => renderDataSources(data))
+        .catch(err => {
+            console.error('Failed to fetch data sources:', err);
+            const summary = document.getElementById('data-sources-summary');
+            if (summary) summary.textContent = 'Unable to load source status';
+        });
+}
+
+function renderDataSources(data) {
+    const sources = data.sources || [];
+    const active = data.active_sources || sources.filter(source => source.configured).length;
+    const total = sources.length || 6;
+    const weatherNames = ['openweather', 'tomorrow_io', 'weather_api'];
+    const satelliteNames = ['nasa_gpm', 'google_earth_engine'];
+    const weatherActive = sources.filter(source => weatherNames.includes(source.name) && source.configured).length;
+    const satelliteActive = sources.filter(source => satelliteNames.includes(source.name) && source.configured).length;
+
+    const activeEl = document.getElementById('data-sources-active');
+    const summaryEl = document.getElementById('data-sources-summary');
+    const confidenceEl = document.getElementById('data-confidence');
+    const openMeteoEl = document.getElementById('source-open-meteo');
+    const weatherEl = document.getElementById('source-weather-count');
+    const satelliteEl = document.getElementById('source-satellite-count');
+    const listEl = document.getElementById('data-sources-list');
+
+    if (activeEl) activeEl.textContent = `${active}/${total}`;
+    if (summaryEl) summaryEl.textContent = `${active} of ${total} providers configured`;
+    if (confidenceEl) {
+        confidenceEl.textContent = `Confidence: ${data.data_confidence || 'low'}`;
+        confidenceEl.className = `status-badge ${active >= 3 ? 'verified' : active >= 1 ? 'pending' : 'rejected'}`;
+    }
+    if (openMeteoEl) openMeteoEl.textContent = sources.find(source => source.name === 'open_meteo')?.configured ? 'OK' : 'Missing';
+    if (weatherEl) weatherEl.textContent = `${weatherActive}/3`;
+    if (satelliteEl) satelliteEl.textContent = `${satelliteActive}/2`;
+    if (listEl) {
+        listEl.innerHTML = sources.map(source => {
+            const label = source.configured ? 'configured' : 'needs key';
+            return `<span class="status-badge ${source.configured ? 'verified' : 'pending'}">${escapeHTML(source.name)}: ${label}</span>`;
+        }).join(' ');
+    }
 }
 
 function fetchAlertsFeed() {

@@ -41,6 +41,39 @@
             </div>
         </div>
 
+        <!-- System Health / Data Sources -->
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">System Health</h2>
+                <span id="data-confidence" class="status-badge pending">Checking</span>
+            </div>
+            <div class="stats-grid compact">
+                <div class="stat-card card">
+                    <span>Data Sources</span>
+                    <strong id="data-sources-active">--/6</strong>
+                    <small id="data-sources-summary">Checking configured providers</small>
+                </div>
+                <div class="stat-card card">
+                    <span>Open-Meteo</span>
+                    <strong id="source-open-meteo">--</strong>
+                    <small>River discharge</small>
+                </div>
+                <div class="stat-card card">
+                    <span>Weather APIs</span>
+                    <strong id="source-weather-count">--</strong>
+                    <small>OpenWeather, Tomorrow.io, WeatherAPI</small>
+                </div>
+                <div class="stat-card card">
+                    <span>Satellite</span>
+                    <strong id="source-satellite-count">--</strong>
+                    <small>NASA GPM, Google Earth Engine</small>
+                </div>
+            </div>
+            <div id="data-sources-list" class="card-meta" style="margin-top: 12px;">
+                Loading source status...
+            </div>
+        </section>
+
         <!-- Global Map Section -->
         <section class="dashboard-section card">
             <div class="section-header compact">

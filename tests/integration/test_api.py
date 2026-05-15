@@ -104,3 +104,33 @@ class TestRateLimiting:
                 assert response.status_code == status.HTTP_201_CREATED
             else:
                 assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+
+
+@pytest.mark.django_db
+class TestDataSourcesAPI:
+    def setup_method(self):
+        self.client = APIClient()
+
+    def test_data_sources_requires_admin(self):
+        user = UserFactory()
+        self.client.force_authenticate(user=user)
+        response = self.client.get(reverse('data-sources'))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_data_sources_admin_gets_sources_array(self, mocker):
+        admin = UserFactory(is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=admin)
+        mocker.patch(
+            'core.data_sources.aggregator.get_source_status',
+            return_value=[
+                {'name': 'open_meteo', 'configured': True, 'status': 'ok'},
+                {'name': 'openweather', 'configured': False, 'status': 'no_key'},
+            ],
+        )
+
+        response = self.client.get(reverse('data-sources'))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data['sources']) == 2
+        assert response.data['active_sources'] == 1
+        assert response.data['data_confidence'] == 'low'
