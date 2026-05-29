@@ -10,7 +10,7 @@ from .settings import *  # noqa
 DEBUG = False
 
 # Allowed hosts for production - configure via ALLOWED_HOSTS env var
-ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', cast=csv_config)
 
 # Security Headers
 SECURE_BROWSER_XSS_FILTER = True
@@ -24,7 +24,7 @@ SECURE_SSL_REDIRECT = project_config('SECURE_SSL_REDIRECT', default=True, cast=b
 # CSRF Configuration
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
-CSRF_TRUSTED_ORIGINS = project_config('CSRF_TRUSTED_ORIGINS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
+CSRF_TRUSTED_ORIGINS = project_config('CSRF_TRUSTED_ORIGINS', default='', cast=csv_config)
 
 # Session Configuration
 SESSION_COOKIE_SECURE = True
@@ -32,7 +32,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 
 # CORS Configuration (if needed for separate frontend)
-CORS_ALLOWED_ORIGINS = project_config('CORS_ALLOWED_ORIGINS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
+CORS_ALLOWED_ORIGINS = project_config('CORS_ALLOWED_ORIGINS', default='', cast=csv_config)
 
 # Password validation already configured in base settings
 

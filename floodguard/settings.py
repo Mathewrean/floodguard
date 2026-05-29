@@ -16,19 +16,23 @@ from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_FILE = BASE_DIR / '.env'
+ENV_FILES = (
+    BASE_DIR / '.local' / '.env.local',
+    BASE_DIR / '.env',
+)
 
 
 def _project_env():
     values = {}
-    if not ENV_FILE.exists():
-        return values
-    for line in ENV_FILE.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith('#') or '=' not in line:
+    for env_file in ENV_FILES:
+        if not env_file.exists():
             continue
-        key, value = line.split('=', 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            values[key.strip()] = value.strip().strip('"').strip("'")
     return values
 
 
@@ -36,7 +40,7 @@ PROJECT_ENV = _project_env()
 
 
 def project_config(key, default=None, cast=None):
-    value = PROJECT_ENV.get(key)
+    value = os.environ.get(key, PROJECT_ENV.get(key))
     if value is None:
         return config(key, default=default, cast=cast)
     if cast is bool:
@@ -44,6 +48,10 @@ def project_config(key, default=None, cast=None):
     if cast:
         return cast(value)
     return value
+
+
+def csv_config(value):
+    return [item.strip() for item in value.split(',') if item.strip()]
 
 
 # Quick-start development settings - unsuitable for production
@@ -55,7 +63,7 @@ SECRET_KEY = project_config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = project_config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', default='', cast=csv_config)
 
 
 # Application definition
@@ -226,8 +234,8 @@ if len(DEFAULT_GEO_BOUNDS) != 4:
     raise ValueError("GEO_BOUNDS must be min_lon,min_lat,max_lon,max_lat")
 
 # Redis configuration
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+REDIS_HOST = project_config('REDIS_HOST', default='localhost')
+REDIS_PORT = project_config('REDIS_PORT', default=6379, cast=int)
 
 # Logging configuration
 LOGGING = {
