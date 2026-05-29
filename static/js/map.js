@@ -17,7 +17,95 @@ const BASEMAPS = [
             attribution: 'Tiles &copy; Esri'
         }
     }
-];
+};
+
+// Global state for polling and caching
+let mapInstance = null;
+let zonesCache = null;
+let readingsCache = null;
+let statsCache = null;
+let currentZonesLayer = null;
+let currentReadingsLayer = null;
+
+// Updates the metrics bar from cached data when all required caches are populated
+function updateMetricsBarIfReady() {
+    if (!zonesCache || !readingsCache || !statsCache) return;
+
+    try {
+        const zones = zonesCache;
+        const readings = readingsCache;
+        const stats = statsCache;
+
+        const maxRisk = zones.length ? Math.max(...zones.map(z => Number(z.risk_score) || 0)) : 0;
+        const validReadings = readings.filter(r => r.water_level_metres != null);
+        const avgLevel = validReadings.length
+            ? (validReadings.reduce((sum, r) => sum + Number(r.water_level_metres), 0) / validReadings.length)
+            : null;
+
+        const riskEl = document.getElementById('metric-risk');
+        const levelEl = document.getElementById('metric-levels');
+        const rateEl = document.getElementById('metric-rate');
+
+        if (riskEl) riskEl.textContent = `${(maxRisk * 100).toFixed(0)}%`;
+        if (levelEl) levelEl.textContent = avgLevel !== null ? avgLevel.toFixed(2) : '--';
+        if (rateEl) rateEl.textContent = stats.alerts_today || 0;
+    } catch (error) {
+        console.error('Failed to update metrics bar from cache:', error);
+    }
+}
+
+// Polls and caches zones, updates map layer every 60s
+async function fetchZones(options = {}) {
+    try {
+        const data = await apiData('/api/v1/zones/');
+        const zones = Array.isArray(data) ? data : (data.results || []);
+
+        if (currentZonesLayer) {
+            currentZonesLayer.remove();
+            if (currentZonesLayer.labelsLayer) currentZonesLayer.labelsLayer.remove();
+        }
+
+        currentZonesLayer = renderZones(mapInstance, zones, options);
+        zonesCache = zones;
+        updateMetricsBarIfReady();
+    } catch (error) {
+        console.error('Error fetching zones:', error);
+    }
+}
+
+// Polls and caches readings, updates map layer every 60s
+async function fetchReadings() {
+    try {
+        const data = await apiData('/api/v1/readings/');
+        const readings = Array.isArray(data) ? data : (data.results || []);
+
+        if (currentReadingsLayer) currentReadingsLayer.remove();
+        currentReadingsLayer = renderReadings(mapInstance, readings);
+        readingsCache = readings;
+        updateMetricsBarIfReady();
+    } catch (error) {
+        console.error('Error fetching readings:', error);
+    }
+}
+
+// Polls and caches stats every 30s
+async function fetchStats() {
+    try {
+        const data = await apiData('/api/v1/stats/');
+        statsCache = data || {};
+        updateMetricsBarIfReady();
+    } catch (error) {
+        console.error('Error fetching stats:', error);
+    }
+}
+
+// Global state for polling and caching
+let mapInstance = null;
+let zonesCache = null;
+let readingsCache = null;
+let statsCache = null;
+let currentZonesLayer = null;
+let currentReadingsLayer = null;
 
 function safeHTML(value) {
     if (window.escapeHTML) return window.escapeHTML(value);
@@ -26,8 +114,12 @@ function safeHTML(value) {
     return template.innerHTML;
 }
 
-async function apiData(url, maxAge = 10000) {
-    if (window.cachedFetch) return window.cachedFetch(url, maxAge);
+async function apiData(url) {
+    // Delegate to global cachedFetch (which now applies tiered TTLs)
+    if (typeof window.cachedFetch === 'function') {
+        return window.cachedFetch(url);
+    }
+    // Fallback if main.js hasn’t loaded yet
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
@@ -91,19 +183,94 @@ function showMapNotice(map, message) {
     return notice;
 }
 
-async function renderZones(map, options = {}) {
-    try {
-        const data = await apiData('/api/v1/zones/');
-        const zones = Array.isArray(data) ? data : (data.results || []);
+function renderZones(map, zones, options = {}) {
+    if (!map || !zones) return L.featureGroup().addTo(map);
 
-        const dirty = ['zone', 'area', 'region', 'test', 'seed', '0,0', 'null'];
-        const clean = zones.filter(z =>
-            z.name && !dirty.some(d => z.name.toLowerCase().includes(d))
-        );
+    const shouldFitBounds = options.fitBounds !== false;
+    const zonesLayer = L.featureGroup();
+    const labelsLayer = L.layerGroup();
+    const bounds = [];
 
-        if (!clean.length) {
-            showMapNotice(map, 'No configured flood zones yet. Live location assessment is still available.');
+    zones.forEach(zone => {
+        if (!zone.polygon) return;
+
+        const score = Number(zone.risk_score || 0);
+        const colour = zoneColour(score);
+        const severity = zoneStatus(score);
+        const pct = Math.round(score * 100);
+
+        const layer = L.geoJSON(zone.polygon, {
+            style: {
+                color: colour,
+                fillColor: colour,
+                fillOpacity: score > 0.7 ? 0.30 : 0.18,
+                weight: score > 0.7 ? 3 : 2,
+                dashArray: score > 0.7 ? null : '4,4',
+                className: score > 0.7 ? 'zone-polygon high-risk-pulse' : 'zone-polygon'
+            }
+        });
+
+        const popup = `
+            <div style="min-width:220px;font-family:-apple-system,Arial,sans-serif">
+                <div style="background:${colour};padding:10px 14px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+                    <strong style="font-size:15px;color:white">${safeHTML(zone.name)}</strong>
+                    <span style="background:rgba(255,255,255,0.25);color:white;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">${severity}</span>
+                </div>
+                <div style="padding:12px 14px;background:white;border-radius:0 0 8px 8px">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                        <div style="flex:1;background:#eee;border-radius:3px;height:6px">
+                            <div style="background:${colour};width:${pct}%;height:6px;border-radius:3px;transition:width 0.5s"></div>
+                        </div>
+                        <span style="font-weight:700;color:${colour};font-size:14px">${pct}%</span>
+                    </div>
+                    <div style="font-size:12px;color:#6B7A8D;display:flex;justify-content:space-between">
+                        <span>Threshold: ${Math.round(Number(zone.risk_threshold || 0.65) * 100)}%</span>
+                        <span>Updated: ${timeAgo(zone.updated_at)}</span>
+                    </div>
+                </div>
+            </div>`;
+
+        layer.bindPopup(popup, { maxWidth: 280 });
+        layer.addTo(zonesLayer);
+
+        if (zone.centroid) {
+            const centroidLatLng = Array.isArray(zone.centroid)
+                ? [zone.centroid[1], zone.centroid[0]]
+                : [zone.centroid.lat, zone.centroid.lng];
+
+            L.tooltip({
+                permanent: true,
+                direction: 'center',
+                className: 'zone-label'
+            })
+                .setLatLng(centroidLatLng)
+                .setContent(`<span style="font-weight:700;font-size:12px;color:${colour}">${safeHTML(zone.name)}</span>`)
+                .addTo(labelsLayer);
         }
+
+        if (zone.polygon) {
+            try {
+                const geoJSON = zone.polygon;
+                if (geoJSON.coordinates) {
+                    const coords = geoJSON.coordinates[0];
+                    coords.forEach(coord => bounds.push([coord[1], coord[0]]));
+                }
+            } catch(e){}
+        }
+    });
+
+    zonesLayer.addTo(map);
+    labelsLayer.addTo(map);
+    zonesLayer.labelsLayer = labelsLayer;
+
+    if (shouldFitBounds && bounds.length) {
+        try {
+            map.fitBounds(bounds, { padding: [20, 20] });
+        } catch (e) {}
+    }
+
+    return zonesLayer;
+}
 
         const zonesLayer = L.featureGroup();
         const labelsLayer = L.layerGroup();
@@ -184,11 +351,9 @@ async function renderZones(map, options = {}) {
     }
 }
 
-async function renderReadings(map) {
+function renderReadings(map, readings) {
     const layer = L.layerGroup().addTo(map);
     try {
-        const data = await apiData('/api/v1/readings/');
-        const readings = Array.isArray(data) ? data : (data.results || []);
         readings.forEach(reading => {
             if (!reading.location) return;
             const score = Number(reading.risk_score || 0);
@@ -208,35 +373,6 @@ async function renderReadings(map) {
         console.error('Error loading readings:', error);
     }
     return layer;
-}
-
-async function updateMetricsBar() {
-    try {
-        const [zonesRes, readingsRes, statsRes] = await Promise.all([
-            apiData('/api/v1/zones/'),
-            apiData('/api/v1/readings/'),
-            apiData('/api/v1/stats/')
-        ]);
-
-        const zones = Array.isArray(zonesRes) ? zonesRes : (zonesRes.results || []);
-        const readings = Array.isArray(readingsRes) ? readingsRes : (readingsRes.results || []);
-        const stats = statsRes || {};
-        const maxRisk = zones.length ? Math.max(...zones.map(z => Number(z.risk_score) || 0)) : 0;
-        const validReadings = readings.filter(r => r.water_level_metres != null);
-        const avgLevel = validReadings.length
-            ? (validReadings.reduce((sum, r) => sum + Number(r.water_level_metres), 0) / validReadings.length)
-            : null;
-
-        const riskEl = document.getElementById('metric-risk');
-        const levelEl = document.getElementById('metric-levels');
-        const rateEl = document.getElementById('metric-rate');
-
-        if (riskEl) riskEl.textContent = `${(maxRisk * 100).toFixed(0)}%`;
-        if (levelEl) levelEl.textContent = avgLevel !== null ? avgLevel.toFixed(2) : '--';
-        if (rateEl) rateEl.textContent = stats.alerts_today || 0;
-    } catch (error) {
-        console.error('Failed to update metrics bar:', error);
-    }
 }
 
 function locateUser(map) {
@@ -363,33 +499,50 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
 async function initMapPreview() {
     const map = createBaseMap('map-preview', 11);
     if (!map) return;
-    renderZones(map, { fitBounds: true });
+    try {
+        const data = await apiData('/api/v1/zones/');
+        const zones = Array.isArray(data) ? data : (data.results || []);
+        renderZones(map, zones, { fitBounds: true });
+    } catch (error) {
+        console.error('Failed to load zones for preview:', error);
+    }
 }
 
 async function initFullMap() {
     const map = createBaseMap('map', 12);
     if (!map) return;
+    mapInstance = map;
 
     const userLocation = await locateUser(map);
-    const zonesLayer = await renderZones(map, { fitBounds: !userLocation });
-    const readingsLayer = await renderReadings(map);
+    // Initial data load and populate caches
+    await Promise.all([
+        fetchZones({ fitBounds: !userLocation }), // fit bounds on initial load if no user location
+        fetchReadings()
+    ]);
+    await fetchStats();
 
-    updateMetricsBar();
-    setInterval(updateMetricsBar, 30000);
+    // Start polling: Zones (60s), Readings (60s), Stats (30s)
+    setInterval(fetchZones, 60000);
+    setInterval(fetchReadings, 60000);
+    setInterval(fetchStats, 30000);
 
     const zonesToggle = document.getElementById('toggle-zones');
     const readingsToggle = document.getElementById('toggle-readings');
     if (zonesToggle) {
         zonesToggle.addEventListener('change', () => {
-            zonesToggle.checked ? zonesLayer.addTo(map) : map.removeLayer(zonesLayer);
-            if (zonesLayer.labelsLayer) {
-                zonesToggle.checked ? zonesLayer.labelsLayer.addTo(map) : map.removeLayer(zonesLayer.labelsLayer);
+            if (currentZonesLayer) {
+                zonesToggle.checked ? currentZonesLayer.addTo(mapInstance) : mapInstance.removeLayer(currentZonesLayer);
+                if (currentZonesLayer.labelsLayer) {
+                    zonesToggle.checked ? currentZonesLayer.labelsLayer.addTo(mapInstance) : mapInstance.removeLayer(currentZonesLayer.labelsLayer);
+                }
             }
         });
     }
     if (readingsToggle) {
         readingsToggle.addEventListener('change', () => {
-            readingsToggle.checked ? readingsLayer.addTo(map) : map.removeLayer(readingsLayer);
+            if (currentReadingsLayer) {
+                readingsToggle.checked ? currentReadingsLayer.addTo(mapInstance) : mapInstance.removeLayer(currentReadingsLayer);
+            }
         });
     }
 }

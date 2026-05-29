@@ -1,5 +1,16 @@
 const API_CACHE = new Map();
 
+// TTL tiers per endpoint (milliseconds)
+const TIER_TTLS = {
+  '/api/v1/zones/': 60000,
+  '/api/v1/readings/': 60000,
+  '/api/v1/stats/': 30000,
+  '/api/v1/alerts/': 15000,
+  '/api/v1/dashboard/stats/': 30000,
+  '/api/v1/dynamic-zone/': 10000,
+  default: 10000,
+};
+
 function showRateLimitWarning(endpoint) {
     const key = `rl_warned_${endpoint}`;
     if (sessionStorage.getItem(key)) return;
@@ -18,8 +29,11 @@ function showRateLimitWarning(endpoint) {
     setTimeout(() => banner.remove(), 8000);
 }
 
-async function cachedFetch(url, maxAge = 10000) {
+async function cachedFetch(url, explicitMaxAge) {
     const now = Date.now();
+    const maxAge = explicitMaxAge ||
+        TIER_TTLS[url] ||
+        TIER_TTLS.default;
     const cached = API_CACHE.get(url);
     if (cached && now - cached.time < maxAge) {
         return cached.data;
@@ -97,11 +111,10 @@ function countUp(element, target, duration = 1500) {
 }
 
 async function fetchJSON(url, options = {}) {
-    if (!Object.keys(options).length) {
-        const data = await cachedFetch(url);
-        if (data === null) throw new Error(`${url} unavailable`);
-        return data;
-    }
+    const data = await cachedFetch(url);
+    if (data === null) throw new Error(`${url} returned no data`);
+    return data;
+}
     const response = await fetch(url, options);
     if (!response.ok) throw new Error(`${url} returned ${response.status}`);
     return response.json();

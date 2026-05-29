@@ -85,6 +85,15 @@ start_redis() {
         return
     fi
 
+    # Fix Redis memory overcommit warning (needed for RDB saves on low-memory systems)
+    if [[ -f /proc/sys/vm/overcommit_memory ]]; then
+        current_overcommit=$(cat /proc/sys/vm/overcommit_memory || echo 0)
+        if [[ "$current_overcommit" -ne 1 ]]; then
+            echo "Setting vm.overcommit_memory = 1 (required by Redis)"
+            echo 1 > /proc/sys/vm/overcommit_memory || true
+        fi
+    fi
+
     echo "Starting Redis with direct daemon mode..."
     redis-server --daemonize yes \
         --logfile "$REDIS_LOG" \

@@ -8,7 +8,7 @@
 ![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
-**Last updated:** 2026-05-15
+**Last updated:** 2026-05-29
 
 A comprehensive flood monitoring and alert system leveraging geospatial analytics, machine learning, and real-time data processing to provide early warnings for potential flooding events.
 
@@ -198,7 +198,7 @@ curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/zones/
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1418 test files.
+FloodGuard has comprehensive test coverage with 1420 test files.
 
 ### Running Tests
 

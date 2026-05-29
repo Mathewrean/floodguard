@@ -71,13 +71,16 @@ function addBasemap(map, index) {
 }
 
 function fetchZones() {
-    adminApiData('/api/v1/zones/')
+    cachedFetch('/api/v1/zones/?limit=500')
         .then(data => {
             const zones = Array.isArray(data) ? data : (data.results || []);
             renderZones(zones);
             if (zones.length && adminMap) {
                 fitMapToZones(zones);
             }
+        })
+        .catch(err => console.error('Failed to fetch zones:', err));
+}
         })
         .catch(err => console.error('Failed to fetch zones:', err));
 }
@@ -250,7 +253,7 @@ function toggleClusters() {
 }
 
 function fetchDashboardStats() {
-    adminApiData('/api/v1/dashboard/stats/')
+    cachedFetch('/api/v1/dashboard/stats/')
         .then(stats => {
             document.getElementById('total-zones').textContent = stats.zones_count || 0;
             document.getElementById('critical-zones').textContent = stats.high_risk_zones || 0;
@@ -305,10 +308,10 @@ function renderDataSources(data) {
 }
 
 function fetchAlertsFeed() {
-    adminApiData('/api/v1/alerts/')
+    cachedFetch('/api/v1/alerts/?limit=10')
         .then(data => {
             const alerts = Array.isArray(data) ? data : (data.results || []);
-            renderAlertsFeed(alerts.slice(0, 10));
+            renderAlertsFeed(alerts);
         })
         .catch(err => console.error('Failed to fetch alerts:', err));
 }
