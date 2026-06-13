@@ -40,7 +40,7 @@ function setRoutePoint(type, coord, snap = null) {
         }).addTo(routeState.map);
     }
 
-    routeState.clickMode = type === 'origin' ? 'destination' : 'destination';
+    routeState.clickMode = type === 'origin' ? 'destination' : 'origin';
 }
 
 async function snapRoutePoint(type, coord) {
@@ -181,16 +181,25 @@ function initSafeRoutePage() {
 
     const gpsButton = document.getElementById('use-current-location');
     if (gpsButton) {
+        const defaultLabel = gpsButton.textContent;
         gpsButton.addEventListener('click', async () => {
             gpsButton.disabled = true;
             gpsButton.textContent = 'Locating...';
-            const location = await locateUser(routeState.map);
-            const coord = Array.isArray(location)
-                ? { lat: Number(location[0]), lng: Number(location[1]) }
-                : { lat: location.lat, lng: location.lng };
-            await snapRoutePoint('origin', coord);
-            gpsButton.disabled = false;
-            gpsButton.textContent = 'Use GPS';
+            try {
+                const location = await locateUser(routeState.map);
+                if (!location) {
+                    setRouteStatus('Location unavailable. Click the map to set your origin.', 'warning');
+                    return;
+                }
+
+                const coord = Array.isArray(location)
+                    ? { lat: Number(location[0]), lng: Number(location[1]) }
+                    : { lat: location.lat, lng: location.lng };
+                await snapRoutePoint('origin', coord);
+            } finally {
+                gpsButton.disabled = false;
+                gpsButton.textContent = defaultLabel;
+            }
         });
     }
 

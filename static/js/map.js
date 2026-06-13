@@ -17,7 +17,7 @@ const BASEMAPS = [
             attribution: 'Tiles &copy; Esri'
         }
     }
-};
+];
 
 // Global state for polling and caching
 let mapInstance = null;
@@ -98,14 +98,6 @@ async function fetchStats() {
         console.error('Error fetching stats:', error);
     }
 }
-
-// Global state for polling and caching
-let mapInstance = null;
-let zonesCache = null;
-let readingsCache = null;
-let statsCache = null;
-let currentZonesLayer = null;
-let currentReadingsLayer = null;
 
 function safeHTML(value) {
     if (window.escapeHTML) return window.escapeHTML(value);
@@ -272,85 +264,6 @@ function renderZones(map, zones, options = {}) {
     return zonesLayer;
 }
 
-        const zonesLayer = L.featureGroup();
-        const labelsLayer = L.layerGroup();
-
-        clean.forEach(zone => {
-            if (!zone.polygon) return;
-
-            const score = Number(zone.risk_score || 0);
-            const pct = Math.round(score * 100);
-            const colour = zoneColour(score);
-            const severity = zoneStatus(score);
-
-            const layer = L.geoJSON(zone.polygon, {
-                style: {
-                    color: colour,
-                    fillColor: colour,
-                    fillOpacity: score > 0.7 ? 0.30 : 0.18,
-                    weight: score > 0.7 ? 3 : 2,
-                    dashArray: score > 0.7 ? null : '4,4',
-                    className: score > 0.7 ? 'zone-polygon high-risk-pulse' : 'zone-polygon'
-                }
-            });
-
-            const popup = `
-                <div style="min-width:220px;font-family:-apple-system,Arial,sans-serif">
-                    <div style="background:${colour};padding:10px 14px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
-                        <strong style="font-size:15px;color:white">${safeHTML(zone.name)}</strong>
-                        <span style="background:rgba(255,255,255,0.25);color:white;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">${severity}</span>
-                    </div>
-                    <div style="padding:12px 14px;background:white;border-radius:0 0 8px 8px">
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                            <div style="flex:1;background:#eee;border-radius:3px;height:6px">
-                                <div style="background:${colour};width:${pct}%;height:6px;border-radius:3px;transition:width 0.5s"></div>
-                            </div>
-                            <span style="font-weight:700;color:${colour};font-size:14px">${pct}%</span>
-                        </div>
-                        <div style="font-size:12px;color:#6B7A8D;display:flex;justify-content:space-between">
-                            <span>Threshold: ${Math.round(Number(zone.risk_threshold || 0.65) * 100)}%</span>
-                            <span>Updated: ${timeAgo(zone.updated_at)}</span>
-                        </div>
-                    </div>
-                </div>`;
-
-            layer.bindPopup(popup, { maxWidth: 280 });
-            layer.addTo(zonesLayer);
-
-            if (zone.centroid) {
-                const centroidLatLng = Array.isArray(zone.centroid)
-                    ? [zone.centroid[1], zone.centroid[0]]
-                    : [zone.centroid.lat, zone.centroid.lng];
-
-                L.tooltip({
-                    permanent: true,
-                    direction: 'center',
-                    className: 'zone-label'
-                })
-                    .setLatLng(centroidLatLng)
-                    .setContent(`<span style="font-weight:700;font-size:12px;color:${colour}">${safeHTML(zone.name)}</span>`)
-                    .addTo(labelsLayer);
-            }
-        });
-
-        zonesLayer.addTo(map);
-        labelsLayer.addTo(map);
-        zonesLayer.labelsLayer = labelsLayer;
-
-        if (options.fitBounds && zonesLayer.getLayers().length > 0) {
-            try {
-                map.fitBounds(zonesLayer.getBounds(), { padding: [20, 20] });
-            } catch (e) {}
-        }
-
-        return zonesLayer;
-    } catch (e) {
-        console.error('Failed to render zones:', e);
-        showMapNotice(map, 'Zone overlays are temporarily unavailable. Basemap remains active.');
-        return L.featureGroup().addTo(map);
-    }
-}
-
 function renderReadings(map, readings) {
     const layer = L.layerGroup().addTo(map);
     try {
@@ -390,18 +303,8 @@ function locateUser(map) {
 
         const useFallback = (reason) => {
             console.info('Location fallback:', reason);
-            showStatus('Nairobi (testing) - click Allow for your location', null);
+            showStatus('Location unavailable. Click the map to continue.', null);
             setTimeout(hideStatus, 4000);
-            map.setView(NAIROBI_LATLNG, 12);
-            L.circleMarker(NAIROBI_LATLNG, {
-                radius: 8,
-                fillColor: '#6B7A8D',
-                color: '#fff',
-                weight: 2,
-                fillOpacity: 0.5
-            })
-                .bindPopup('Nairobi default - allow location for your position')
-                .addTo(map);
             resolve(null);
         };
 

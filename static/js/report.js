@@ -63,9 +63,16 @@ function initReportForm() {
 
 function getCurrentLocation() {
     const button = document.getElementById('use-current-location');
-    const label = button.querySelector('.gps-label');
+    if (!button) return;
+    const label = button.querySelector('.gps-label') || button;
+    const resetButton = () => {
+        button.disabled = false;
+        label.textContent = 'Use Current Location';
+    };
+
     if (!navigator.geolocation) {
         updateLocationStatus('Geolocation is not supported by this browser.', false);
+        resetButton();
         return;
     }
 
@@ -78,12 +85,16 @@ function getCurrentLocation() {
         document.getElementById('latitude').value = latitude.toFixed(6);
         document.getElementById('longitude').value = longitude.toFixed(6);
         updateLocationStatus(`Location set within ${Math.round(accuracy)} metres.`, true);
-        button.disabled = false;
         label.textContent = 'Refresh Current Location';
-    }, () => {
-        updateLocationStatus('Location permission denied. Enter coordinates manually.', false);
         button.disabled = false;
-        label.textContent = 'Use Current Location';
+    }, (error) => {
+        const messages = {
+            1: 'Location permission denied. Enter coordinates manually.',
+            2: 'Location unavailable. Enter coordinates manually.',
+            3: 'Location request timed out. Try again or enter coordinates manually.'
+        };
+        updateLocationStatus(messages[error && error.code] || 'Location unavailable. Enter coordinates manually.', false);
+        resetButton();
     }, {
         enableHighAccuracy: true,
         timeout: 10000,
@@ -94,9 +105,11 @@ function getCurrentLocation() {
 function updateLocationStatus(message, isSuccess) {
     const icon = document.getElementById('location-icon');
     const text = document.getElementById('location-text');
-    icon.textContent = isSuccess ? '●' : '●';
-    icon.style.color = isSuccess ? '#27AE60' : '#C0392B';
-    text.textContent = message;
+    if (icon) {
+        icon.textContent = '●';
+        icon.style.color = isSuccess ? '#27AE60' : '#C0392B';
+    }
+    if (text) text.textContent = message;
 }
 
 function showFormErrors(errors) {
