@@ -1,43 +1,47 @@
 :root {
-  --primary: #155E9F;
-  --primary-light: #2B83D3;
-  --primary-dark: #082F57;
-  --accent: #F59E0B;
+  --primary: #0A2540;
+  --primary-light: #1A6B8A;
+  --primary-dark: #08192B;
+  --accent: #00B4D8;
   --danger: #DC2626;
   --warning: #D97706;
-  --safe: #16A34A;
-  --info: #0891B2;
-  --bg: #EEF4F8;
+  --safe: #059669;
+  --info: #00B4D8;
+  --high: #DC2626;
+  --critical: #7F1D1D;
+  --bg: #F0F4F8;
   --surface: #FFFFFF;
   --surface-soft: #F8FAFC;
   --border: #CBD5E1;
   --text: #0F172A;
   --text-muted: #64748B;
-  --shadow-sm: 0 8px 22px rgba(8, 47, 87, 0.08);
-  --shadow-md: 0 18px 44px rgba(8, 47, 87, 0.16);
-  --radius: 12px;
+  --shadow-sm: 0 8px 22px rgba(10, 37, 64, 0.08);
+  --shadow-md: 0 18px 44px rgba(10, 37, 64, 0.16);
+  --radius: 8px;
   --radius-lg: 18px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
 }
 
 /* Dark mode color scheme */
 [data-theme="dark"] {
-  --primary: #3B82F6;
-  --primary-light: #60A5FA;
-  --primary-dark: #1E40AF;
-  --accent: #FBBF24;
-  --danger: #F87171;
-  --warning: #FB923C;
-  --safe: #34D399;
-  --info: #22D3EE;
-  --bg: #0F172A;
-  --surface: #1E293B;
-  --surface-soft: #334155;
-  --border: #475569;
-  --text: #F1F5F9;
+  --primary: #0A2540;
+  --primary-light: #1A6B8A;
+  --primary-dark: #061423;
+  --accent: #00B4D8;
+  --danger: #DC2626;
+  --warning: #D97706;
+  --safe: #059669;
+  --info: #00B4D8;
+  --high: #DC2626;
+  --critical: #7F1D1D;
+  --bg: #0B1724;
+  --surface: #122235;
+  --surface-soft: #182A3F;
+  --border: #31475F;
+  --text: #F8FAFC;
   --text-muted: #94A3B8;
-  --shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 8px 22px rgba(2, 8, 23, 0.32);
+  --shadow-md: 0 18px 44px rgba(2, 8, 23, 0.48);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -47,7 +51,7 @@ body {
   padding-bottom: 44px;
   font-family: var(--font);
   background:
-    radial-gradient(circle at 12% -10%, rgba(43, 131, 211, .12), transparent 32%),
+    radial-gradient(circle at 12% -10%, rgba(0, 180, 216, .12), transparent 32%),
     linear-gradient(180deg, #F8FBFE 0%, var(--bg) 46%, #E7EEF5 100%);
   color: var(--text);
   font-size: 15px;
@@ -56,8 +60,8 @@ body {
 }
 [data-theme="dark"] body {
   background:
-    radial-gradient(circle at 12% -10%, rgba(59, 130, 246, .12), transparent 32%),
-    linear-gradient(180deg, #0F172A 0%, var(--bg) 46%, #1E293B 100%);
+    radial-gradient(circle at 12% -10%, rgba(0, 180, 216, .12), transparent 32%),
+    linear-gradient(180deg, #08131F 0%, var(--bg) 46%, #122235 100%);
 }
 a { color: var(--primary-light); text-decoration: none; }
 a:hover { text-decoration: underline; }
@@ -192,9 +196,10 @@ main { min-height: calc(100vh - 64px); }
   background: currentColor;
   animation: pulse 1.5s infinite;
 }
-.zone-pill.danger { color: var(--danger); background: #C0392B20; border: 1px solid var(--danger); }
-.zone-pill.warning { color: var(--warning); background: #E67E2220; border: 1px solid var(--warning); }
-.zone-pill.safe { color: var(--safe); background: #27AE6020; border: 1px solid var(--safe); }
+.zone-pill.critical { color: var(--critical); background: #7F1D1D20; border: 1px solid var(--critical); }
+.zone-pill.high { color: var(--high); background: #DC262620; border: 1px solid var(--high); }
+.zone-pill.warning { color: var(--warning); background: #D9770620; border: 1px solid var(--warning); }
+.zone-pill.safe { color: var(--safe); background: #05966920; border: 1px solid var(--safe); }
 .zone-pill.standby { color: #BAE6FD; background: rgba(8,145,178,.18); border: 1px solid rgba(125,211,252,.45); }
 .zone-label {
   background: transparent !important;
@@ -458,7 +463,8 @@ main { min-height: calc(100vh - 64px); }
 }
 .legend-dot.safe, .health-dot.ok { background: var(--safe); }
 .legend-dot.warning, .health-dot.unknown { background: var(--warning); }
-.legend-dot.danger, .health-dot.down { background: var(--danger); }
+.legend-dot.high, .health-dot.down { background: var(--high); }
+.legend-dot.critical { background: var(--critical); }
 
 .btn,
 .btn-primary,

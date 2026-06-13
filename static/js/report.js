@@ -12,7 +12,7 @@ function initReportForm() {
     function syncSeverity() {
         const value = Number(severity.value);
         severityValue.textContent = value;
-        const colour = value <= 2 ? '#27AE60' : value === 3 ? '#E67E22' : '#C0392B';
+        const colour = value <= 2 ? '#059669' : value === 3 ? '#D97706' : '#DC2626';
         severity.style.accentColor = colour;
     }
 
@@ -107,7 +107,7 @@ function updateLocationStatus(message, isSuccess) {
     const text = document.getElementById('location-text');
     if (icon) {
         icon.textContent = '●';
-        icon.style.color = isSuccess ? '#27AE60' : '#C0392B';
+        icon.style.color = isSuccess ? '#059669' : '#DC2626';
     }
     if (text) text.textContent = message;
 }

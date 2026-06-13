@@ -59,10 +59,11 @@ async function renderFloodZones() {
     const zones = await fetchJSON('/api/v1/zones/').then(normaliseList).catch(() => []);
     container.innerHTML = zones.length ? zones.map(zone => {
         const score = Number(zone.risk_score || 0);
+        const label = score > 0.85 ? 'Critical' : score > 0.7 ? 'High' : score > 0.4 ? 'Moderate' : 'Safe';
         return `
             <div class="card zone-card ${riskClass(score)}" data-zone-id="${zone.id}">
                 <h3 class="card-title">${zone.name}</h3>
-                <span class="zone-risk ${riskClass(score)}">${(score * 100).toFixed(0)}% ${score > 0.7 ? 'High' : score > 0.4 ? 'Moderate' : 'Safe'}</span>
+                <span class="zone-risk ${riskClass(score)}">${(score * 100).toFixed(0)}% ${label}</span>
                 <p class="card-meta">Threshold ${(Number(zone.risk_threshold || 0) * 100).toFixed(0)}%</p>
                 <div class="risk-bar"><span style="width:${Math.round(score * 100)}%"></span></div>
             </div>
@@ -80,10 +81,10 @@ function connectFloodMapSocket() {
         if (!zoneId || Number.isNaN(score)) return;
         const card = document.querySelector(`[data-zone-id="${zoneId}"]`);
         if (!card) return;
-        card.classList.remove('safe', 'warning', 'danger');
+        card.classList.remove('safe', 'warning', 'high', 'critical');
         card.classList.add(riskClass(score));
         const badge = card.querySelector('.zone-risk');
-        if (badge) badge.textContent = `${(score * 100).toFixed(0)}%`;
+        if (badge) badge.textContent = `${(score * 100).toFixed(0)}% ${score > 0.85 ? 'Critical' : score > 0.7 ? 'High' : score > 0.4 ? 'Moderate' : 'Safe'}`;
         const bar = card.querySelector('.risk-bar span');
         if (bar) bar.style.width = `${Math.round(score * 100)}%`;
     };

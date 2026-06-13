@@ -118,14 +118,16 @@ async function apiData(url) {
 }
 
 function zoneColour(score) {
-    if (score > 0.7) return '#C0392B';
-    if (score > 0.4) return '#E67E22';
-    return '#27AE60';
+    if (score > 0.85) return '#7F1D1D';
+    if (score > 0.7) return '#DC2626';
+    if (score > 0.4) return '#D97706';
+    return '#059669';
 }
 
 function zoneStatus(score) {
+    if (score > 0.85) return 'CRITICAL';
     if (score > 0.7) return 'HIGH RISK';
-    if (score > 0.4) return 'MODERATE';
+        if (score > 0.4) return 'MODERATE';
     return 'SAFE';
 }
 
@@ -197,7 +199,7 @@ function renderZones(map, zones, options = {}) {
                 fillColor: colour,
                 fillOpacity: score > 0.7 ? 0.30 : 0.18,
                 weight: score > 0.7 ? 3 : 2,
-                dashArray: score > 0.7 ? null : '4,4',
+                dashArray: score > 0.85 ? null : (score > 0.7 ? null : '4,4'),
                 className: score > 0.7 ? 'zone-polygon high-risk-pulse' : 'zone-polygon'
             }
         });
@@ -378,7 +380,7 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
             const zone = [...data.zones].sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))[0];
             const score = Number(zone.risk_score || 0);
             const severity = score > 0.85 ? 'CRITICAL' : score > 0.7 ? 'HIGH' : score > 0.4 ? 'MODERATE' : 'SAFE';
-            const colour = score > 0.85 ? '#C0392B' : score > 0.7 ? '#E74C3C' : score > 0.4 ? '#E67E22' : '#27AE60';
+            const colour = score > 0.85 ? '#7F1D1D' : score > 0.7 ? '#DC2626' : score > 0.4 ? '#D97706' : '#059669';
 
             L.popup({ className: 'live-zone-popup' })
                 .setLatLng([lat, lon])

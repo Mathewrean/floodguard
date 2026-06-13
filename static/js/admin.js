@@ -180,9 +180,10 @@ function fitMapToZones(zones) {
 }
 
 function zoneColour(score) {
-    if (score > 0.7) return '#C0392B';
-    if (score > 0.4) return '#E67E22';
-    return '#27AE60';
+    if (score > 0.85) return '#7F1D1D';
+    if (score > 0.7) return '#DC2626';
+    if (score > 0.4) return '#D97706';
+    return '#059669';
 }
 
 function zoneStyle(score, isHovered = false) {
@@ -198,8 +199,9 @@ function zoneStyle(score, isHovered = false) {
 }
 
 function zoneStatus(score) {
+    if (score > 0.85) return 'CRITICAL';
     if (score > 0.7) return 'HIGH RISK';
-    if (score > 0.4) return 'MODERATE';
+        if (score > 0.4) return 'MODERATE';
     return 'SAFE';
 }
 
@@ -224,7 +226,7 @@ function updateHeatmap() {
     points.forEach(point => {
         const [lat, lng, intensity] = point;
         const radius = 30000 * intensity + 10000; // 10-40km radius based on risk
-        const color = intensity > 0.7 ? '#C0392B' : intensity > 0.4 ? '#E67E22' : '#F59E0B';
+        const color = intensity > 0.85 ? '#7F1D1D' : intensity > 0.7 ? '#DC2626' : intensity > 0.4 ? '#D97706' : '#059669';
         
         L.circle([lat, lng], {
             radius: radius,

@@ -25,7 +25,7 @@ function initAlertSocket() {
     alertSocket.onopen = () => {
         reconnectCount = 0;
         console.info('Alert WebSocket connected');
-        setWsStatus('Live', '#27AE60');
+        setWsStatus('Live', '#059669');
     };
 
     alertSocket.onclose = (e) => {
@@ -33,7 +33,7 @@ function initAlertSocket() {
         const delay = Math.min(2000 * Math.pow(2, reconnectCount), 30000);
         reconnectCount += 1;
         console.info(`Alert WebSocket closed - reconnecting in ${delay}ms`);
-        setWsStatus('Reconnecting...', '#E67E22');
+        setWsStatus('Reconnecting...', '#D97706');
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(initAlertSocket, delay);
     };
@@ -58,7 +58,7 @@ function handleFloodUpdate(data) {
     const pill = document.querySelector(`[data-zone-id="${data.zone_id}"]`);
     if (!pill) return;
     const score = Number(data.risk_score || 0);
-    const colour = score > 0.7 ? '#C0392B' : score > 0.4 ? '#E67E22' : '#27AE60';
+    const colour = score > 0.85 ? '#7F1D1D' : score > 0.7 ? '#DC2626' : score > 0.4 ? '#D97706' : '#059669';
     pill.style.borderColor = colour;
     pill.style.color = colour;
     pill.textContent = `${data.zone_name || 'Zone'}: ${Math.round(score * 100)}%`;
