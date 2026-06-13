@@ -169,12 +169,13 @@ function initModeSelector() {
     });
 }
 
-function initSafeRoutePage() {
+async function initSafeRoutePage() {
     const mapElement = document.getElementById('safe-route-map');
     if (!mapElement || typeof L === 'undefined') return;
 
     routeState.map = createBaseMap('safe-route-map', 14);
-    renderZones(routeState.map, { fitBounds: false });
+    const zones = await fetchJSON('/api/v1/zones/').then(normaliseList).catch(() => []);
+    renderZones(routeState.map, zones, { fitBounds: false });
 
     routeState.map.on('click', event => {
         const coord = { lat: event.latlng.lat, lng: event.latlng.lng };

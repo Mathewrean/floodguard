@@ -374,6 +374,27 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
         if (!res.ok) return;
         const data = await res.json();
 
+        if (data.has_zone && Array.isArray(data.zones) && data.zones.length) {
+            const zone = [...data.zones].sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))[0];
+            const score = Number(zone.risk_score || 0);
+            const severity = score > 0.85 ? 'CRITICAL' : score > 0.7 ? 'HIGH' : score > 0.4 ? 'MODERATE' : 'SAFE';
+            const colour = score > 0.85 ? '#C0392B' : score > 0.7 ? '#E74C3C' : score > 0.4 ? '#E67E22' : '#27AE60';
+
+            L.popup({ className: 'live-zone-popup' })
+                .setLatLng([lat, lon])
+                .setContent(`
+                    <div style="min-width:180px">
+                        <strong style="color:${colour}">${safeHTML(zone.name)}</strong>
+                        <div style="margin:6px 0">
+                            <span style="font-size:12px;color:${colour};font-weight:700">${severity} - ${(score * 100).toFixed(0)}%</span>
+                        </div>
+                        <small style="color:#6B7A8D">You are inside a mapped flood zone.</small>
+                    </div>
+                `)
+                .openOn(map);
+            return;
+        }
+
         if (data.live_assessment && data.risk_score !== undefined) {
             const colour = zoneColour(Number(data.risk_score || 0));
             const pct = Math.round(Number(data.risk_score || 0) * 100);
