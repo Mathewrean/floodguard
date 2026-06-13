@@ -198,7 +198,7 @@ curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/zones/
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1420 test files.
+FloodGuard has comprehensive test coverage with 1422 test files.
 
 ### Running Tests
 

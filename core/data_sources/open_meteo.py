@@ -9,19 +9,19 @@ class OpenMeteoSource(BaseDataSource):
         import requests
 
         response = requests.get(
-            'https://flood-api.open-meteo.com/v1/flood',
+            'https://api.open-meteo.com/v1/forecast',
             params={
                 'latitude': lat,
                 'longitude': lon,
-                'daily': 'river_discharge',
+                'hourly': 'river_discharge',
+                'past_days': 0,
                 'forecast_days': 7,
-                'models': 'seamless_v4',
             },
             timeout=10,
         )
         response.raise_for_status()
         data = response.json()
-        discharge = data.get('daily', {}).get('river_discharge') or [0]
+        discharge = data.get('hourly', {}).get('river_discharge') or [0]
         padded = list(discharge) + [0, 0, 0]
         return {
             'river_discharge_today': padded[0] or 0,

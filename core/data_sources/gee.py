@@ -11,11 +11,15 @@ class GEESource(BaseDataSource):
 
             import ee
         except ImportError:
-            return {'water_extent_km2': 0, 'gee_available': False}
+            return {}
+
+        key_file = os.environ.get('GEE_SERVICE_ACCOUNT_KEY_PATH')
+        if not key_file:
+            return {}
 
         credentials = ee.ServiceAccountCredentials(
             email=None,
-            key_file=os.environ['GEE_SERVICE_ACCOUNT_KEY_PATH'],
+            key_file=key_file,
         )
         ee.Initialize(credentials)
         point = ee.Geometry.Point([lon, lat])
@@ -30,8 +34,11 @@ class GEESource(BaseDataSource):
         )
         water_pixels = sentinel.lt(-15)
         area = water_pixels.multiply(ee.Image.pixelArea())
-        stats = area.reduceRegion(ee.Reducer.sum(), buffer, 30)
-        water_m2 = stats.getInfo().get('VV', 0)
+        try:
+            stats = area.reduceRegion(ee.Reducer.sum(), buffer, 30)
+            water_m2 = stats.getInfo().get('VV', 0)
+        except Exception:
+            return {}
         return {
             'water_extent_km2': round(water_m2 / 1_000_000, 4),
             'data_age_days': 1,

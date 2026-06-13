@@ -1,6 +1,7 @@
 """Management command to create a decoy/test zone for manual QA testing."""
 
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 from django.contrib.gis.geos import Polygon
 from core.models import AlertZone
 
@@ -34,6 +35,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError('create_decoy_zone is disabled outside development mode')
+
         name = options['name']
         risk = max(0.0, min(1.0, options['risk']))
         threshold = max(0.0, min(1.0, options['threshold']))

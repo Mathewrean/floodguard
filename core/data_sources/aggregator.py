@@ -1,4 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from .gee import GEESource
 from .nasa_gpm import NASAGPMSource
@@ -36,13 +36,18 @@ def fetch_all_sources(lat: float, lon: float) -> dict:
             executor.submit(source.safe_fetch, lat, lon): source.name
             for source in ALL_SOURCES
         }
-        for future in as_completed(futures, timeout=15):
+        done, not_done = wait(futures, timeout=15)
+        for future in done:
             source_name = futures[future]
             try:
                 data = future.result()
             except Exception as exc:
                 data = {'source': source_name, 'available': False, 'error': str(exc)}
-            results[data['source']] = data
+            results[data.get('source', source_name)] = data
+        for future in not_done:
+            future.cancel()
+            source_name = futures[future]
+            results[source_name] = {'source': source_name, 'available': False, 'error': 'timeout'}
     return results
 
 

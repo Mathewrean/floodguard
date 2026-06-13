@@ -465,6 +465,54 @@ main { min-height: calc(100vh - 64px); }
 .legend-dot.warning, .health-dot.unknown { background: var(--warning); }
 .legend-dot.high, .health-dot.down { background: var(--high); }
 .legend-dot.critical { background: var(--critical); }
+.risk-legend {
+  display: grid;
+  gap: 8px;
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--primary-dark);
+}
+.badge.low { background: var(--safe); }
+.badge.moderate { background: var(--warning); }
+.badge.high { background: var(--high); }
+.badge.critical { background: var(--critical); }
+.ai-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+.ai-card h4,
+.ai-card .card-title {
+  margin: 0;
+}
+.ai-card p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.ai-card ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+}
 
 .btn,
 .btn-primary,

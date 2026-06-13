@@ -373,6 +373,123 @@ def data_sources_view(request):
     })
 
 
+def _ai_analysis_fields(user):
+    if not getattr(user, 'is_authenticated', False):
+        return ['overall_risk', 'summary', 'safe_zones']
+    if user.is_superuser:
+        return None
+    if user.groups.filter(name='EmergencyTeam').exists():
+        return ['overall_risk', 'summary', 'safe_zones', 'immediate_actions', '24h_outlook', 'highest_risk_zone']
+    return ['overall_risk', 'summary', 'safe_zones', '24h_outlook']
+
+
+def _filter_ai_analysis(analysis, user):
+    fields = _ai_analysis_fields(user)
+    if fields is None:
+        return analysis
+    return {field: analysis.get(field) for field in fields if field in analysis}
+
+
+@api_view(['POST'])
+@csrf_exempt
+@permission_classes([permissions.AllowAny])
+@throttle_classes([])
+def ai_flood_analysis(request):
+    import json
+    import os
+
+    from groq import Groq
+
+    zones = AlertZone.objects.all().order_by('-risk_score', 'name')
+    readings = FloodReading.objects.order_by('-timestamp')[:10]
+    latest_reading = FloodReading.objects.order_by('-timestamp').first()
+    metadata = latest_reading.metadata if latest_reading and isinstance(latest_reading.metadata, dict) else {}
+
+    zone_lines = [
+        f"- {zone.name}: {round((zone.risk_score or 0) * 100, 1)}% ({'CRITICAL' if (zone.risk_score or 0) >= 0.85 else 'HIGH' if (zone.risk_score or 0) >= 0.70 else 'MODERATE' if (zone.risk_score or 0) >= 0.40 else 'SAFE'})"
+        for zone in zones
+    ]
+    reading_lines = [
+        f"- {reading.water_level_metres}m at {reading.timestamp.strftime('%H:%M')}"
+        for reading in readings
+    ]
+    source_lines = [
+        f"Rainfall 1h: {metadata.get('rainfall_1h_mm', 'N/A')}mm",
+        f"Humidity: {metadata.get('humidity', 'N/A')}%",
+        f"River discharge: {metadata.get('river_discharge', 'N/A')} m3/s",
+        f"Precip probability: {metadata.get('precip_probability', metadata.get('chance_of_rain', 'N/A'))}%",
+        f"Sources active: {metadata.get('sources_available', '1')}/6",
+    ]
+
+    prompt = f"""You are FloodGuard AI analysing real-time flood data for Nairobi.
+
+Zone Risk Levels:
+{chr(10).join(zone_lines) if zone_lines else '- No monitored zones'}
+
+Recent Water Readings:
+{chr(10).join(reading_lines) if reading_lines else '- No recent readings'}
+
+Additional Source Context:
+{chr(10).join(f'- {line}' for line in source_lines)}
+
+Respond ONLY with valid JSON - no markdown, no explanation:
+{{
+  "overall_risk": "LOW|MODERATE|HIGH|CRITICAL",
+  "summary": "2-3 sentence situation overview",
+  "highest_risk_zone": "zone name",
+  "immediate_actions": ["action1", "action2", "action3"],
+  "24h_outlook": "one sentence forecast",
+  "safe_zones": ["zone1", "zone2"]
+}}"""
+
+    analysis = None
+    source = 'fallback'
+
+    try:
+        api_key = os.environ.get('GROQ_API_KEY')
+        if not api_key:
+            raise ValueError('GROQ_API_KEY missing')
+
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model='llama-3.1-8b-instant',
+            messages=[{'role': 'user', 'content': prompt}],
+            max_tokens=1024,
+            temperature=0.3,
+        )
+        content = response.choices[0].message.content.strip()
+        start = content.find('{')
+        end = content.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            content = content[start:end + 1]
+        analysis = json.loads(content)
+        source = 'groq'
+    except Exception:
+        high = [zone.name for zone in zones if (zone.risk_score or 0) > 0.70]
+        moderate = [zone.name for zone in zones if 0.40 < (zone.risk_score or 0) <= 0.70]
+        safe = [zone.name for zone in zones if (zone.risk_score or 0) <= 0.40]
+        level = 'CRITICAL' if len(high) > 3 else 'HIGH' if high else 'MODERATE' if moderate else 'LOW'
+        analysis = {
+            'overall_risk': level,
+            'summary': f'{len(high)} high-risk zones. {len(moderate)} moderate. {len(safe)} safe.',
+            'highest_risk_zone': high[0] if high else moderate[0] if moderate else 'None',
+            'immediate_actions': [f'Monitor {zone_name}' for zone_name in high[:3]] or ['Routine monitoring'],
+            '24h_outlook': 'Stable based on current readings.',
+            'safe_zones': safe[:3],
+        }
+
+    filtered = _filter_ai_analysis(analysis, request.user)
+    payload = {
+        'success': True,
+        'analysis': filtered,
+        'source': source,
+    }
+    if getattr(request.user, 'is_authenticated', False) and request.user.is_superuser:
+        payload['data_confidence'] = metadata.get('data_confidence', 'unknown')
+        payload['source_metadata'] = metadata
+    return Response(payload)
+
+
 @require_http_methods(["GET"])
 def health_view(request):
     redis_status = 'unknown'

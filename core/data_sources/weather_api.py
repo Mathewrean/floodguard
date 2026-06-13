@@ -9,10 +9,14 @@ class WeatherAPISource(BaseDataSource):
         import os
         import requests
 
+        api_key = os.environ.get('WEATHERAPI_KEY')
+        if not api_key:
+            return {}
+
         response = requests.get(
             'https://api.weatherapi.com/v1/forecast.json',
             params={
-                'key': os.environ['WEATHERAPI_KEY'],
+                'key': api_key,
                 'q': f'{lat},{lon}',
                 'days': 3,
                 'aqi': 'no',

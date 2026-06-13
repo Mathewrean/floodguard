@@ -32,6 +32,7 @@ urlpatterns = [
     # API routes (versioned)
     path('api/v1/stats/', views.stats_view, name='stats'),
     path('api/v1/data-sources/', views.data_sources_view, name='data-sources'),
+    path('api/v1/ai-analysis/', views.ai_flood_analysis, name='ai-analysis'),
     path('api/v1/safe-route/', views.safe_route_view, name='safe-route'),
     path('api/v1/safe-route/snap/', views.snap_coordinate_view, name='safe-route-snap'),
     path('api/v1/dynamic-zone/', views.dynamic_zone_check, name='dynamic-zone'),

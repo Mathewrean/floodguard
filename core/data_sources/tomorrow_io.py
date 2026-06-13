@@ -9,11 +9,15 @@ class TomorrowIOSource(BaseDataSource):
         import os
         import requests
 
+        api_key = os.environ.get('TOMORROW_IO_API_KEY')
+        if not api_key:
+            return {}
+
         response = requests.get(
             'https://api.tomorrow.io/v4/weather/forecast',
             params={
                 'location': f'{lat},{lon}',
-                'apikey': os.environ['TOMORROW_IO_API_KEY'],
+                'apikey': api_key,
                 'units': 'metric',
             },
             timeout=10,

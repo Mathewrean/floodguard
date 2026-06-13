@@ -19,6 +19,24 @@ async function initCitizenDashboard() {
     renderNearestZone(zones);
     renderMyReports(reports);
     initReportsMap(reports);
+    initAiSummaryCard();
+}
+
+async function initAiSummaryCard() {
+    const container = document.getElementById('ai-summary');
+    if (!container || typeof window.fetchAiAnalysis !== 'function' || typeof window.renderAiSummaryCard !== 'function') return;
+
+    async function refresh() {
+        try {
+            const data = await window.fetchAiAnalysis();
+            window.renderAiSummaryCard(container, data.analysis || {}, { showSafeZones: true, showOutlook: true });
+        } catch (error) {
+            container.innerHTML = '<span class="badge low">UNKNOWN</span><p>Flood intelligence is temporarily unavailable.</p>';
+        }
+    }
+
+    refresh();
+    setInterval(refresh, 300000);
 }
 
 function renderNearestZone(zones) {

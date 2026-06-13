@@ -225,6 +225,68 @@ function renderRiskLegends() {
     });
 }
 
+async function fetchAiAnalysis() {
+    const response = await fetch('/api/v1/ai-analysis/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken') || '',
+        },
+        body: JSON.stringify({ all: true }),
+    });
+
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+
+    return response.json();
+}
+
+function renderAiSummaryCard(container, analysis, options = {}) {
+    if (!container) return;
+
+    const overallRisk = String(analysis.overall_risk || 'UNKNOWN').toUpperCase();
+    const summary = analysis.summary || 'Flood intelligence is unavailable right now.';
+    const safeZones = Array.isArray(analysis.safe_zones) ? analysis.safe_zones : [];
+    const outlook = analysis['24h_outlook'] || '';
+    const badgeClass = overallRisk.toLowerCase();
+    const pieces = [
+        `<span class="badge ${badgeClass}">${escapeHTML(overallRisk)}</span>`,
+        `<p>${escapeHTML(summary)}</p>`,
+    ];
+
+    if (options.showSafeZones) {
+        pieces.push(`<p><strong>Safe zones:</strong> ${safeZones.length ? safeZones.map(escapeHTML).join(', ') : 'None reported'}</p>`);
+    }
+
+    if (options.showOutlook && outlook) {
+        pieces.push(`<p><strong>24h outlook:</strong> ${escapeHTML(outlook)}</p>`);
+    }
+
+    if (options.showActions && Array.isArray(analysis.immediate_actions) && analysis.immediate_actions.length) {
+        pieces.push(`<ul>${analysis.immediate_actions.slice(0, 3).map(action => `<li>${escapeHTML(action)}</li>`).join('')}</ul>`);
+    }
+
+    container.innerHTML = pieces.join('');
+}
+
+async function initLandingAiSummary() {
+    const container = document.getElementById('landing-ai-summary');
+    if (!container) return;
+
+    async function refresh() {
+        try {
+            const data = await fetchAiAnalysis();
+            renderAiSummaryCard(container, data.analysis || {}, { showSafeZones: false, showOutlook: false });
+        } catch (error) {
+            container.innerHTML = '<span class="badge low">UNKNOWN</span><p>Flood intelligence is temporarily unavailable.</p>';
+        }
+    }
+
+    refresh();
+    setInterval(refresh, 300000);
+}
+
 function initThemeToggle() {
     const toggle = document.getElementById('theme-toggle');
     if (!toggle) return;
@@ -287,6 +349,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initThemeToggle();
     initHamburgerMenu();
     initLiveStats();
+    renderRiskLegends();
+    initLandingAiSummary();
     initStatusStrip();
     initAlertsTicker();
 });
@@ -299,3 +363,5 @@ window.escapeHTML = escapeHTML;
 window.riskClass = riskClass;
 window.getCookie = getCookie;
 window.timeAgo = timeAgo;
+window.fetchAiAnalysis = fetchAiAnalysis;
+window.renderAiSummaryCard = renderAiSummaryCard;

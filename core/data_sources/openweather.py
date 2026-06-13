@@ -9,12 +9,16 @@ class OpenWeatherSource(BaseDataSource):
         import os
         import requests
 
+        api_key = os.environ.get('OPENWEATHER_API_KEY')
+        if not api_key:
+            return {}
+
         response = requests.get(
             'https://api.openweathermap.org/data/2.5/weather',
             params={
                 'lat': lat,
                 'lon': lon,
-                'appid': os.environ['OPENWEATHER_API_KEY'],
+                'appid': api_key,
                 'units': 'metric',
             },
             timeout=10,

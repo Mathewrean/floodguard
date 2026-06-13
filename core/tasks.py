@@ -32,28 +32,18 @@ def fetch_flood_api(zone_id):
 
     try:
         features = build_risk_feature_vector(lat, lon, zone.name)
-        discharge = features.get('river_discharge') or 0
-
-        if discharge <= 0:
-            url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=river_discharge&past_days=0&forecast_days=7"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            discharges = data['hourly']['river_discharge']
-            discharge = discharges[0] if discharges else 0
-            features['river_discharge'] = discharge
-            features['discharge_24h'] = discharges[24] if len(discharges) > 24 else discharge
-            features['discharge_7d_max'] = max(discharges) if discharges else discharge
+        discharge = float(features.get('river_discharge') or 0)
 
         from core.analytics.scoring import calculate_risk_score
         risk_score = calculate_risk_score(features)
-        source_name = 'multi_source' if features.get('sources_available', 0) > 1 else 'open_meteo'
+        source_count = int(features.get('sources_available', 0) or 0)
+        source_name = 'multi_source' if source_count > 1 else 'open_meteo'
         FloodReading.objects.create(
             location=Point(lon, lat, srid=4326),
             water_level_metres=round(discharge / 100.0, 2),
             risk_score=risk_score,
             source=source_name,
-            verified=features.get('sources_available', 0) > 0,
+            verified=source_count > 0,
             metadata=features,
         )
         zone.risk_score = risk_score
@@ -62,22 +52,7 @@ def fetch_flood_api(zone_id):
 
     except Exception as e:
         logger.error(f"Error fetching flood data for zone {zone.id}: {str(e)}")
-
-        # Legacy fallback kept for development and existing mocked tests.
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=river_discharge&past_days=0&forecast_days=7"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        discharges = data['hourly']['river_discharge']
-        discharge = discharges[0] if discharges else 0
-        FloodReading.objects.create(
-            location=Point(lon, lat, srid=4326),
-            water_level_metres=discharge,
-            risk_score=0.0,
-            source='open_meteo',
-            verified=False,
-            metadata={'river_discharge': discharge, 'data_confidence': 'low'},
-        )
+        return
 
 @shared_task
 def run_risk_scoring(reading_id):
@@ -98,10 +73,73 @@ def run_risk_scoring(reading_id):
         return
 
     try:
-        from core.analytics.scoring import calculate_risk_score
-        risk_score = calculate_risk_score(zone.id)
-        # The calculate_risk_score function already updates the latest reading in the zone
-        # But we can also update this specific reading if needed
+        if reading.metadata:
+            from core.analytics.scoring import calculate_risk_score
+            risk_score = calculate_risk_score(reading.metadata)
+        else:
+            import datetime
+
+            import joblib
+            import numpy as np
+
+            from django.conf import settings
+
+            two_hours_ago = timezone.now() - datetime.timedelta(hours=2)
+            latest_reading = FloodReading.objects.filter(
+                location__coveredby=zone.polygon,
+                timestamp__gte=two_hours_ago,
+            ).order_by('-timestamp').first() or reading
+
+            current_water_level = latest_reading.water_level_metres
+
+            centroid = zone.polygon.centroid
+            lat, lon = centroid.y, centroid.x
+            api_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=river_discharge&past_days=0&forecast_days=7"
+            try:
+                response = requests.get(api_url, timeout=10)
+                response.raise_for_status()
+                data = response.json()
+                hourly_discharge = data['hourly']['river_discharge']
+                forecast_24h = hourly_discharge[24] if len(hourly_discharge) > 24 else None
+                forecast_48h = hourly_discharge[48] if len(hourly_discharge) > 48 else None
+            except (requests.RequestException, KeyError, IndexError):
+                forecast_24h = current_water_level
+                forecast_48h = current_water_level
+
+            ninety_six_hours_ago = timezone.now() - datetime.timedelta(hours=96)
+            recent_readings = FloodReading.objects.filter(
+                location__coveredby=zone.polygon,
+                timestamp__gte=ninety_six_hours_ago,
+            ).order_by('-timestamp')[:96]
+
+            if len(recent_readings) >= 10:
+                rolling_24h_mean = np.mean([r.water_level_metres for r in recent_readings[:24]]) if len(recent_readings) >= 24 else current_water_level
+                data_confidence = 'high'
+            else:
+                rolling_24h_mean = current_water_level
+                data_confidence = 'low'
+
+            try:
+                model = joblib.load(settings.FLOOD_MODEL_PATH)
+            except (FileNotFoundError, Exception):
+                raise RuntimeError('ML model not available')
+
+            now = timezone.now()
+            features = [
+                current_water_level,
+                rolling_24h_mean,
+                forecast_24h or current_water_level,
+                forecast_48h or current_water_level,
+                now.hour,
+                now.weekday(),
+            ]
+
+            raw_score = model.predict([features])[0]
+            if data_confidence == 'low':
+                raw_score *= 0.75
+            risk_score = max(0.0, min(1.0, raw_score))
+
+        # The task keeps the specific reading in sync with the final score.
         reading.risk_score = risk_score
         reading.save(update_fields=['risk_score'])
         logger.info(f"Updated risk score for reading {reading.id} to {risk_score}")
