@@ -11,6 +11,14 @@ const TIER_TTLS = {
   default: 10000,
 };
 
+window.getRiskBand = function(score) {
+        const value = Number(score) || 0;
+        if (value >= 0.85) return { label: 'CRITICAL', colour: '#7F1D1D', className: 'critical' };
+        if (value >= 0.70) return { label: 'HIGH RISK', colour: '#DC2626', className: 'high' };
+        if (value >= 0.40) return { label: 'MODERATE', colour: '#D97706', className: 'warning' };
+        return { label: 'SAFE', colour: '#059669', className: 'safe' };
+};
+
 function showRateLimitWarning(endpoint) {
     const key = `rl_warned_${endpoint}`;
     if (sessionStorage.getItem(key)) return;
@@ -74,10 +82,7 @@ function escapeHTML(value) {
 }
 
 function riskClass(score) {
-    if (score > 0.85) return 'critical';
-    if (score > 0.7) return 'high';
-    if (score > 0.4) return 'warning';
-    return 'safe';
+    return window.getRiskBand(score).className;
 }
 
 function getCookie(name) {
@@ -140,7 +145,11 @@ function initLiveStats() {
                 zones_count: zones.length,
                 alerts_today: 0,
                 reports_this_week: readings.length,
-                high_risk_zones: zones.filter(zone => Number(zone.risk_score || 0) > 0.7).length,
+                high_risk_zones: zones.filter(zone => {
+                    const score = Number(zone.risk_score || 0);
+                    return score >= 0.7 && score < 0.85;
+                }).length,
+                critical_zones: zones.filter(zone => Number(zone.risk_score || 0) >= 0.85).length,
             };
         }
 
@@ -166,7 +175,8 @@ async function initStatusStrip() {
             const zones = normaliseList(await fetchJSON('/api/v1/zones/'));
             strip.innerHTML = zones.length ? zones.map(zone => {
                 const score = Number(zone.risk_score || 0);
-                return `<span class="zone-pill ${riskClass(score)}" data-zone-id="${zone.id}">${escapeHTML(zone.name)}: ${(score * 100).toFixed(0)}%</span>`;
+                const band = window.getRiskBand(score);
+                return `<span class="zone-pill ${band.className}" data-zone-id="${zone.id}" style="color:${band.colour};border-color:${band.colour}">${escapeHTML(zone.name)}: ${band.label}</span>`;
             }).join('') : '<span class="zone-pill standby">Monitoring standby: add flood zones</span>';
         } catch (error) {
             strip.innerHTML = '<span class="zone-pill standby">Zone service reconnecting</span>';
@@ -201,6 +211,18 @@ async function initAlertsTicker() {
 
     refresh();
     setInterval(refresh, 15000);
+}
+
+function renderRiskLegends() {
+    const bands = [0, 0.4, 0.7, 0.85].map(score => window.getRiskBand(score));
+    document.querySelectorAll('[data-risk-legend]').forEach(container => {
+        container.innerHTML = bands.map(band => `
+            <span class="legend-item ${band.className}">
+                <i class="legend-dot ${band.className}" style="background:${band.colour}"></i>
+                ${band.label}
+            </span>
+        `).join('');
+    });
 }
 
 function initThemeToggle() {

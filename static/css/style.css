@@ -595,9 +595,10 @@ table tr:hover td { background: #F5F8FF; }
 .status-badge.pending { background: #FFF3E0; color: #E65100; }
 .status-badge.verified { background: #E8F5E9; color: #2E7D32; }
 .status-badge.rejected { background: #FFEBEE; color: #C62828; }
-.severity-critical { background: var(--danger); color: #fff; }
-.severity-high { background: #E74C3C; color: #fff; }
+.severity-critical { background: var(--critical); color: #fff; }
+.severity-high { background: var(--high); color: #fff; }
 .severity-moderate { background: var(--warning); color: #fff; }
+.severity-safe,
 .severity-advisory { background: var(--safe); color: #fff; }
 
 .report-form {
@@ -693,7 +694,12 @@ input[type="range"] { accent-color: var(--warning); padding-inline: 0; }
 }
 .zone-card { border-left: 4px solid var(--safe); }
 .zone-card.warning { border-left-color: var(--warning); }
-.zone-card.danger { border-left-color: var(--danger); }
+.zone-card.high { border-left-color: var(--high); }
+.zone-card.critical { border-left-color: var(--critical); }
+.zone-risk.safe { color: var(--safe); background: #05966920; }
+.zone-risk.warning { color: var(--warning); background: #D9770620; }
+.zone-risk.high { color: var(--high); background: #DC262620; }
+.zone-risk.critical { color: var(--critical); background: #7F1D1D20; }
 .risk-bar { height: 8px; background: #E7EDF5; border-radius: 999px; overflow: hidden; }
 .risk-bar span { display: block; height: 100%; background: var(--primary-light); }
 

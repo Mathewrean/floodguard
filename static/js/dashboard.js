@@ -32,7 +32,9 @@ function renderNearestZone(zones) {
     }
 
     const zone = [...zones].sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))[0];
-    risk.textContent = `${(Number(zone.risk_score || 0) * 100).toFixed(0)}%`;
+    const band = getRiskBand(zone.risk_score);
+    risk.textContent = band.label;
+    risk.style.color = band.colour;
     name.textContent = zone.name;
 }
 

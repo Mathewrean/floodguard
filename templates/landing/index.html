@@ -68,12 +68,10 @@
             <div id="map-preview" class="map-container"></div>
             <div class="map-controls-panel">
                 <strong>Legend</strong>
-                <span><i class="legend-dot safe"></i> Safe</span>
-                <span><i class="legend-dot warning"></i> Moderate</span>
-                <span><i class="legend-dot high"></i> High risk</span>
-                <span><i class="legend-dot critical"></i> Critical</span>
+                    <div class="risk-legend" data-risk-legend></div>
             </div>
         </div>
+                    <p class="card-meta">Zones are classified as safe, moderate, high risk, or critical using live data and verified reports.</p>
         <a href="{% url 'map_view' %}" class="btn btn-primary">Open Full Map</a>
     </div>
 </section>

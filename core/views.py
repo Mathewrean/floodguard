@@ -353,7 +353,8 @@ def stats_view(request):
         'reports_this_week': IncidentReport.objects.filter(
             created_at__gte=timezone.now() - timedelta(days=7)
         ).count(),
-        'high_risk_zones': AlertZone.objects.filter(risk_score__gt=0.7).count(),
+        'high_risk_zones': AlertZone.objects.filter(risk_score__gte=0.7, risk_score__lt=0.85).count(),
+        'critical_zones': AlertZone.objects.filter(risk_score__gte=0.85).count(),
     })
 
 
@@ -886,7 +887,8 @@ def api_dashboard_stats(request):
         'total_zones': AlertZone.objects.count(),
         'alerts_today': AlertLog.objects.filter(triggered_at__gte=today_start).count(),
         'reports_this_week': IncidentReport.objects.filter(created_at__gte=week_start).count(),
-        'high_risk_zones': AlertZone.objects.filter(risk_threshold__gte=0.7).count(),
+        'high_risk_zones': AlertZone.objects.filter(risk_score__gte=0.7, risk_score__lt=0.85).count(),
+        'critical_zones': AlertZone.objects.filter(risk_score__gte=0.85).count(),
     }
     return JsonResponse(stats)
 

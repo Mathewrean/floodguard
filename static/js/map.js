@@ -118,17 +118,11 @@ async function apiData(url) {
 }
 
 function zoneColour(score) {
-    if (score > 0.85) return '#7F1D1D';
-    if (score > 0.7) return '#DC2626';
-    if (score > 0.4) return '#D97706';
-    return '#059669';
+    return getRiskBand(score).colour;
 }
 
 function zoneStatus(score) {
-    if (score > 0.85) return 'CRITICAL';
-    if (score > 0.7) return 'HIGH RISK';
-        if (score > 0.4) return 'MODERATE';
-    return 'SAFE';
+    return getRiskBand(score).label;
 }
 
 function timeAgo(ts) {
@@ -177,6 +171,34 @@ function showMapNotice(map, message) {
     return notice;
 }
 
+function showBanner(message, colour) {
+    let banner = document.getElementById('risk-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'risk-banner';
+        banner.className = 'risk-banner';
+        document.body.appendChild(banner);
+    }
+    banner.textContent = message;
+    banner.style.background = colour;
+    banner.style.borderColor = colour;
+    banner.style.display = 'block';
+    clearTimeout(banner._hideTimer);
+    banner._hideTimer = setTimeout(() => {
+        banner.style.display = 'none';
+    }, 7000);
+}
+
+function openSafeRoutePanel() {
+    const panel = document.querySelector('.safe-route-page .safe-route-panel');
+    if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        panel.classList.add('focus');
+        return;
+    }
+    window.location.href = '/safe-route/';
+}
+
 function renderZones(map, zones, options = {}) {
     if (!map || !zones) return L.featureGroup().addTo(map);
 
@@ -189,18 +211,19 @@ function renderZones(map, zones, options = {}) {
         if (!zone.polygon) return;
 
         const score = Number(zone.risk_score || 0);
-        const colour = zoneColour(score);
-        const severity = zoneStatus(score);
+        const band = getRiskBand(score);
+        const colour = band.colour;
+        const severity = band.label;
         const pct = Math.round(score * 100);
 
         const layer = L.geoJSON(zone.polygon, {
             style: {
                 color: colour,
                 fillColor: colour,
-                fillOpacity: score > 0.7 ? 0.30 : 0.18,
-                weight: score > 0.7 ? 3 : 2,
-                dashArray: score > 0.85 ? null : (score > 0.7 ? null : '4,4'),
-                className: score > 0.7 ? 'zone-polygon high-risk-pulse' : 'zone-polygon'
+                fillOpacity: score >= 0.85 ? 0.30 : score >= 0.7 ? 0.24 : 0.18,
+                weight: score >= 0.7 ? 3 : 2,
+                dashArray: score >= 0.7 ? null : '4,4',
+                className: score >= 0.7 ? 'zone-polygon high-risk-pulse' : 'zone-polygon'
             }
         });
 
@@ -379,8 +402,8 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
         if (data.has_zone && Array.isArray(data.zones) && data.zones.length) {
             const zone = [...data.zones].sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))[0];
             const score = Number(zone.risk_score || 0);
-            const severity = score > 0.85 ? 'CRITICAL' : score > 0.7 ? 'HIGH' : score > 0.4 ? 'MODERATE' : 'SAFE';
-            const colour = score > 0.85 ? '#7F1D1D' : score > 0.7 ? '#DC2626' : score > 0.4 ? '#D97706' : '#059669';
+            const band = getRiskBand(score);
+            const colour = band.colour;
 
             L.popup({ className: 'live-zone-popup' })
                 .setLatLng([lat, lon])
@@ -388,17 +411,24 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
                     <div style="min-width:180px">
                         <strong style="color:${colour}">${safeHTML(zone.name)}</strong>
                         <div style="margin:6px 0">
-                            <span style="font-size:12px;color:${colour};font-weight:700">${severity} - ${(score * 100).toFixed(0)}%</span>
+                            <span style="font-size:12px;color:${colour};font-weight:700">${band.label} - ${(score * 100).toFixed(0)}%</span>
                         </div>
                         <small style="color:#6B7A8D">You are inside a mapped flood zone.</small>
                     </div>
                 `)
                 .openOn(map);
+            if (score >= 0.7) {
+                showBanner(`⚠ You are in ${safeHTML(zone.name)} — ${band.label}`, band.colour);
+            }
+            if (score >= 0.85) {
+                openSafeRoutePanel();
+            }
             return;
         }
 
         if (data.live_assessment && data.risk_score !== undefined) {
-            const colour = zoneColour(Number(data.risk_score || 0));
+            const band = getRiskBand(Number(data.risk_score || 0));
+            const colour = band.colour;
             const pct = Math.round(Number(data.risk_score || 0) * 100);
 
             L.popup({ className: 'live-zone-popup' })
@@ -410,7 +440,7 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
                             <div style="background:#eee;border-radius:4px;height:6px">
                                 <div style="background:${colour};width:${pct}%;height:6px;border-radius:4px"></div>
                             </div>
-                            <span style="font-size:12px;color:${colour};font-weight:700">${pct}% - ${safeHTML(data.severity)}</span>
+                            <span style="font-size:12px;color:${colour};font-weight:700">${pct}% - ${safeHTML(data.severity || band.label)}</span>
                         </div>
                         <small style="color:#6B7A8D">Live assessment - Open-Meteo</small>
                     </div>

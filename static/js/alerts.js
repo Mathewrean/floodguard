@@ -58,10 +58,11 @@ function handleFloodUpdate(data) {
     const pill = document.querySelector(`[data-zone-id="${data.zone_id}"]`);
     if (!pill) return;
     const score = Number(data.risk_score || 0);
-    const colour = score > 0.85 ? '#7F1D1D' : score > 0.7 ? '#DC2626' : score > 0.4 ? '#D97706' : '#059669';
+    const band = getRiskBand(score);
+    const colour = band.colour;
     pill.style.borderColor = colour;
     pill.style.color = colour;
-    pill.textContent = `${data.zone_name || 'Zone'}: ${Math.round(score * 100)}%`;
+    pill.textContent = `${data.zone_name || 'Zone'}: ${band.label}`;
 }
 
 function handleAlertMessage(data) {

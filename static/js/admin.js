@@ -92,6 +92,7 @@ function renderZones(zones) {
     
     zones.forEach(zone => {
         const score = Number(zone.risk_score || 0);
+        const band = getRiskBand(score);
         
         // Draw polygon with enhanced styling
         const polygon = L.geoJSON(zone.polygon, {
@@ -102,7 +103,7 @@ function renderZones(zones) {
             <strong>${escapeHTML(zone.name)}</strong><br>
             Risk: ${(score * 100).toFixed(1)}%<br>
             Threshold: ${(zone.risk_threshold * 100).toFixed(1)}%<br>
-            Status: ${zoneStatus(score)}<br>
+            Status: ${band.label}<br>
             <button onclick="triggerOverride(${zone.id})" class="btn btn-sm">Override</button>
             <button onclick="triggerDispatch(${zone.id})" class="btn btn-sm btn-accent">Send Alert</button>
         `);
@@ -180,10 +181,7 @@ function fitMapToZones(zones) {
 }
 
 function zoneColour(score) {
-    if (score > 0.85) return '#7F1D1D';
-    if (score > 0.7) return '#DC2626';
-    if (score > 0.4) return '#D97706';
-    return '#059669';
+    return getRiskBand(score).colour;
 }
 
 function zoneStyle(score, isHovered = false) {
@@ -199,10 +197,7 @@ function zoneStyle(score, isHovered = false) {
 }
 
 function zoneStatus(score) {
-    if (score > 0.85) return 'CRITICAL';
-    if (score > 0.7) return 'HIGH RISK';
-        if (score > 0.4) return 'MODERATE';
-    return 'SAFE';
+    return getRiskBand(score).label;
 }
 
 function toggleHeatmap() {
@@ -226,7 +221,7 @@ function updateHeatmap() {
     points.forEach(point => {
         const [lat, lng, intensity] = point;
         const radius = 30000 * intensity + 10000; // 10-40km radius based on risk
-        const color = intensity > 0.85 ? '#7F1D1D' : intensity > 0.7 ? '#DC2626' : intensity > 0.4 ? '#D97706' : '#059669';
+        const color = getRiskBand(intensity).colour;
         
         L.circle([lat, lng], {
             radius: radius,
@@ -254,10 +249,16 @@ function toggleClusters() {
 function fetchDashboardStats() {
     cachedFetch('/api/v1/dashboard/stats/')
         .then(stats => {
-            document.getElementById('total-zones').textContent = stats.zones_count || 0;
-            document.getElementById('critical-zones').textContent = stats.high_risk_zones || 0;
-            document.getElementById('pending-reports').textContent = stats.reports_this_week || 0;
-            document.getElementById('alerts-24h').textContent = stats.alerts_today || 0;
+            const totalZones = document.getElementById('total-zones');
+            const highRiskZones = document.getElementById('high-risk-zones');
+            const criticalZones = document.getElementById('critical-zones');
+            const pendingReports = document.getElementById('pending-reports');
+            const alerts24h = document.getElementById('alerts-24h');
+            if (totalZones) totalZones.textContent = stats.zones_count || 0;
+            if (highRiskZones) highRiskZones.textContent = stats.high_risk_zones || 0;
+            if (criticalZones) criticalZones.textContent = stats.critical_zones || 0;
+            if (pendingReports) pendingReports.textContent = stats.reports_this_week || 0;
+            if (alerts24h) alerts24h.textContent = stats.alerts_today || 0;
         })
         .catch(err => console.error('Failed to fetch stats:', err));
 }
