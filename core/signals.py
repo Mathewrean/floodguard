@@ -88,7 +88,7 @@ def warm_readings_cache(sender, instance, created, **kwargs):
         from django.db.models.expressions import RawSQL
 
         # Find zones that contain this reading
-        zones = AlertZone.objects.filter(polygon__contains=instance.location)
+        zones = AlertZone.objects.filter(polygon__covers=instance.location)
         for zone in zones:
             cache_key = f'zone:{zone.id}:latest_reading'
             # Store the reading ID and key data

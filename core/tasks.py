@@ -92,7 +92,7 @@ def run_risk_scoring(reading_id):
 
     # Find the zone that contains this reading
     try:
-        zone = AlertZone.objects.get(polygon__contains=reading.location)
+        zone = AlertZone.objects.get(polygon__covers=reading.location)
     except AlertZone.DoesNotExist:
         logger.warning(f"No zone found for reading at {reading.location}")
         return

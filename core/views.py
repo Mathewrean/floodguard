@@ -437,7 +437,7 @@ def _line_for_points(points):
 
 def _snap_to_navigable(coord):
     point = Point(coord['lng'], coord['lat'], srid=4326)
-    high_risk_zone = AlertZone.objects.filter(risk_score__gt=0.7, polygon__contains=point).order_by('-risk_score').first()
+    high_risk_zone = AlertZone.objects.filter(risk_score__gt=0.7, polygon__covers=point).order_by('-risk_score').first()
     if not high_risk_zone:
         return {
             'coordinate': coord,
@@ -904,16 +904,24 @@ def dynamic_zone_check(request):
     except (TypeError, ValueError):
         return Response({'error': 'Invalid latitude or longitude parameters'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Check existing zones within 50km
+    # Check whether the user is actually inside an existing zone.
     from django.contrib.gis.geos import Point
-    from django.contrib.gis.measure import D
     user_point = Point(lon, lat, srid=4326)
-    nearby = AlertZone.objects.filter(
-        polygon__distance_lte=(user_point, D(km=50))
-    )
+    matched_zones = AlertZone.objects.filter(polygon__covers=user_point).order_by('-risk_score', 'name')
 
-    if nearby.exists():
-        return Response({'has_zone': True, 'zones': nearby.count()})
+    if matched_zones.exists():
+        return Response({
+            'has_zone': True,
+            'zones': [
+                {
+                    'id': zone.id,
+                    'name': zone.name,
+                    'risk_score': round(float(zone.risk_score or 0), 3),
+                    'risk_threshold': round(float(zone.risk_threshold or 0), 3),
+                }
+                for zone in matched_zones
+            ],
+        })
 
     # No nearby zone — fetch live from Open-Meteo
     import requests as req
@@ -969,7 +977,7 @@ def dynamic_zone_check(request):
             'severity': ('CRITICAL' if risk_score > 0.85
                         else 'HIGH' if risk_score > 0.7
                         else 'MODERATE' if risk_score > 0.4
-                        else 'LOW'),
+                        else 'SAFE'),
             'message': f'Live flood assessment for {zone_name}'
         })
     except Exception as e:

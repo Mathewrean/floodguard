@@ -13,8 +13,8 @@ def build_alert_message(zone, risk_score):
         severity_label = 'MODERATE'
         message = f"MODERATE FLOOD RISK — {zone.name}: Flooding possible. Monitor conditions and avoid low-lying routes."
     else:
-        severity_label = 'ADVISORY'
-        message = f"FLOOD ADVISORY — {zone.name}: Conditions are being monitored. No immediate action required."
+        severity_label = 'SAFE'
+        message = f"SAFE FLOOD UPDATE — {zone.name}: Conditions are being monitored. No immediate action required."
 
     # Append the standard footer
     message = f"{message} — FloodGuard. Reply STOP to unsubscribe."

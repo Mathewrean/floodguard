@@ -63,7 +63,7 @@ def calculate_risk_score(zone_or_features):
     # STEP 1 — Fetch latest FloodReading for zone
     two_hours_ago = timezone.now() - datetime.timedelta(hours=2)
     latest_reading = FloodReading.objects.filter(
-        location__within=zone.polygon,
+        location__coveredby=zone.polygon,
         timestamp__gte=two_hours_ago
     ).order_by('-timestamp').first()
 
@@ -99,7 +99,7 @@ def calculate_risk_score(zone_or_features):
     # STEP 3 — Calculate rolling 24h mean water level
     ninety_six_hours_ago = timezone.now() - datetime.timedelta(hours=96)
     recent_readings = FloodReading.objects.filter(
-        location__within=zone.polygon,
+        location__coveredby=zone.polygon,
         timestamp__gte=ninety_six_hours_ago
     ).order_by('-timestamp')[:96]
 

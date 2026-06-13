@@ -37,8 +37,8 @@ def build_email_alert(zone, risk_score, recipient_email):
         subject = f'MODERATE FLOOD WATCH - {zone.name}'
         template = 'emails/moderate_alert.html'
     else:
-        severity = 'ADVISORY'
-        subject = f'FLOOD ADVISORY - {zone.name}'
+        severity = 'SAFE'
+        subject = f'SAFE FLOOD UPDATE - {zone.name}'
         template = 'emails/advisory_alert.html'
     
     # Context for email template

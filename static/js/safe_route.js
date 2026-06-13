@@ -26,7 +26,10 @@ function setRoutePoint(type, coord, snap = null) {
     if (input) input.value = formatCoord(coord);
     if (status) {
         const confidence = snap && snap.confidence ? `${Math.round(snap.confidence * 100)}%` : 'pending';
-        status.textContent = snap ? `${snap.status.replaceAll('_', ' ')} • confidence ${confidence}` : 'Point selected';
+        const snapStatus = snap && typeof snap.status === 'string'
+            ? snap.status.replaceAll('_', ' ')
+            : 'Point selected';
+        status.textContent = snap && snap.status ? `${snapStatus} • confidence ${confidence}` : 'Point selected';
     }
 
     const iconHtml = type === 'origin' ? '●' : '◆';
@@ -54,6 +57,9 @@ async function snapRoutePoint(type, coord) {
             },
             body: JSON.stringify({ coordinate: coord })
         });
+        if (!snap || !snap.coordinate || typeof snap.coordinate.lat !== 'number' || typeof snap.coordinate.lng !== 'number') {
+            throw new Error('Invalid snap response');
+        }
         setRoutePoint(type, snap.coordinate, snap);
         if (navigator.vibrate) navigator.vibrate(18);
         setRouteStatus(type === 'origin' ? 'Origin set. Click destination.' : 'Destination set. Calculate a route.');
@@ -80,7 +86,8 @@ function renderRoutes(routes) {
 
     routes.forEach(route => {
         const colour = colours[route.profile] || '#2B83D3';
-        const layer = L.polyline(route.geometry, {
+        const geometry = Array.isArray(route.geometry) ? route.geometry : [];
+        const layer = L.polyline(geometry, {
             color: colour,
             weight: weights[route.profile] || 5,
             opacity: 0.88,
@@ -93,7 +100,7 @@ function renderRoutes(routes) {
             ETA: ${route.duration_min} min
         `).addTo(routeState.map);
         routeState.routeLayers.push(layer);
-        route.geometry.forEach(point => bounds.push(point));
+        geometry.forEach(point => bounds.push(point));
     });
 
     if (bounds.length) {
@@ -113,7 +120,7 @@ function renderRouteCards(routes, engine) {
         <article class="route-result-card ${route.profile}">
             <div>
                 <strong>${escapeHTML(route.label)}</strong>
-                <span>${route.crossed_zones.length ? `Risk zones: ${route.crossed_zones.map(escapeHTML).join(', ')}` : 'No mapped risk zones crossed'}</span>
+                <span>${(Array.isArray(route.crossed_zones) && route.crossed_zones.length) ? `Risk zones: ${route.crossed_zones.map(escapeHTML).join(', ')}` : 'No mapped risk zones crossed'}</span>
             </div>
             <div class="route-result-metrics">
                 <span>${route.safety_score}/100 safety</span>

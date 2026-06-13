@@ -111,10 +111,12 @@ function countUp(element, target, duration = 1500) {
 }
 
 async function fetchJSON(url, options = {}) {
-    const data = await cachedFetch(url);
-    if (data === null) throw new Error(`${url} returned no data`);
-    return data;
-}
+    if (typeof window.cachedFetch === 'function' && (!options || Object.keys(options).length === 0)) {
+        const data = await window.cachedFetch(url);
+        if (data === null) throw new Error(`${url} returned no data`);
+        return data;
+    }
+
     const response = await fetch(url, options);
     if (!response.ok) throw new Error(`${url} returned ${response.status}`);
     return response.json();

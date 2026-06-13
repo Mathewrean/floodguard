@@ -81,9 +81,6 @@ function fetchZones() {
         })
         .catch(err => console.error('Failed to fetch zones:', err));
 }
-        })
-        .catch(err => console.error('Failed to fetch zones:', err));
-}
 
 function renderZones(zones) {
     if (!adminMap) return;
