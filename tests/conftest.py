@@ -1,4 +1,5 @@
 import pytest
+from django.conf import settings
 
 @pytest.fixture(autouse=True)
 def mock_redis_for_tests(mocker):
@@ -9,3 +10,11 @@ def mock_redis_for_tests(mocker):
     mock.delete.return_value = 1
     mock.flushdb.return_value = True
     return mock
+
+
+@pytest.fixture(autouse=True)
+def _disable_ssl_redirect_for_tests():
+    """Ensure tests run over HTTP without 301 SSL redirects"""
+    settings.SECURE_SSL_REDIRECT = False
+    settings.SESSION_COOKIE_SECURE = False
+    settings.CSRF_COOKIE_SECURE = False

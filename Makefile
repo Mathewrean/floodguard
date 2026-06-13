@@ -23,14 +23,11 @@ createsuperuser:  ## Create Django superuser (interactive)
 seed-demo:  ## Seed demo data for development
 	. floodguard_env/bin/activate && python manage.py seed_demo_data
 
-run:  ## Run Django development server
-	. floodguard_env/bin/activate && python manage.py runserver
+run:  ## Run the full development stack
+	./dev_start.sh
 
-run-all:  ## Run all services (web, celery worker, celery beat) - requires separate terminals
-	@echo "Start services in separate terminals:"
-	@echo "  Terminal 1: make run"
-	@echo "  Terminal 2: make celery-worker"
-	@echo "  Terminal 3: make celery-beat"
+run-all:  ## Run all services through the bootstrap script
+	./dev_start.sh
 
 celery-worker:  ## Start Celery worker
 	. floodguard_env/bin/activate && celery -A floodguard worker -l info

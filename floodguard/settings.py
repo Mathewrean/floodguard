@@ -177,6 +177,15 @@ USE_I18N = True
 
 USE_TZ = True
 
+# Deployment/security flags can be overridden from the environment.
+SECURE_SSL_REDIRECT = project_config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SECURE_REDIRECT_EXEMPT = [r'^health/$']
+SESSION_COOKIE_SECURE = project_config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SECURE = project_config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+SECURE_HSTS_SECONDS = project_config('SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = project_config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = project_config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
