@@ -62,12 +62,16 @@ sync_dependencies() {
 start_postgres() {
     echo "Checking PostgreSQL..."
 
-    # Already accepting connections — nothing to do
-    if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-        echo "PostgreSQL already running."; return
+    local pg_ready_cmd="pg_isready -h localhost -p 5432"
+    if ! $pg_ready_cmd >/dev/null 2>&1; then
+        pg_ready_cmd="pg_isready -h 127.0.0.1 -p 5432"
     fi
 
-    # Try systemctl first
+    if eval "$pg_ready_cmd" >/dev/null 2>&1; then
+        echo "PostgreSQL already running."
+        return
+    fi
+
     if command -v systemctl >/dev/null 2>&1; then
         if ! systemctl is-active --quiet "$POSTGRES_SERVICE"; then
             echo "Starting $POSTGRES_SERVICE..."
@@ -75,18 +79,17 @@ start_postgres() {
         fi
     fi
 
-    # Re-check — if still not ready, skip (don't try pg_ctlcluster on running instance)
-    if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
-        echo "PostgreSQL ready."; return
+    if eval "$pg_ready_cmd" >/dev/null 2>&1; then
+        echo "PostgreSQL ready."
+        return
     fi
 
-    # Last resort: pg_ctlcluster only if postgres is not listening at all
     if command -v pg_ctlcluster >/dev/null 2>&1; then
         echo "Attempting pg_ctlcluster start..."
         run_sudo pg_ctlcluster 18 main start 2>/dev/null || true
     fi
 
-    wait_for "PostgreSQL" "pg_isready -h 127.0.0.1 -p 5432"
+    wait_for "PostgreSQL" "$pg_ready_cmd"
 }
 
 start_redis() {
