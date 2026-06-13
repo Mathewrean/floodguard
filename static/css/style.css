@@ -578,6 +578,30 @@ button:disabled {
   background: rgba(255,255,255,0.1);
   border-left-color: var(--accent);
 }
+.dashboard-sidebar .sidebar-toggle {
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.dashboard-sidebar.collapsed {
+  width: 0;
+  padding-top: 94px;
+  overflow: hidden;
+}
+.admin-dashboard .dashboard-content.sidebar-collapsed {
+  padding-left: 24px;
+}
 .stats-grid,
 .dashboard-grid {
   display: grid;

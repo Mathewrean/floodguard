@@ -3,7 +3,10 @@
 
 {% block content %}
 <section class="dashboard admin-dashboard">
-    <aside class="dashboard-sidebar">
+    <aside class="dashboard-sidebar" id="admin-sidebar">
+        <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="true" title="Toggle sidebar">
+            ✕
+        </button>
         <a class="active" href="{% url 'admin_dashboard' %}">Overview</a>
         <a href="{% url 'admin_dashboard' %}?view=zones">Zones</a>
         <a href="{% url 'admin_dashboard' %}?view=alerts">Alerts</a>

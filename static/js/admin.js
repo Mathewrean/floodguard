@@ -7,6 +7,8 @@ let adminMap = null;
 let zonesLayer = null;
 let heatmapLayer = null;
 let zoneMarkers = [];
+let isSidebarCollapsed = false;
+let userLatLng = null;
 
 async function adminApiData(url, maxAge = 10000) {
     if (window.cachedFetch) return window.cachedFetch(url, maxAge);
@@ -15,22 +17,116 @@ async function adminApiData(url, maxAge = 10000) {
     return response.json();
 }
 
+function getRiskBand(score) {
+    if (typeof window.getRiskBand === 'function') {
+        return window.getRiskBand(score);
+    }
+    const value = Number(score) || 0;
+    if (value >= 0.85) return { label: 'CRITICAL', colour: '#7F1D1D', className: 'critical' };
+    if (value >= 0.70) return { label: 'HIGH RISK', colour: '#DC2626', className: 'high' };
+    if (value >= 0.40) return { label: 'MODERATE', colour: '#D97706', className: 'warning' };
+    return { label: 'SAFE', colour: '#059669', className: 'safe' };
+}
+
+function initSidebarToggle() {
+    const sidebar = document.querySelector('.dashboard-sidebar');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const dashboard = document.querySelector('.admin-dashboard .dashboard-content');
+    if (!sidebar || !toggleBtn) return;
+
+    toggleBtn.addEventListener('click', () => {
+        isSidebarCollapsed = !isSidebarCollapsed;
+        if (isSidebarCollapsed) {
+            sidebar.classList.add('collapsed');
+            dashboard.classList.add('sidebar-collapsed');
+            toggleBtn.setAttribute('aria-expanded', 'false');
+            toggleBtn.textContent = '☰';
+        } else {
+            sidebar.classList.remove('collapsed');
+            dashboard.classList.remove('sidebar-collapsed');
+            toggleBtn.setAttribute('aria-expanded', 'true');
+            toggleBtn.textContent = '✕';
+        }
+    });
+}
+
+function initLocationServices() {
+    if (!('geolocation' in navigator)) {
+        console.warn('Geolocation not supported');
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const { latitude, longitude, accuracy } = pos.coords;
+
+            if (!latitude || !longitude || latitude === 0 || longitude === 0) {
+                console.warn('Invalid coordinates received');
+                return;
+            }
+
+            userLatLng = [latitude, longitude];
+
+            if (adminMap) {
+                adminMap.setView(userLatLng, 15);
+
+                L.circleMarker(userLatLng, {
+                    radius: 10,
+                    fillColor: '#2E75B6',
+                    color: '#fff',
+                    weight: 3,
+                    fillOpacity: 0.9,
+                    zIndexOffset: 1000
+                })
+                    .bindPopup(`Your Location<br><small>Accuracy: +/-${Math.round(accuracy)}m</small>`)
+                    .addTo(adminMap);
+
+                if (accuracy < 2000) {
+                    L.circle(userLatLng, {
+                        radius: accuracy,
+                        color: '#2E75B6',
+                        fillOpacity: 0.05,
+                        weight: 1
+                    }).addTo(adminMap);
+                }
+            }
+
+            console.info(`User location: ${latitude}, ${longitude}`);
+        },
+        (err) => {
+            console.warn('Geolocation failed:', err.message);
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+        }
+    );
+}
+
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', function() {
+    initSidebarToggle();
     initAdminMap();
+    initLocationServices();
     fetchZones();
     fetchDashboardStats();
     fetchDataSources();
     initAlertsFeed();
-    
+
     // Setup controls
-    document.getElementById('show-heatmap').addEventListener('change', toggleHeatmap);
-    document.getElementById('show-clusters').addEventListener('change', toggleClusters);
-    
+    const showHeatmap = document.getElementById('show-heatmap');
+    const showClusters = document.getElementById('show-clusters');
+    if (showHeatmap) showHeatmap.addEventListener('change', toggleHeatmap);
+    if (showClusters) showClusters.addEventListener('change', toggleClusters);
+
     // WebSocket handles real-time changes; polling is a fallback.
-    setInterval(fetchZones, 60000);
-    setInterval(fetchDashboardStats, 30000);
-    setInterval(fetchDataSources, 30000);
+    const zonesInterval = setInterval(fetchZones, 60000);
+    const statsInterval = setInterval(fetchDashboardStats, 30000);
+    const dataInterval = setInterval(fetchDataSources, 30000);
+
+    // Store intervals for cleanup if needed
+    window._adminIntervals = [zonesInterval, statsInterval, dataInterval];
 });
 
 function initAdminMap() {

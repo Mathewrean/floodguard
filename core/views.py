@@ -359,9 +359,13 @@ def stats_view(request):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAdminUser])
+@permission_classes([permissions.IsAuthenticated])
 @throttle_classes([])
 def data_sources_view(request):
+    """Data-source status for authenticated users (admin/authority)."""
+    if not (request.user.is_superuser or request.user.groups.filter(name='EmergencyTeam').exists()):
+        return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
     from core.data_sources.aggregator import get_source_status
 
     statuses = get_source_status()
