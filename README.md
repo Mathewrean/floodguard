@@ -35,7 +35,7 @@ A comprehensive flood monitoring and alert system leveraging geospatial analytic
 | Category | Technologies |
 |----------|--------------|
 | Web Framework | `Django==4.2.30` `channels==4.1.0` `daphne==4.1.0` |
-| Database & GIS | `GDAL==3.12.3` `psycopg2-binary==2.9.12` |
+| Database & GIS | `GDAL==3.6.2` `psycopg2-binary==2.9.12` |
 | Async & Tasks | `redis==7.4.0` `celery==5.4.0` `django-celery-beat==2.5.0` |
 | ML & Data | `joblib==1.5.3` `numpy==2.4.4` `scipy==1.17.1` `scikit-learn==1.5.0` |
 | Testing | `pytest-django==4.8.0` `factory-boy==3.3.1` `Faker==33.1.0` |

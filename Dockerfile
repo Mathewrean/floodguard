@@ -39,7 +39,7 @@ COPY --from=builder /root/.local /home/appuser/.local
 
 # Install runtime system dependencies only
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgdal30 \
+    libgdal34 \
     libpq5 \
     libjpeg62-turbo \
     zlib1g \
