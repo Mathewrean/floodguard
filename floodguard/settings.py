@@ -115,9 +115,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'floodguard.wsgi.application'
 ASGI_APPLICATION = 'floodguard.routing.application'
 
+# Redis configuration (needed for Channels and Celery)
+REDIS_HOST = project_config('REDIS_HOST', default='localhost')
+REDIS_PORT = project_config('REDIS_PORT', default=6379, cast=int)
+REDIS_URL = os.environ.get('REDIS_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+
+# Celery configuration
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
     }
 }
 
@@ -235,10 +251,6 @@ DEFAULT_GEO_BOUNDS = project_config(
 # Validation: ensure 4 values
 if len(DEFAULT_GEO_BOUNDS) != 4:
     raise ValueError("GEO_BOUNDS must be min_lon,min_lat,max_lon,max_lat")
-
-# Redis configuration
-REDIS_HOST = project_config('REDIS_HOST', default='localhost')
-REDIS_PORT = project_config('REDIS_PORT', default=6379, cast=int)
 
 # Logging configuration
 LOGGING = {
