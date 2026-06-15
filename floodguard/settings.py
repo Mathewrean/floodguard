@@ -36,6 +36,8 @@ def project_config(key, default=None, cast=None):
     if value is None:
         return config(key) if default is None else default
     if cast is bool:
+        if isinstance(value, bool):
+            return value
         return value.lower() in {'1', 'true', 'yes', 'on'}
     if cast:
         return cast(value)
