@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-# Cache-buster: 2026-06-15-3 - add missing packages
+# Cache-buster: 2026-06-15-4 - add django-leaflet
 COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
@@ -65,7 +65,7 @@ USER appuser
 ENV DEBUG=False \
     DB_NAME=floodguard \
     DB_USER=postgres \
-    DB_PASSWORD="" \
+    DB_PASSWORD="29541227006" \
     DB_HOST=db \
     DB_PORT=5432
 
