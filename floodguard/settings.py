@@ -32,7 +32,9 @@ PROJECT_ENV = _project_env()
 def project_config(key, default=None, cast=None):
     value = os.environ.get(key, PROJECT_ENV.get(key))
     if value is None:
-        return config(key, default=default, cast=cast)
+        value = default
+    if value is None:
+        return config(key) if default is None else default
     if cast is bool:
         return value.lower() in {'1', 'true', 'yes', 'on'}
     if cast:
@@ -48,7 +50,7 @@ def csv_config(value):
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = project_config('SECRET_KEY')
+SECRET_KEY = project_config('SECRET_KEY', default=os.environ.get('SECRET_KEY', ''))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = project_config('DEBUG', default=False, cast=bool)

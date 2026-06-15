@@ -1,5 +1,6 @@
 # Multi-stage Dockerfile for FloodGuard Production
 # Stage 1: Build dependencies and collect static files
+# Cache-buster: 2026-06-15 - libgdal32 fix
 FROM python:3.13-slim-bookworm as builder
 
 WORKDIR /app
