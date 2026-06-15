@@ -54,6 +54,7 @@ ENV PATH=/home/appuser/.local/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1
 
 # Copy project code
+# Cache-buster: 2026-06-15-2 - settings fix
 COPY --chown=appuser:appuser . /app
 
 # Switch to non-root user
@@ -63,6 +64,7 @@ USER appuser
 ENV DEBUG=False \
     DB_NAME=floodguard \
     DB_USER=postgres \
+    DB_PASSWORD="" \
     DB_HOST=db \
     DB_PORT=5432
 

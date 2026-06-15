@@ -128,10 +128,10 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
-        'NAME': project_config('DB_NAME'),
-        'USER': project_config('DB_USER'),
-        'PASSWORD': project_config('DB_PASSWORD'),
-        'HOST': project_config('DB_HOST'),
+        'NAME': project_config('DB_NAME', default='floodguard'),
+        'USER': project_config('DB_USER', default='postgres'),
+        'PASSWORD': project_config('DB_PASSWORD', default=''),
+        'HOST': project_config('DB_HOST', default='localhost'),
         'PORT': project_config('DB_PORT', default='5432'),
         'CONN_MAX_AGE': project_config('DB_CONN_MAX_AGE', default=60, cast=int),  # Persistent connections for 60s
         'OPTIONS': {
