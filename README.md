@@ -8,7 +8,7 @@
 ![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
-**Last updated:** 2026-06-14
+**Last updated:** 2026-06-15
 
 A comprehensive flood monitoring and alert system leveraging geospatial analytics, machine learning, and real-time data processing to provide early warnings for potential flooding events.
 
