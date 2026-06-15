@@ -119,6 +119,10 @@ ASGI_APPLICATION = 'floodguard.routing.application'
 REDIS_HOST = project_config('REDIS_HOST', default='localhost')
 REDIS_PORT = project_config('REDIS_PORT', default=6379, cast=int)
 REDIS_URL = os.environ.get('REDIS_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+# Handle Railway's rediss:// URL
+if REDIS_URL.startswith('rediss://'):
+    # Railway Redis uses SSL
+    pass  # Keep as-is
 
 # Celery configuration
 CELERY_BROKER_URL = REDIS_URL
