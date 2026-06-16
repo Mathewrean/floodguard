@@ -144,6 +144,10 @@ function createBaseMap(elementId, zoom = 12) {
     return map;
 }
 
+function defaultLocation() {
+    return { ...NAIROBI };
+}
+
 function addBasemap(map, index) {
     const provider = BASEMAPS[index] || BASEMAPS[0];
     const layer = L.tileLayer(provider.url, {
@@ -328,9 +332,10 @@ function locateUser(map) {
 
         const useFallback = (reason) => {
             console.info('Location fallback:', reason);
-            showStatus('Location unavailable. Click the map to continue.', null);
+            map.setView(NAIROBI_LATLNG, 12);
+            showStatus('Using Nairobi as the default location.', null);
             setTimeout(hideStatus, 4000);
-            resolve(null);
+            resolve({ ...NAIROBI, source: 'default' });
         };
 
         if (!('geolocation' in navigator)) {
@@ -472,7 +477,7 @@ async function initFullMap() {
     const userLocation = await locateUser(map);
     // Initial data load and populate caches
     await Promise.all([
-        fetchZones({ fitBounds: !userLocation }), // fit bounds on initial load if no user location
+        fetchZones({ fitBounds: !userLocation }),
         fetchReadings()
     ]);
     await fetchStats();
@@ -514,4 +519,5 @@ window.createBaseMap = createBaseMap;
 window.renderZones = renderZones;
 window.renderReadings = renderReadings;
 window.locateUser = locateUser;
+window.defaultLocation = defaultLocation;
 window.zoneColour = zoneColour;

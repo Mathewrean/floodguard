@@ -6,10 +6,9 @@ class WeatherAPISource(BaseDataSource):
     required_env_vars = ['WEATHERAPI_KEY']
 
     def fetch(self, lat, lon):
-        import os
         import requests
 
-        api_key = os.environ.get('WEATHERAPI_KEY')
+        api_key = self.config_value('WEATHERAPI_KEY')
         if not api_key:
             return {}
 
@@ -34,4 +33,3 @@ class WeatherAPISource(BaseDataSource):
             'condition_text': today.get('condition', {}).get('text', ''),
             'uv_index': today.get('uv', 0),
         }
-

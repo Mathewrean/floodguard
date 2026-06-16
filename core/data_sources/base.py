@@ -5,10 +5,15 @@ class BaseDataSource(ABC):
     name: str
     required_env_vars: list[str] = []
 
-    def is_configured(self) -> bool:
+    def config_value(self, name: str, default: str = ''):
         import os
 
-        return all(os.environ.get(var) for var in self.required_env_vars)
+        from django.conf import settings
+
+        return getattr(settings, name, None) or os.environ.get(name, default)
+
+    def is_configured(self) -> bool:
+        return all(self.config_value(var) for var in self.required_env_vars)
 
     @abstractmethod
     def fetch(self, lat: float, lon: float) -> dict:
@@ -31,4 +36,3 @@ class BaseDataSource(ABC):
                 'available': False,
                 'error': str(exc),
             }
-

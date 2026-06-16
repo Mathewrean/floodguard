@@ -8,7 +8,7 @@
 ![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
-**Last updated:** 2026-06-15
+**Last updated:** 2026-06-16
 
 A comprehensive flood monitoring and alert system leveraging geospatial analytics, machine learning, and real-time data processing to provide early warnings for potential flooding events.
 
@@ -34,7 +34,7 @@ A comprehensive flood monitoring and alert system leveraging geospatial analytic
 
 | Category | Technologies |
 |----------|--------------|
-| Web Framework | `Django==4.2.30` `channels==4.1.0` `daphne==4.1.0` |
+| Web Framework | `Django==4.2.30` `djangorestframework>=3.15.0` `channels==4.1.0` `daphne==4.1.0` |
 | Database & GIS | `GDAL==3.6.2` `psycopg2-binary==2.9.12` |
 | Async & Tasks | `redis==7.4.0` `celery==5.4.0` `django-celery-beat==2.5.0` |
 | ML & Data | `joblib==1.5.3` `numpy==2.4.4` `scipy==1.17.1` `scikit-learn==1.5.0` |

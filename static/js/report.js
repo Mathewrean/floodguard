@@ -1,3 +1,5 @@
+const REPORT_DEFAULT_LOCATION = { lat: -1.2921, lng: 36.8219 };
+
 function initReportForm() {
     const form = document.getElementById('report-form');
     if (!form) return;
@@ -8,6 +10,9 @@ function initReportForm() {
     const photoLabel = document.getElementById('photo-label');
     const photoPreview = document.getElementById('photo-preview');
     const gpsButton = document.getElementById('use-current-location');
+
+    setReportLocation(REPORT_DEFAULT_LOCATION.lat, REPORT_DEFAULT_LOCATION.lng);
+    updateLocationStatus('Default location set to Nairobi.', true);
 
     function syncSeverity() {
         const value = Number(severity.value);
@@ -61,6 +66,15 @@ function initReportForm() {
     });
 }
 
+function setReportLocation(latitude, longitude) {
+    window._reportLat = latitude;
+    window._reportLon = longitude;
+    const latInput = document.getElementById('latitude');
+    const lonInput = document.getElementById('longitude');
+    if (latInput) latInput.value = Number(latitude).toFixed(6);
+    if (lonInput) lonInput.value = Number(longitude).toFixed(6);
+}
+
 function getCurrentLocation() {
     const button = document.getElementById('use-current-location');
     if (!button) return;
@@ -80,10 +94,7 @@ function getCurrentLocation() {
     label.textContent = 'Locating...';
     navigator.geolocation.getCurrentPosition(pos => {
         const { latitude, longitude, accuracy } = pos.coords;
-        window._reportLat = latitude;
-        window._reportLon = longitude;
-        document.getElementById('latitude').value = latitude.toFixed(6);
-        document.getElementById('longitude').value = longitude.toFixed(6);
+        setReportLocation(latitude, longitude);
         updateLocationStatus(`Location set within ${Math.round(accuracy)} metres.`, true);
         label.textContent = 'Refresh Current Location';
         button.disabled = false;

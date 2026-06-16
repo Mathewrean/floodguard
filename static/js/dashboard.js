@@ -1,3 +1,5 @@
+const DASHBOARD_DEFAULT_LOCATION = { lat: -1.2921, lng: 36.8219 };
+
 function statusBadge(status) {
     return `<span class="status-badge ${status}">${status}</span>`;
 }
@@ -77,7 +79,10 @@ function renderMyReports(reports) {
 function initReportsMap(reports) {
     const element = document.getElementById('reports-map');
     if (!element || typeof L === 'undefined' || element._leaflet_id) return;
-    const map = L.map('reports-map').setView([-1.2921, 36.8219], 12);
+    const map = L.map('reports-map').setView(
+        [DASHBOARD_DEFAULT_LOCATION.lat, DASHBOARD_DEFAULT_LOCATION.lng],
+        12
+    );
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);

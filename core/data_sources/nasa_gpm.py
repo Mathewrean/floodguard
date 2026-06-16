@@ -6,12 +6,11 @@ class NASAGPMSource(BaseDataSource):
     required_env_vars = ['NASA_EARTHDATA_TOKEN']
 
     def fetch(self, lat, lon):
-        import os
         from datetime import date, timedelta
 
         import requests
 
-        token = os.environ.get('NASA_EARTHDATA_TOKEN')
+        token = self.config_value('NASA_EARTHDATA_TOKEN')
         if not token:
             return {}
 
@@ -35,4 +34,3 @@ class NASAGPMSource(BaseDataSource):
             'nasa_precip_mmhr': data.get('precipitation', 0),
             'nasa_quality': data.get('qualityIndex', 0),
         }
-

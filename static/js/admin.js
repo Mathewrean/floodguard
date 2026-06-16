@@ -9,6 +9,7 @@ let heatmapLayer = null;
 let zoneMarkers = [];
 let isSidebarCollapsed = false;
 let userLatLng = null;
+const ADMIN_DEFAULT_LOCATION = { lat: -1.2921, lng: 36.8219 };
 
 async function adminApiData(url, maxAge = 10000) {
     if (window.cachedFetch) return window.cachedFetch(url, maxAge);
@@ -133,8 +134,7 @@ function initAdminMap() {
     const mapEl = document.getElementById('admin-map');
     if (!mapEl || typeof L === 'undefined') return;
     
-    // Use world view initially, will be fitted to zones
-    adminMap = L.map('admin-map').setView([0, 0], 2);
+    adminMap = L.map('admin-map').setView([ADMIN_DEFAULT_LOCATION.lat, ADMIN_DEFAULT_LOCATION.lng], 12);
     
     addBasemap(adminMap, 0);
     
@@ -271,8 +271,7 @@ function fitMapToZones(zones) {
     if (hasValid) {
         adminMap.fitBounds(bounds, { padding: [30, 30] });
     } else {
-        // Default to Africa if no valid bounds
-        adminMap.setView([0, 10], 4);
+        adminMap.setView([ADMIN_DEFAULT_LOCATION.lat, ADMIN_DEFAULT_LOCATION.lng], 12);
     }
 }
 

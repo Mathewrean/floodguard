@@ -6,10 +6,9 @@ class OpenWeatherSource(BaseDataSource):
     required_env_vars = ['OPENWEATHER_API_KEY']
 
     def fetch(self, lat, lon):
-        import os
         import requests
 
-        api_key = os.environ.get('OPENWEATHER_API_KEY')
+        api_key = self.config_value('OPENWEATHER_API_KEY')
         if not api_key:
             return {}
 
@@ -34,4 +33,3 @@ class OpenWeatherSource(BaseDataSource):
             'cloud_cover_pct': data.get('clouds', {}).get('all', 0),
             'weather_condition': (data.get('weather') or [{}])[0].get('main', ''),
         }
-

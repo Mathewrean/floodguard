@@ -6,10 +6,9 @@ class TomorrowIOSource(BaseDataSource):
     required_env_vars = ['TOMORROW_IO_API_KEY']
 
     def fetch(self, lat, lon):
-        import os
         import requests
 
-        api_key = os.environ.get('TOMORROW_IO_API_KEY')
+        api_key = self.config_value('TOMORROW_IO_API_KEY')
         if not api_key:
             return {}
 
@@ -33,4 +32,3 @@ class TomorrowIOSource(BaseDataSource):
             'wind_speed_ms': hourly.get('windSpeed', 0),
             'visibility_km': hourly.get('visibility', 10),
         }
-

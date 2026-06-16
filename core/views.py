@@ -400,8 +400,6 @@ def _filter_ai_analysis(analysis, user):
 @throttle_classes([])
 def ai_flood_analysis(request):
     import json
-    import os
-
     from groq import Groq
 
     zones = AlertZone.objects.all().order_by('-risk_score', 'name')
@@ -450,7 +448,7 @@ Respond ONLY with valid JSON - no markdown, no explanation:
     source = 'fallback'
 
     try:
-        api_key = os.environ.get('GROQ_API_KEY')
+        api_key = getattr(settings, 'GROQ_API_KEY', '')
         if not api_key:
             raise ValueError('GROQ_API_KEY missing')
 

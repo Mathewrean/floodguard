@@ -14,7 +14,7 @@ from core.data_sources.aggregator import build_risk_feature_vector
 logger = logging.getLogger(__name__)
 
 # Initialize Redis connection
-redis_client = redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, db=0)
+redis_client = redis.Redis.from_url(settings.REDIS_URL)
 
 @shared_task
 def fetch_flood_api(zone_id):
@@ -222,18 +222,25 @@ def dispatch_alerts(zone_id, risk_score):
 def _send_sms_alert(user, zone, message, redis_key):
     """Send SMS via Africa's Talking API. Returns (success: bool, provider_message_id: str)"""
     try:
+        if not getattr(settings, 'SMS_ENABLED', True):
+            logger.info("SMS delivery disabled; skipping SMS to %s", user.username)
+            return False, None
+        if not settings.AFRICASTALKING_USERNAME or not settings.AFRICASTALKING_API_KEY:
+            logger.warning("Africa's Talking credentials missing; skipping SMS to %s", user.username)
+            return False, None
+
         profile = user.profile
         
         # Africa's Talking API endpoint
         sms_endpoint = "https://api.africastalking.com/version1/messaging"
         
         payload = {
-            'username': getattr(settings, 'AFRICASTALKING_USERNAME', ''),
+            'username': settings.AFRICASTALKING_USERNAME,
             'to': profile.phone_number,
             'message': message[:159]  # Ensure within 160 chars
         }
         headers = {
-            'apikey': getattr(settings, 'AFRICASTALKING_API_KEY', ''),
+            'apikey': settings.AFRICASTALKING_API_KEY,
             'Content-Type': 'application/x-www-form-urlencoded'
         }
         

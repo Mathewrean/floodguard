@@ -1,4 +1,5 @@
 import os
+import ssl
 from pathlib import Path
 from decouple import config
 import dj_database_url
@@ -30,22 +31,46 @@ PROJECT_ENV = _project_env()
 
 
 def project_config(key, default=None, cast=None):
-    value = os.environ.get(key, PROJECT_ENV.get(key))
+    value = os.environ.get(key)
     if value is None:
-        value = default
+        value = PROJECT_ENV.get(key)
     if value is None:
-        return config(key) if default is None else default
+        value = config(key, default=default)
+    if value is None:
+        return None
     if cast is bool:
         if isinstance(value, bool):
             return value
-        return value.lower() in {'1', 'true', 'yes', 'on'}
+        return str(value).lower() in {'1', 'true', 'yes', 'on'}
     if cast:
         return cast(value)
     return value
 
 
 def csv_config(value):
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
     return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def redis_url_with_ssl_query(url):
+    if not url or not url.startswith('rediss://') or 'ssl_cert_reqs=' in url:
+        return url
+    cert_reqs = project_config('REDIS_SSL_CERT_REQS', default='required')
+    separator = '&' if '?' in url else '?'
+    return f'{url}{separator}ssl_cert_reqs={cert_reqs}'
+
+
+def redis_ssl_options():
+    cert_reqs = str(project_config('REDIS_SSL_CERT_REQS', default='required')).lower()
+    cert_map = {
+        'none': ssl.CERT_NONE,
+        'optional': ssl.CERT_OPTIONAL,
+        'required': ssl.CERT_REQUIRED,
+    }
+    return {'ssl_cert_reqs': cert_map.get(cert_reqs, ssl.CERT_REQUIRED)}
 
 
 # Quick-start development settings - unsuitable for production
@@ -118,11 +143,9 @@ ASGI_APPLICATION = 'floodguard.routing.application'
 # Redis configuration (needed for Channels and Celery)
 REDIS_HOST = project_config('REDIS_HOST', default='localhost')
 REDIS_PORT = project_config('REDIS_PORT', default=6379, cast=int)
-REDIS_URL = os.environ.get('REDIS_URL', f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
-# Handle Railway's rediss:// URL
-if REDIS_URL.startswith('rediss://'):
-    # Railway Redis uses SSL
-    pass  # Keep as-is
+REDIS_URL = redis_url_with_ssl_query(
+    project_config('REDIS_URL', default=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+)
 
 # Celery configuration
 CELERY_BROKER_URL = REDIS_URL
@@ -134,6 +157,9 @@ CELERY_TIMEZONE = 'UTC'
 CELERY_BEAT_SCHEDULE = {}
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300
+if REDIS_URL and REDIS_URL.startswith('rediss://'):
+    CELERY_BROKER_USE_SSL = redis_ssl_options()
+    CELERY_REDIS_BACKEND_USE_SSL = redis_ssl_options()
 
 CHANNEL_LAYERS = {
     "default": {
@@ -162,6 +188,21 @@ DATABASES = {
         },
     }
 }
+
+DATABASE_URL = project_config('DATABASE_URL', default='')
+if DATABASE_URL:
+    DATABASES['default'] = dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=project_config('DB_CONN_MAX_AGE', default=60, cast=int),
+        ssl_require=project_config('DB_SSL_REQUIRE', default=False, cast=bool),
+    )
+    DATABASES['default']['ENGINE'] = 'django.contrib.gis.db.backends.postgis'
+    DATABASES['default'].setdefault('OPTIONS', {})
+    DATABASES['default']['OPTIONS']['connect_timeout'] = project_config(
+        'DB_CONNECT_TIMEOUT',
+        default=10,
+        cast=int,
+    )
 
 
 # Password validation
@@ -259,6 +300,27 @@ DEFAULT_GEO_BOUNDS = project_config(
 if len(DEFAULT_GEO_BOUNDS) != 4:
     raise ValueError("GEO_BOUNDS must be min_lon,min_lat,max_lon,max_lat")
 
+# External service credentials
+OPENWEATHER_API_KEY = project_config('OPENWEATHER_API_KEY', default='')
+TOMORROW_IO_API_KEY = project_config('TOMORROW_IO_API_KEY', default='')
+WEATHERAPI_KEY = project_config('WEATHERAPI_KEY', default='')
+NASA_EARTHDATA_TOKEN = project_config('NASA_EARTHDATA_TOKEN', default='')
+GEE_SERVICE_ACCOUNT_KEY_PATH = project_config('GEE_SERVICE_ACCOUNT_KEY_PATH', default='')
+GROQ_API_KEY = project_config('GROQ_API_KEY', default='')
+
+# Alert delivery settings
+AFRICASTALKING_USERNAME = project_config('AFRICASTALKING_USERNAME', default='')
+AFRICASTALKING_API_KEY = project_config('AFRICASTALKING_API_KEY', default='')
+SMS_ENABLED = project_config('SMS_ENABLED', default=True, cast=bool)
+
+EMAIL_BACKEND = project_config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = project_config('EMAIL_HOST', default='localhost')
+EMAIL_PORT = project_config('EMAIL_PORT', default=25, cast=int)
+EMAIL_HOST_USER = project_config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = project_config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = project_config('EMAIL_USE_TLS', default=False, cast=bool)
+DEFAULT_FROM_EMAIL = project_config('DEFAULT_FROM_EMAIL', default='FloodGuard <noreply@floodguard.com>')
+
 # Logging configuration
 LOGGING = {
     'version': 1,
@@ -323,12 +385,5 @@ LOGGING = {
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
 
 
-# Railway injects these automatically
-DATABASE_URL = os.environ.get('DATABASE_URL')
-if DATABASE_URL:
-    DATABASES['default'] = dj_database_url.parse(DATABASE_URL)
-
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
-
 # Railway port
-PORT = os.environ.get('PORT', 8000)
+PORT = project_config('PORT', default=8000, cast=int)

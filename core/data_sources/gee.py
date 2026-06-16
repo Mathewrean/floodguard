@@ -7,13 +7,11 @@ class GEESource(BaseDataSource):
 
     def fetch(self, lat, lon):
         try:
-            import os
-
             import ee
         except ImportError:
             return {}
 
-        key_file = os.environ.get('GEE_SERVICE_ACCOUNT_KEY_PATH')
+        key_file = self.config_value('GEE_SERVICE_ACCOUNT_KEY_PATH')
         if not key_file:
             return {}
 
@@ -43,4 +41,3 @@ class GEESource(BaseDataSource):
             'water_extent_km2': round(water_m2 / 1_000_000, 4),
             'data_age_days': 1,
         }
-

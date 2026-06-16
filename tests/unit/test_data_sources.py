@@ -1,4 +1,5 @@
 from core.data_sources.aggregator import build_risk_feature_vector, fetch_all_sources, get_source_status
+from core.data_sources.openweather import OpenWeatherSource
 
 
 class StubSource:
@@ -85,3 +86,10 @@ def test_get_source_status_reports_configuration(monkeypatch):
         {'name': 'open_meteo', 'configured': True, 'status': 'ok'},
         {'name': 'tomorrow_io', 'configured': False, 'status': 'no_key'},
     ]
+
+
+def test_data_sources_read_keys_from_django_settings(monkeypatch, settings):
+    monkeypatch.delenv('OPENWEATHER_API_KEY', raising=False)
+    settings.OPENWEATHER_API_KEY = 'settings-loaded-key'
+
+    assert OpenWeatherSource().is_configured() is True
