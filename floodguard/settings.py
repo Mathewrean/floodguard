@@ -141,11 +141,14 @@ WSGI_APPLICATION = 'floodguard.wsgi.application'
 ASGI_APPLICATION = 'floodguard.routing.application'
 
 # Redis configuration (needed for Channels and Celery)
-REDIS_HOST = project_config('REDIS_HOST', default='localhost')
-REDIS_PORT = project_config('REDIS_PORT', default=6379, cast=int)
-REDIS_URL = redis_url_with_ssl_query(
-    project_config('REDIS_URL', default=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
+# Try multiple Railway-provided Redis environment variables
+REDIS_URL = (
+    os.environ.get('REDIS_URL') or
+    os.environ.get('RAILWAY_REDIS_URL') or
+    os.environ.get('DATABASE_REDIS_URL') or
+    f'redis://{project_config("REDIS_HOST", default="localhost")}:{project_config("REDIS_PORT", default=6379, cast=int)}/0'
 )
+REDIS_URL = redis_url_with_ssl_query(REDIS_URL)
 
 # Celery configuration
 CELERY_BROKER_URL = REDIS_URL
@@ -157,6 +160,7 @@ CELERY_TIMEZONE = 'UTC'
 CELERY_BEAT_SCHEDULE = {}
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300
+# Concurrency will be set via --concurrency flag in Railway
 if REDIS_URL and REDIS_URL.startswith('rediss://'):
     CELERY_BROKER_USE_SSL = redis_ssl_options()
     CELERY_REDIS_BACKEND_USE_SSL = redis_ssl_options()

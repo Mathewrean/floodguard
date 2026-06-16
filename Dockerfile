@@ -55,7 +55,7 @@ ENV PATH=/home/appuser/.local/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1
 
 # Copy project code
-# Cache-buster: 2026-06-15-7 - celery beat stability
+# Cache-buster: 2026-06-16 - fix Railway Redis URL detection
 COPY --chown=appuser:appuser . /app
 
 # Switch to non-root user
