@@ -138,6 +138,46 @@ class Command(BaseCommand):
                     self.style.SUCCESS('Created test responder user: responder / responder123')
                 )
 
+            # Create admin user if not exists
+            if not User.objects.filter(username='admin').exists():
+                admin_user = User.objects.create_superuser(
+                    username='admin',
+                    password='admin123',
+                    email='admin@floodguard.ke',
+                    first_name='Admin',
+                    last_name='User'
+                )
+                UserProfile.objects.update_or_create(
+                    user=admin_user,
+                    defaults={
+                        'role': 'admin',
+                        'phone_number': '+254700000000'
+                    }
+                )
+                self.stdout.write(
+                    self.style.SUCCESS('Created admin user: admin / admin123')
+                )
+
+            # Create citizen test user if not exists
+            if not User.objects.filter(username='citizen').exists():
+                citizen = User.objects.create_user(
+                    username='citizen',
+                    password='citizen123',
+                    email='citizen@floodguard.ke',
+                    first_name='John',
+                    last_name='Otieno'
+                )
+                UserProfile.objects.update_or_create(
+                    user=citizen,
+                    defaults={
+                        'role': 'citizen',
+                        'phone_number': '+254711111111'
+                    }
+                )
+                self.stdout.write(
+                    self.style.SUCCESS('Created citizen user: citizen / citizen123')
+                )
+
         # STEP 6 — Print startup summary table
         high_risk_count = AlertZone.objects.filter(risk_score__gt=0.7).count()
         
@@ -148,5 +188,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'│  Alert Zones Created    │  {len(zones_created):<13} │'))
         self.stdout.write(self.style.SUCCESS(f'│  Flood Readings Created │  {len(readings_created):<13} │'))
         self.stdout.write(self.style.SUCCESS(f'│  High Risk Zones        │  {high_risk_count:<13} │'))
-        self.stdout.write(self.style.SUCCESS('│  Test Users Available   │  admin / responder │'))
+        self.stdout.write(self.style.SUCCESS('│  Test Users Available   │  admin/responder/citizen │'))
         self.stdout.write(self.style.SUCCESS('└─────────────────────────┴───────────────────┘'))
