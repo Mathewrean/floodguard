@@ -328,3 +328,44 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.get_role_display()}"
+
+
+class FloodPrediction(models.Model):
+    zone = models.ForeignKey(AlertZone, on_delete=models.CASCADE, related_name='predictions')
+    predicted_at = models.DateTimeField(auto_now_add=True)
+    target_date = models.DateField(help_text="Date for which this prediction is made")
+    risk_score = models.FloatField(
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Predicted risk score (0.0-1.0)"
+    )
+    water_level_metres = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Predicted water level in metres"
+    )
+    river_discharge_m3s = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Predicted river discharge in m3/s"
+    )
+    confidence = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Prediction confidence (0.0-1.0)"
+    )
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Source data used for prediction"
+    )
+
+    class Meta:
+        ordering = ['target_date']
+        indexes = [
+            models.Index(fields=['zone', 'target_date']),
+            models.Index(fields=['-predicted_at']),
+        ]
+        unique_together = ['zone', 'target_date']
+
+    def __str__(self):
+        return f"Prediction for {self.zone.name} on {self.target_date}"

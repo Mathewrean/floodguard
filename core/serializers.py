@@ -3,7 +3,7 @@ from rest_framework_gis.serializers import GeometryField
 from django.contrib.gis.geos import Point
 from django.core.exceptions import ValidationError
 from django.conf import settings
-from .models import AlertZone, FloodReading, IncidentReport, AlertLog
+from .models import AlertZone, FloodReading, IncidentReport, AlertLog, FloodPrediction
 
 
 class AlertZoneSerializer(serializers.ModelSerializer):
@@ -114,3 +114,18 @@ class AlertLogSerializer(serializers.ModelSerializer):
 
     def get_zone_name(self, obj):
         return obj.alert_zone.name if obj.alert_zone_id else None
+
+
+class FloodPredictionSerializer(serializers.ModelSerializer):
+    zone_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FloodPrediction
+        fields = [
+            'id', 'zone', 'zone_name', 'predicted_at', 'target_date',
+            'risk_score', 'water_level_metres', 'river_discharge_m3s', 'confidence',
+        ]
+        read_only_fields = ['predicted_at']
+
+    def get_zone_name(self, obj):
+        return obj.zone.name if obj.zone_id else None

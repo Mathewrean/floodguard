@@ -8,7 +8,7 @@
 ![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-11
 
 A comprehensive flood monitoring and alert system leveraging geospatial analytics, machine learning, and real-time data processing to provide early warnings for potential flooding events.
 
@@ -35,7 +35,7 @@ A comprehensive flood monitoring and alert system leveraging geospatial analytic
 | Category | Technologies |
 |----------|--------------|
 | Web Framework | `Django==4.2.30` `djangorestframework>=3.15.0` `channels==4.1.0` `daphne==4.1.0` |
-| Database & GIS | `GDAL==3.6.2` `psycopg2-binary==2.9.12` |
+| Database & GIS | `GDAL>=3.9.0` `psycopg2-binary==2.9.12` |
 | Async & Tasks | `redis==7.4.0` `celery==5.4.0` `django-celery-beat==2.5.0` |
 | ML & Data | `joblib==1.5.3` `numpy==2.4.4` `scipy==1.17.1` `scikit-learn==1.5.0` |
 | Testing | `pytest-django==4.8.0` `factory-boy==3.3.1` `Faker==33.1.0` |
@@ -53,7 +53,7 @@ FloodGuard follows a modern, scalable architecture:
             - **scikit-learn ML Model** - Flood risk prediction engine
             - **Alert Consumer** - Real-time notification system
 
-**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
+**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction
 
 **API:** RESTful endpoints powered by Django REST Framework with token authentication.
 
@@ -198,7 +198,7 @@ curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/zones/
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1413 test files.
+FloodGuard has comprehensive test coverage with 1415 test files.
 
 ### Running Tests
 

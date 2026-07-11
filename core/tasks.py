@@ -370,3 +370,75 @@ def dispatch_manual_alert(zone_id, user_ids, channels, message):
         'failed_count': failed_count,
         'logs_created': len(alert_logs_created)
     }
+
+
+@shared_task
+def generate_7day_forecasts():
+    """
+    Generate 7-day flood predictions for all alert zones.
+    Uses Open-Meteo river discharge forecast data.
+    """
+    from core.models import FloodPrediction
+    import datetime
+
+    zones = AlertZone.objects.all()
+    predictions_created = 0
+
+    for zone in zones:
+        centroid = zone.polygon.centroid
+        lat, lon = centroid.y, centroid.x
+
+        try:
+            api_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&daily=river_discharge&past_days=0&forecast_days=7"
+            response = requests.get(api_url, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            daily_dates = data['daily']['time']
+            daily_discharges = data['daily']['river_discharge']
+
+            for i, (date_str, discharge) in enumerate(zip(daily_dates, daily_discharges)):
+                target_date = datetime.date.fromisoformat(date_str)
+                if discharge is None:
+                    discharge = 0
+
+                risk_score = calculate_discharge_risk(discharge)
+                water_level = round(discharge / 100.0, 2) if discharge else 0
+
+                prediction, created = FloodPrediction.objects.update_or_create(
+                    zone=zone,
+                    target_date=target_date,
+                    defaults={
+                        'risk_score': risk_score,
+                        'water_level_metres': water_level,
+                        'river_discharge_m3s': round(discharge, 2),
+                        'confidence': 0.85,
+                        'metadata': {
+                            'source': 'open_meteo_forecast',
+                            'discharge_raw': discharge,
+                            'lat': lat,
+                            'lon': lon,
+                        }
+                    }
+                )
+                if created:
+                    predictions_created += 1
+
+        except Exception as e:
+            logger.error(f"Failed to generate forecasts for zone {zone.name}: {str(e)}")
+
+    logger.info(f"Generated {predictions_created} new 7-day predictions")
+    return predictions_created
+
+
+def calculate_discharge_risk(discharge):
+    if discharge <= 0:
+        return 0.05
+    if discharge < 3:
+        return 0.05 + (discharge / 3.0) * 0.20
+    if discharge < 10:
+        return 0.25 + ((discharge - 3.0) / 7.0) * 0.30
+    if discharge < 30:
+        return 0.55 + ((discharge - 10.0) / 20.0) * 0.25
+    if discharge < 80:
+        return 0.80 + ((discharge - 30.0) / 50.0) * 0.15
+    return 0.98
