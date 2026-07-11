@@ -1,3 +1,6 @@
+import json
+from types import SimpleNamespace
+
 import pytest
 from django.urls import reverse
 from django.contrib.gis.geos import Point
@@ -134,3 +137,59 @@ class TestDataSourcesAPI:
         assert len(response.data['sources']) == 2
         assert response.data['active_sources'] == 1
         assert response.data['data_confidence'] == 'low'
+
+
+@pytest.mark.django_db
+class TestAIFloodAnalysisAPI:
+    def setup_method(self):
+        self.client = APIClient()
+
+    def test_ai_analysis_posts_live_source_payload_to_groq(self, mocker, settings):
+        settings.GROQ_API_KEY = 'test-key'
+        settings.OPENWEATHER_API_KEY = 'test-openweather-key'
+        settings.TOMORROW_IO_API_KEY = 'test-tomorrow-key'
+        settings.WEATHERAPI_KEY = 'test-weatherapi-key'
+        settings.NASA_EARTHDATA_TOKEN = 'test-nasa-token'
+
+        zone = AlertZoneFactory(risk_score=0.5)
+
+        def fake_build_risk(lat, lon, zone_name=''):
+            return {
+                'river_discharge': 10,
+                'rainfall_1h_mm': 2.5,
+                'humidity': 70,
+                'pressure': 1010,
+                'wind_speed': 3,
+                'sources_available': 4,
+                'data_confidence': 'high',
+                'zone_name': zone_name,
+                'sources': {
+                    'openweather': {'source': 'openweather', 'available': True, 'rainfall_1h_mm': 2.5},
+                },
+            }
+
+        class FakeMessage:
+            def __init__(self, content):
+                self.content = content
+
+        class FakeChoice:
+            def __init__(self, message):
+                self.message = message
+
+        class FakeClient:
+            class chat:
+                class completions:
+                    @staticmethod
+                    def create(model, messages, max_tokens, temperature):
+                        return SimpleNamespace(choices=[FakeChoice(FakeMessage('{"overall_risk":"HIGH","summary":"Flood risk is elevated.","highest_risk_zone":"%s","immediate_actions":["Monitor river levels","Alert authorities"],"24h_outlook":"Rainfall likely to increase tonight.","safe_zones":["Zone A","Zone B"]}' % zone.name))])
+
+        mocker.patch('core.views.build_risk_feature_vector', fake_build_risk)
+        mocker.patch('core.views.Groq', lambda api_key: FakeClient())
+
+        response = self.client.post(reverse('ai-analysis'))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['success'] is True
+        assert response.data['source'] == 'groq'
+        assert response.data['analysis']['overall_risk'] == 'HIGH'
+        assert response.data['analysis']['highest_risk_zone'] == zone.name

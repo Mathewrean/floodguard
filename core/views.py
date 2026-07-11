@@ -12,8 +12,18 @@ from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfi
 from .permissions import is_authority_user
 from django.contrib.gis.geos import LineString, Point, Polygon
 from datetime import timedelta
+import logging
 from django.utils import timezone
 from django.conf import settings
+
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
+
+logger = logging.getLogger(__name__)
+
+from core.data_sources.aggregator import build_risk_feature_vector
 
 # REST API imports
 from rest_framework import viewsets, permissions, status, serializers as drf_serializers
@@ -395,47 +405,80 @@ def _filter_ai_analysis(analysis, user):
     return {field: analysis.get(field) for field in fields if field in analysis}
 
 
+def _format_source_context(all_data: dict) -> list[str]:
+    lines = []
+    for source_name, source_data in all_data.items():
+        if not source_data.get('available'):
+            error = source_data.get('error', 'missing key or unavailable service')
+            lines.append(f"{source_name}: unavailable ({error})")
+            continue
+        values = [f"{k}={v}" for k, v in source_data.items() if k not in ('source', 'available', 'error')]
+        lines.append(f"{source_name}: {', '.join(values) if values else 'available'}")
+    return lines
+
+
+def _describe_features(features: dict) -> list[str]:
+    lines = []
+    for name, value in sorted(features.items()):
+        if name in ('sources', 'zone_name'):
+            continue
+        lines.append(f"{name}: {value}")
+    return lines
+
+
+def _selected_analysis_location(request, zones, latest_reading):
+    zone_id = request.query_params.get('zone_id')
+    if zone_id:
+        try:
+            return zones.filter(id=zone_id).first()
+        except (ValueError, TypeError):
+            pass
+    return zones.first() or latest_reading
+
+
 @api_view(['POST'])
 @csrf_exempt
 @permission_classes([permissions.AllowAny])
 @throttle_classes([])
 def ai_flood_analysis(request):
     import json
-    from groq import Groq
 
     zones = AlertZone.objects.all().order_by('-risk_score', 'name')
-    readings = FloodReading.objects.order_by('-timestamp')[:10]
     latest_reading = FloodReading.objects.order_by('-timestamp').first()
-    metadata = latest_reading.metadata if latest_reading and isinstance(latest_reading.metadata, dict) else {}
+    target = _selected_analysis_location(request, zones, latest_reading)
 
-    zone_lines = [
-        f"- {zone.name}: {round((zone.risk_score or 0) * 100, 1)}% ({'CRITICAL' if (zone.risk_score or 0) >= 0.85 else 'HIGH' if (zone.risk_score or 0) >= 0.70 else 'MODERATE' if (zone.risk_score or 0) >= 0.40 else 'SAFE'})"
-        for zone in zones
-    ]
-    reading_lines = [
-        f"- {reading.water_level_metres}m at {reading.timestamp.strftime('%H:%M')}"
-        for reading in readings
-    ]
-    source_lines = [
-        f"Rainfall 1h: {metadata.get('rainfall_1h_mm', 'N/A')}mm",
-        f"Humidity: {metadata.get('humidity', 'N/A')}%",
-        f"River discharge: {metadata.get('river_discharge', 'N/A')} m3/s",
-        f"Precip probability: {metadata.get('precip_probability', metadata.get('chance_of_rain', 'N/A'))}%",
-        f"Sources active: {metadata.get('sources_available', '1')}/6",
-    ]
+    if isinstance(target, AlertZone):
+        region_name = target.name
+        centroid = target.centroid
+        lat, lon = centroid.y, centroid.x
+    elif isinstance(target, FloodReading) and target.location:
+        region_name = 'latest-reading'
+        lat, lon = target.location.y, target.location.x
+    else:
+        default_bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
+        region_name = 'default-region'
+        lat = (default_bounds[1] + default_bounds[3]) / 2
+        lon = (default_bounds[0] + default_bounds[2]) / 2
 
-    prompt = f"""You are FloodGuard AI analysing real-time flood data for Nairobi.
+    features = build_risk_feature_vector(lat, lon, region_name)
+    all_data = features.get('sources', {}) if isinstance(features, dict) else {}
+    source_lines = _format_source_context(all_data)
+    feature_lines = _describe_features(features)
 
-Zone Risk Levels:
-{chr(10).join(zone_lines) if zone_lines else '- No monitored zones'}
+    prompt = f"""You are FloodGuard AI analysing flood risk for {region_name}.
 
-Recent Water Readings:
-{chr(10).join(reading_lines) if reading_lines else '- No recent readings'}
+Top monitored zones:
+{chr(10).join([f'- {zone.name}: {round((zone.risk_score or 0) * 100, 1)}%' for zone in zones[:5]]) or '- none'}
 
-Additional Source Context:
+Location coordinates: {lat}, {lon}
+
+Combined feature vector:
+{chr(10).join(feature_lines)}
+
+Source data details:
 {chr(10).join(f'- {line}' for line in source_lines)}
 
-Respond ONLY with valid JSON - no markdown, no explanation:
+Based on these multi-source weather, hydrology, and satellite intelligence inputs, respond ONLY with valid JSON:
 {{
   "overall_risk": "LOW|MODERATE|HIGH|CRITICAL",
   "summary": "2-3 sentence situation overview",
@@ -447,11 +490,12 @@ Respond ONLY with valid JSON - no markdown, no explanation:
 
     analysis = None
     source = 'fallback'
+    metadata = features.copy() if isinstance(features, dict) else {}
 
     try:
         api_key = getattr(settings, 'GROQ_API_KEY', '')
-        if not api_key:
-            raise ValueError('GROQ_API_KEY missing')
+        if not api_key or Groq is None:
+            raise ValueError('GROQ_API_KEY missing or groq package unavailable')
 
         client = Groq(api_key=api_key)
         response = client.chat.completions.create(
@@ -467,7 +511,8 @@ Respond ONLY with valid JSON - no markdown, no explanation:
             content = content[start:end + 1]
         analysis = json.loads(content)
         source = 'groq'
-    except Exception:
+    except Exception as exc:
+        logger.warning('Groq analysis failed: %s', exc)
         high = [zone.name for zone in zones if (zone.risk_score or 0) > 0.70]
         moderate = [zone.name for zone in zones if 0.40 < (zone.risk_score or 0) <= 0.70]
         safe = [zone.name for zone in zones if (zone.risk_score or 0) <= 0.40]
@@ -486,10 +531,11 @@ Respond ONLY with valid JSON - no markdown, no explanation:
         'success': True,
         'analysis': filtered,
         'source': source,
+        'target': region_name,
     }
     if getattr(request.user, 'is_authenticated', False) and request.user.is_superuser:
         payload['data_confidence'] = metadata.get('data_confidence', 'unknown')
-        payload['source_metadata'] = metadata
+        payload['source_metadata'] = all_data
     return Response(payload)
 
 
