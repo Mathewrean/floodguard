@@ -13,8 +13,21 @@ from core.data_sources.aggregator import build_risk_feature_vector
 
 logger = logging.getLogger(__name__)
 
-# Initialize Redis connection
-redis_client = redis.Redis.from_url(settings.REDIS_URL)
+# Initialize Redis connection lazily to avoid import-time failures when Redis is unavailable.
+redis_client = None
+
+
+def get_redis_client():
+    global redis_client
+    if redis_client is not None:
+        return redis_client
+    try:
+        redis_client = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=2, socket_timeout=2)
+        redis_client.ping()
+        return redis_client
+    except Exception as exc:
+        logger.warning('Redis unavailable during task initialization: %s', exc)
+        return None
 
 @shared_task
 def fetch_flood_api(zone_id):
@@ -184,9 +197,10 @@ def dispatch_alerts(zone_id, risk_score):
         
         # Create Redis key for deduplication (3 hours)
         redis_key = f"alert:{zone.id}:{user.id}"
+        client = get_redis_client()
         
         # Check if we have sent an alert in the last 3 hours
-        if redis_client.exists(redis_key):
+        if client and client.exists(redis_key):
             logger.info(f"Alert deduplication: Skipping alert for user {user.username} in zone {zone.name}")
             continue
         
@@ -255,7 +269,9 @@ def _send_sms_alert(user, zone, message, redis_key):
             provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
         
         # Set Redis deduplication key (3 hours)
-        redis_client.setex(redis_key, 3 * 60 * 60, 1)
+        client = get_redis_client()
+        if client:
+            client.setex(redis_key, 3 * 60 * 60, 1)
         
         logger.info(f"SMS sent to {profile.phone_number} for zone {zone.name}")
         return True, provider_message_id

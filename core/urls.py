@@ -1,4 +1,5 @@
 from django.urls import include, path
+from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 from . import views
 from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet
@@ -30,6 +31,7 @@ urlpatterns = [
     path('service-worker.js', views.service_worker_view, name='service-worker'),
     
     # API routes (versioned)
+    path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
     path('api/v1/stats/', views.stats_view, name='stats'),
     path('api/v1/data-sources/', views.data_sources_view, name='data-sources'),
     path('api/v1/ai-analysis/', views.ai_flood_analysis, name='ai-analysis'),

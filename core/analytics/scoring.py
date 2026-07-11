@@ -1,6 +1,5 @@
 from django.utils import timezone
 from core.models import FloodReading, AlertZone
-from core.tasks import dispatch_alerts
 
 
 class ModelNotAvailableError(Exception):
@@ -82,6 +81,7 @@ def calculate_risk_score(zone_or_features):
         latest_reading.save(update_fields=['risk_score', 'metadata'])
 
     if risk_score >= zone.risk_threshold:
+        from core.tasks import dispatch_alerts
         dispatch_alerts.delay(zone_id, risk_score)
 
     return risk_score

@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import math
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
+from .permissions import is_authority_user
 from django.contrib.gis.geos import LineString, Point, Polygon
 from datetime import timedelta
 from django.utils import timezone
@@ -73,7 +74,7 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
     def manual_override(self, request, pk=None):
         zone = self.get_object()
         # Only authority or admin can set manual override
-        if not (request.user.groups.filter(name='EmergencyTeam').exists() or request.user.is_superuser):
+        if not is_authority_user(request.user):
             return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
         
         active = request.data.get('active')
@@ -112,7 +113,7 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
         zone = self.get_object()
 
         # Permission check: only EmergencyTeam or admin
-        if not (request.user.groups.filter(name='EmergencyTeam').exists() or request.user.is_superuser):
+        if not is_authority_user(request.user):
             return Response({'detail': 'Forbidden: EmergencyTeam or admin privileges required'},
                           status=status.HTTP_403_FORBIDDEN)
 
@@ -321,7 +322,7 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'])
     def verify(self, request, pk=None):
         report = self.get_object()
-        if not request.user.groups.filter(name='EmergencyTeam').exists() and not request.user.is_superuser:
+        if not is_authority_user(request.user):
             return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
         new_status = request.data.get('status')
@@ -363,7 +364,7 @@ def stats_view(request):
 @throttle_classes([])
 def data_sources_view(request):
     """Data-source status for authenticated users (admin/authority)."""
-    if not (request.user.is_superuser or request.user.groups.filter(name='EmergencyTeam').exists()):
+    if not is_authority_user(request.user):
         return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
     from core.data_sources.aggregator import get_source_status

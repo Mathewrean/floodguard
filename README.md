@@ -198,7 +198,7 @@ curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/zones/
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1415 test files.
+FloodGuard has comprehensive test coverage with 21 test files.
 
 ### Running Tests
 
@@ -232,6 +232,7 @@ Current test files:
   - `tests/e2e/test_dashboard.py`
   - `tests/integration/test_api.py`
   - `tests/integration/test_celery.py`
+  - `tests/unit/test_audit_fixes.py`
   - `tests/unit/test_data_sources.py`
   - `tests/unit/test_emergency_acknowledgment.py`
   - `tests/unit/test_geographic_clustering.py`
