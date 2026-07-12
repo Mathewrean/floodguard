@@ -1,6 +1,20 @@
 import pytest
 from django.conf import settings
 
+
+settings.SECRET_KEY = settings.SECRET_KEY or 'test-secret-key'
+settings.GROQ_API_KEY = getattr(settings, 'GROQ_API_KEY', '') or 'test-groq-key'
+settings.SMS_ENABLED = True
+settings.AFRICASTALKING_USERNAME = getattr(settings, 'AFRICASTALKING_USERNAME', '') or 'test'
+settings.AFRICASTALKING_API_KEY = getattr(settings, 'AFRICASTALKING_API_KEY', '') or 'test'
+settings.STORAGES = {
+    **settings.STORAGES,
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
+
+
 @pytest.fixture(autouse=True)
 def mock_redis_for_tests(mocker):
     """Auto-mock Redis in all tests to remove infrastructure dependency"""

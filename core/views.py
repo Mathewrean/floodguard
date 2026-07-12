@@ -395,7 +395,7 @@ def data_sources_view(request):
 
 def _ai_analysis_fields(user):
     if not getattr(user, 'is_authenticated', False):
-        return ['overall_risk', 'summary', 'safe_zones']
+        return ['overall_risk', 'summary', 'safe_zones', 'highest_risk_zone']
     if user.is_superuser:
         return None
     if user.groups.filter(name='EmergencyTeam').exists():
