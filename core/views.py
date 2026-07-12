@@ -1063,8 +1063,9 @@ def api_dashboard_stats(request):
 @permission_classes([permissions.AllowAny])
 def dynamic_zone_check(request):
     """
-    On-demand zone creation for any location
-    Returns live flood assessment or info about existing zones
+    On-demand zone creation for any location.
+    If the user location is outside an existing zone, we create a transient zone around that point
+    using the current live flood assessment and return it.
     """
     try:
         lat = float(request.GET.get('lat', 0))
@@ -1072,8 +1073,9 @@ def dynamic_zone_check(request):
     except (TypeError, ValueError):
         return Response({'error': 'Invalid latitude or longitude parameters'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Check whether the user is actually inside an existing zone.
-    from django.contrib.gis.geos import Point
+    from django.contrib.gis.geos import Point, Polygon
+    from django.contrib.gis.measure import D
+
     user_point = Point(lon, lat, srid=4326)
     matched_zones = AlertZone.objects.filter(polygon__covers=user_point).order_by('-risk_score', 'name')
 
@@ -1091,16 +1093,18 @@ def dynamic_zone_check(request):
             ],
         })
 
-    # No nearby zone — fetch live from Open-Meteo
     import requests as req
     try:
         resp = req.get(
             'https://flood-api.open-meteo.com/v1/flood',
             params={
-                'latitude': lat, 'longitude': lon,
+                'latitude': lat,
+                'longitude': lon,
                 'daily': 'river_discharge',
-                'forecast_days': 1, 'models': 'seamless_v4'
-            }, timeout=10
+                'forecast_days': 1,
+                'models': 'seamless_v4'
+            },
+            timeout=10,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -1118,34 +1122,51 @@ def dynamic_zone_check(request):
         else:
             risk_score = 0.98
 
-        # Get location name via reverse geocoding (Nominatim — free)
         geo = req.get(
             'https://nominatim.openstreetmap.org/reverse',
             params={'lat': lat, 'lon': lon, 'format': 'json'},
             headers={'User-Agent': 'FloodGuard/1.0'},
-            timeout=8
+            timeout=8,
         )
         geo.raise_for_status()
         geo_data = geo.json()
-        # Extract clean neighbourhood/suburb name
         address = geo_data.get('address', {})
-        zone_name = (address.get('suburb')
-                or address.get('neighbourhood')
-                or address.get('city_district')
-                or address.get('town')
-                or address.get('city')
-                or f"Zone {lat:.2f},{lon:.2f}")
+        zone_name = (
+            address.get('suburb')
+            or address.get('neighbourhood')
+            or address.get('city_district')
+            or address.get('town')
+            or address.get('city')
+            or f"Zone {lat:.2f},{lon:.2f}"
+        )
+
+        radius_m = 600
+        buffer_geom = user_point.buffer(radius_m / 111320.0)
+        zone_polygon = Polygon.from_bbox((lon - 0.005, lat - 0.005, lon + 0.005, lat + 0.005))
+
+        zone, created = AlertZone.objects.get_or_create(
+            name=zone_name,
+            defaults={
+                'polygon': zone_polygon,
+                'risk_threshold': max(0.2, min(0.95, risk_score)),
+                'risk_score': round(risk_score, 3),
+            },
+        )
+        if created:
+            zone.polygon = zone_polygon
+            zone.risk_threshold = max(0.2, min(0.95, risk_score))
+            zone.risk_score = round(risk_score, 3)
+            zone.save(update_fields=['polygon', 'risk_threshold', 'risk_score'])
 
         return Response({
-            'has_zone': False,
-            'live_assessment': True,
-            'zone_name': zone_name,
-            'risk_score': round(risk_score, 3),
+            'has_zone': True,
+            'created_zone': created,
+            'zone_id': zone.id,
+            'zone_name': zone.name,
+            'risk_score': round(float(zone.risk_score or 0), 3),
+            'risk_threshold': round(float(zone.risk_threshold or 0), 3),
             'river_discharge_m3s': round(discharge, 2),
-            'severity': ('CRITICAL' if risk_score > 0.85
-                        else 'HIGH' if risk_score > 0.7
-                        else 'MODERATE' if risk_score > 0.4
-                        else 'SAFE'),
+            'severity': ('CRITICAL' if risk_score > 0.85 else 'HIGH' if risk_score > 0.7 else 'MODERATE' if risk_score > 0.4 else 'SAFE'),
             'message': f'Live flood assessment for {zone_name}'
         })
     except Exception as e:

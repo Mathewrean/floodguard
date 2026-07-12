@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.contrib.gis.geos import Point
 from rest_framework import status
 from rest_framework.test import APIClient
-from core.models import IncidentReport
+from core.models import AlertZone, IncidentReport
 from tests.factories import AlertZoneFactory, UserFactory, AuthorityUserFactory, IncidentReportFactory
 
 
@@ -87,6 +87,31 @@ class TestPredictAPI:
         response = self.client.get(url)
         assert response.status_code == status.HTTP_200_OK
         assert isinstance(response.data['risk_score'], float)
+
+
+@pytest.mark.django_db
+class TestDynamicZoneAPI:
+    def setup_method(self):
+        self.client = APIClient()
+
+    def test_dynamic_zone_creates_zone_from_current_location(self, mocker):
+        flood_payload = SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {'daily': {'river_discharge': [12.5]}}
+        )
+        geo_payload = SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {'address': {'suburb': 'Westlands'}}
+        )
+        mocker.patch('requests.get', side_effect=[flood_payload, geo_payload])
+
+        response = self.client.get(reverse('dynamic-zone'), {'lat': -1.287, 'lon': 36.821})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['has_zone'] is True
+        assert response.data['created_zone'] is True
+        assert response.data['zone_name'] == 'Westlands'
+        assert AlertZone.objects.count() == 1
 
 
 @pytest.mark.django_db

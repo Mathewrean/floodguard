@@ -107,7 +107,7 @@ function recreate_container() {
 function wait_for_postgres_container() {
   echo "Waiting for PostgreSQL container..."
   for i in {1..30}; do
-    if docker exec "$DB_CONTAINER" pg_isready -U "${DB_USER:-postgres}" >/dev/null 2>&1; then
+    if $DOCKER_CMD exec "$DB_CONTAINER" pg_isready -U "${DB_USER:-postgres}" >/dev/null 2>&1; then
       echo "PostgreSQL is ready."
       return
     fi
@@ -120,7 +120,7 @@ function wait_for_postgres_container() {
 function wait_for_redis_container() {
   echo "Waiting for Redis container..."
   for i in {1..30}; do
-    if docker exec "$REDIS_CONTAINER" redis-cli ping >/dev/null 2>&1; then
+    if $DOCKER_CMD exec "$REDIS_CONTAINER" redis-cli ping >/dev/null 2>&1; then
       echo "Redis is ready."
       return
     fi
@@ -210,14 +210,24 @@ function ensure_system_database() {
 
 function run_migrations_and_collectstatic() {
   local network_flags=()
+  local extra_env=()
   if [[ "$SYSTEM_SERVICES" == true ]]; then
     network_flags+=(--network host)
   else
     network_flags+=(--network "$NETWORK_NAME")
+    extra_env+=(--env "DB_HOST=$DB_CONTAINER")
+    extra_env+=(--env "DB_PORT=${DB_PORT:-5432}")
+    extra_env+=(--env "DB_NAME=${DB_NAME:-floodguard}")
+    extra_env+=(--env "DB_USER=${DB_USER:-postgres}")
+    extra_env+=(--env "DB_PASSWORD=${DB_PASSWORD:-postgres}")
+    extra_env+=(--env "DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_CONTAINER}:${DB_PORT:-5432}/${DB_NAME:-floodguard}")
+    extra_env+=(--env "REDIS_HOST=$REDIS_CONTAINER")
+    extra_env+=(--env "REDIS_PORT=6379")
+    extra_env+=(--env "REDIS_URL=redis://${REDIS_CONTAINER}:6379/0")
   fi
 
-  $DOCKER_CMD run --rm "${network_flags[@]}" --env-file .env "$IMAGE_NAME" python manage.py migrate --noinput
-  $DOCKER_CMD run --rm "${network_flags[@]}" --env-file .env "$IMAGE_NAME" python manage.py collectstatic --noinput
+  $DOCKER_CMD run --rm "${network_flags[@]}" --env-file .env "${extra_env[@]}" "$IMAGE_NAME" python manage.py migrate --noinput
+  $DOCKER_CMD run --rm "${network_flags[@]}" --env-file .env "${extra_env[@]}" "$IMAGE_NAME" python manage.py collectstatic --noinput
 }
 
 function run_containerized_services() {
@@ -246,13 +256,43 @@ function run_containerized_services() {
   run_migrations_and_collectstatic
 
   $DOCKER_CMD run -d --name "$WEB_CONTAINER" --network "$NETWORK_NAME" \
-    --env-file .env -p 8000:8000 "$IMAGE_NAME"
+    --env-file .env \
+    -e "DB_HOST=$DB_CONTAINER" \
+    -e "DB_PORT=${DB_PORT:-5432}" \
+    -e "DB_NAME=${DB_NAME:-floodguard}" \
+    -e "DB_USER=${DB_USER:-postgres}" \
+    -e "DB_PASSWORD=${DB_PASSWORD:-postgres}" \
+    -e "DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_CONTAINER}:${DB_PORT:-5432}/${DB_NAME:-floodguard}" \
+    -e "REDIS_HOST=$REDIS_CONTAINER" \
+    -e "REDIS_PORT=6379" \
+    -e "REDIS_URL=redis://${REDIS_CONTAINER}:6379/0" \
+    -p 8000:8000 "$IMAGE_NAME"
 
   $DOCKER_CMD run -d --name "$CELERY_CONTAINER" --network "$NETWORK_NAME" \
-    --env-file .env "$IMAGE_NAME" celery -A floodguard worker -l info
+    --env-file .env \
+    -e "DB_HOST=$DB_CONTAINER" \
+    -e "DB_PORT=${DB_PORT:-5432}" \
+    -e "DB_NAME=${DB_NAME:-floodguard}" \
+    -e "DB_USER=${DB_USER:-postgres}" \
+    -e "DB_PASSWORD=${DB_PASSWORD:-postgres}" \
+    -e "DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_CONTAINER}:${DB_PORT:-5432}/${DB_NAME:-floodguard}" \
+    -e "REDIS_HOST=$REDIS_CONTAINER" \
+    -e "REDIS_PORT=6379" \
+    -e "REDIS_URL=redis://${REDIS_CONTAINER}:6379/0" \
+    "$IMAGE_NAME" celery -A floodguard worker -l info
 
   $DOCKER_CMD run -d --name "$CELERY_BEAT_CONTAINER" --network "$NETWORK_NAME" \
-    --env-file .env "$IMAGE_NAME" celery -A floodguard beat -l info
+    --env-file .env \
+    -e "DB_HOST=$DB_CONTAINER" \
+    -e "DB_PORT=${DB_PORT:-5432}" \
+    -e "DB_NAME=${DB_NAME:-floodguard}" \
+    -e "DB_USER=${DB_USER:-postgres}" \
+    -e "DB_PASSWORD=${DB_PASSWORD:-postgres}" \
+    -e "DATABASE_URL=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@${DB_CONTAINER}:${DB_PORT:-5432}/${DB_NAME:-floodguard}" \
+    -e "REDIS_HOST=$REDIS_CONTAINER" \
+    -e "REDIS_PORT=6379" \
+    -e "REDIS_URL=redis://${REDIS_CONTAINER}:6379/0" \
+    "$IMAGE_NAME" celery -A floodguard beat -l info
 }
 
 function run_system_services_mode() {
