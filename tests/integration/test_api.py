@@ -247,3 +247,67 @@ class TestAIFloodAnalysisAPI:
         assert response.data['source'] == 'groq'
         assert response.data['analysis']['overall_risk'] == 'HIGH'
         assert response.data['analysis']['highest_risk_zone'] == zone.name
+
+
+@pytest.mark.django_db
+class TestH3CellsAPI:
+    def setup_method(self):
+        self.client = APIClient()
+
+    def test_h3_cells_returns_geojson_in_bbox(self, mocker):
+        mocker.patch('core.h3_risk.get_h3_cells_for_bbox', return_value=[
+            {'h3_index': '876543210abcdef', 'risk_score': 0.75, 'risk_level': 'high'},
+            {'h3_index': '876543210fedcba', 'risk_score': 0.35, 'risk_level': 'medium'},
+        ])
+        mocker.patch('core.h3_risk.h3_index_to_geojson', return_value={
+            'type': 'Polygon',
+            'coordinates': [[[36.8, -1.3], [36.9, -1.3], [36.9, -1.2], [36.8, -1.2], [36.8, -1.3]]]
+        })
+
+        response = self.client.get(
+            '/api/v1/h3-cells/',
+            {'min_lat': -1.5, 'min_lon': 36.5, 'max_lat': -1.0, 'max_lon': 37.0, 'resolution': 7}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['count'] == 2
+        assert len(response.data['cells']) == 2
+
+    def test_h3_cells_requires_bbox_params(self):
+        response = self.client.get('/api/v1/h3-cells/')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+class TestGeocodeAPI:
+    def setup_method(self):
+        self.client = APIClient()
+
+    def test_geocode_parses_coordinates(self):
+        response = self.client.get('/api/v1/geocode/', {'q': '-1.2921,36.8219'})
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['results'][0]['lat'] == -1.2921
+        assert response.data['results'][0]['lon'] == 36.8219
+        assert response.data['results'][0]['type'] == 'coordinate'
+
+    def test_geocode_returns_error_for_empty_query(self):
+        response = self.client.get('/api/v1/geocode/', {'q': ''})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.django_db
+class TestEmergencyServicesAPI:
+    def setup_method(self):
+        self.client = APIClient()
+        self.zone = AlertZoneFactory(risk_score=0.3, polygon=Point(36.8, -1.3).buffer(0.01))
+
+    def test_emergency_services_returns_hospitals(self, mocker):
+        geo_response = mocker.MagicMock()
+        geo_response.json.return_value = [
+            {'lat': -1.28, 'lon': 36.81, 'display_name': 'Nairobi Hospital'},
+        ]
+        mocker.patch('requests.get', return_value=geo_response)
+
+        response = self.client.get('/api/v1/emergency-services/', {'lat': -1.29, 'lon': 36.82})
+        assert response.status_code == status.HTTP_200_OK
+        assert 'hospitals' in response.data

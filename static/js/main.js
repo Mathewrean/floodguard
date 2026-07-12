@@ -2,13 +2,16 @@ const API_CACHE = new Map();
 
 // TTL tiers per endpoint (milliseconds)
 const TIER_TTLS = {
-  '/api/v1/zones/': 60000,
-  '/api/v1/readings/': 60000,
-  '/api/v1/stats/': 30000,
-  '/api/v1/alerts/': 15000,
-  '/api/v1/dashboard/stats/': 30000,
-  '/api/v1/dynamic-zone/': 10000,
-  default: 10000,
+   '/api/v1/zones/': 60000,
+   '/api/v1/readings/': 60000,
+   '/api/v1/stats/': 30000,
+   '/api/v1/alerts/': 15000,
+   '/api/v1/dashboard/stats/': 30000,
+   '/api/v1/dynamic-zone/': 10000,
+   '/api/v1/h3-cells/': 60000,
+   '/api/v1/geocode/': 300000,
+   '/api/v1/emergency-services/': 120000,
+   default: 10000,
 };
 
 window.getRiskBand = function(score) {

@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<style>
+.gis-dashboard { position: relative; height: 100vh; width: 100%; overflow: hidden; }
+.gis-map { position: absolute; inset: 0; z-index: var(--map-z-index); }
+.gis-topbar {
+    position: absolute; top: 12px; left: 12px; right: 12px; z-index: var(--overlay-z-index);
+    display: flex; gap: 10px; flex-wrap: wrap; pointer-events: none;
+}
+.gis-topbar > * { pointer-events: auto; }
+.gis-search {
+    flex: 1 1 320px; display: flex; gap: 8px;
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
+    border-radius: 10px; padding: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+.gis-search input {
+    flex: 1; border: none; outline: none; padding: 10px 12px; font-size: 15px;
+    background: transparent; min-width: 0;
+}
+.gis-search button {
+    border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600;
+}
+.gis-actions { display: flex; gap: 8px; }
+.gis-legend {
+    position: absolute; bottom: 24px; left: 12px; z-index: var(--legend-z-index);
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
+    border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    min-width: 140px;
+}
+.gis-legend h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: #4b5563; }
+.gis-legend-item { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 4px 0; }
+.gis-legend-swatch { width: 14px; height: 14px; border-radius: 4px; }
+.gis-layer-control {
+    position: absolute; top: 80px; right: 12px; z-index: var(--overlay-z-index);
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(6px);
+    border-radius: 10px; padding: 10px 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+.gis-layer-control label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
+.gis-info-panel {
+    position: absolute; top: 12px; right: 12px; z-index: var(--panel-z-index);
+    width: 320px; max-height: calc(100% - 24px); overflow-y: auto;
+    background: rgba(255,255,255,0.96); backdrop-filter: blur(8px);
+    border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+    display: none;
+}
+.gis-info-panel.open { display: block; }
+.gis-info-panel header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #e5e7eb; }
+.gis-info-panel section { padding: 14px 16px; }
+.gis-info-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+.gis-info-row:last-child { border-bottom: none; }
+.gis-route-panel {
+    position: absolute; bottom: 24px; right: 12px; z-index: var(--panel-z-index);
+    width: 340px; max-height: 420px; overflow-y: auto;
+    background: rgba(255,255,255,0.96); backdrop-filter: blur(8px);
+    border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+    display: none;
+}
+.gis-route-panel.open { display: block; }
+.gis-route-card {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 10px 12px; border-bottom: 1px solid #f3f4f6;
+}
+.gis-route-card:last-child { border-bottom: none; }
+.badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.badge.high { background: #fee2e2; color: #991b1b; }
+.badge.medium { background: #ffedd5; color: #9a3412; }
+.badge.low { background: #fef9c3; color: #854d0e; }
+.btn { border: none; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-secondary { background: #e5e7eb; color: #111827; }
+.btn-success { background: #16a34a; color: white; }
+.btn-danger { background: #dc2626; color: white; }
+.pulse-marker {
+    width: 18px; height: 18px; border-radius: 50%; background: #2563eb;
+    box-shadow: 0 0 0 0 rgba(37,99,235,0.7); animation: pulse 1.6s infinite;
+}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); }
+    70% { box-shadow: 0 0 0 18px rgba(37,99,235,0); }
+    100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); }
+}
+.emergency-marker { font-size: 20px; }
+@media (max-width: 768px) {
+    .gis-info-panel, .gis-route-panel { width: calc(100% - 24px); left: 12px; right: 12px; }
+    .gis-topbar { flex-direction: column; }
+    .gis-layer-control { top: 140px; }
+}
+</style>
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="gis-dashboard">
+  <div id="gis-map" class="gis-map"></div>
+
+  <div class="gis-topbar">
+    <div class="gis-search">
+      <input id="gis-search-input" placeholder="Search city, place, or coordinates (lat,lon)..." />
+      <button id="gis-search-btn" class="btn btn-primary">Search</button>
+      <button id="gis-location-btn" class="btn btn-secondary">My Location</button>
+    </div>
+    <div class="gis-actions">
+      <button id="gis-safe-route-btn" class="btn btn-success">Find Safe Route</button>
+    </div>
+  </div>
+
+  <div class="gis-layer-control">
+    <strong>Layers</strong>
+    <label><input type="checkbox" id="layer-flood" checked> Flood Risk</label>
+    <label><input type="checkbox" id="layer-rainfall"> Rainfall</label>
+    <label><input type="checkbox" id="layer-rivers"> Rivers</label>
+    <label><input type="checkbox" id="layer-satellite"> Satellite</label>
+  </div>
+
+  <div class="gis-legend">
+    <h4>Flood Risk</h4>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#FF0000;opacity:0.45"></span> High Risk (≥70%)</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#FFA500;opacity:0.35"></span> Medium Risk (40-70%)</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#FFFF00;opacity:0.25"></span> Low Risk (<40%)</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#22c55e;opacity:0.25"></span> Safe Area</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#2563eb"></span> You</div>
+  </div>
+
+  <div id="gis-info-panel" class="gis-info-panel">
+    <header>
+      <div>
+        <h3 style="margin:0">Location Details</h3>
+        <small style="color:#6B7A8D">Flood risk information</small>
+      </div>
+      <button id="gis-close-panel" class="btn btn-secondary" style="padding:6px 10px">✕</button>
+    </header>
+    <section id="gis-info-content">
+      <div class="gis-info-row"><span>Location</span><span id="info-name">--</span></div>
+      <div class="gis-info-row"><span>Flood Risk</span><span id="info-risk">--</span></div>
+      <div class="gis-info-row"><span>Risk Level</span><span id="info-severity">--</span></div>
+      <div class="gis-info-row"><span>Updated</span><span id="info-updated">--</span></div>
+      <div style="margin-top:10px">
+        <button id="gis-route-btn" class="btn btn-primary" style="width:100%">Find Safe Route</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="gis-route-panel" class="gis-route-panel">
+    <header>
+      <div>
+        <h3 style="margin:0">Safe Routes</h3>
+        <small style="color:#6B7A8D">Based on live flood data</small>
+      </div>
+      <button id="gis-close-route" class="btn btn-secondary" style="padding:6px 10px">✕</button>
+    </header>
+    <section id="gis-route-content">
+      <div style="padding:12px;color:#6B7A8D">Select your current location and destination, or use GPS.</div>
+    </section>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/dashboard_gis.js' %}?v={{ STATIC_VERSION }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', initGisDashboard);
+</script>
+{% endblock %}

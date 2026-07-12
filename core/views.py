@@ -1086,6 +1086,14 @@ def admin_dashboard(request):
     }
     return render(request, 'dashboard/admin_panel.html', context)
 
+
+def gis_dashboard(request):
+    """H3-based GIS flood intelligence dashboard."""
+    context = {
+        'user': request.user if request.user.is_authenticated else None,
+    }
+    return render(request, 'dashboard/gis.html', context)
+
 def report_submit(request):
     """Handle citizen report submission"""
     if request.method == 'POST':
@@ -1648,3 +1656,212 @@ def dynamic_zone_check(request):
         })
     except Exception as e:
         return Response({'has_zone': False, 'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([])
+def api_h3_cells(request):
+    """
+    Get H3 grid cells for map visualization within a bounding box.
+    Returns cells with risk scores for dynamic flood zone rendering.
+    """
+    min_lat = request.GET.get('min_lat')
+    min_lon = request.GET.get('min_lon')
+    max_lat = request.GET.get('max_lat')
+    max_lon = request.GET.get('max_lon')
+    resolution = request.GET.get('resolution', 7)
+
+    if not all([min_lat, min_lon, max_lat, max_lon]):
+        return Response({'error': 'Bounding box parameters required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        min_lat = float(min_lat)
+        min_lon = float(min_lon)
+        max_lat = float(max_lat)
+        max_lon = float(max_lon)
+        resolution = int(resolution)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid parameter format'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from core.h3_risk import get_h3_cells_for_bbox, h3_index_to_geojson
+
+    cells = get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution)
+
+    cell_geojson = []
+    for cell in cells:
+        geojson = h3_index_to_geojson(cell['h3_index'])
+        if geojson:
+            geojson['properties'] = {
+                'h3_index': cell['h3_index'],
+                'risk_score': cell['risk_score'],
+                'risk_level': cell['risk_level'],
+            }
+            cell_geojson.append(geojson)
+
+    return Response({
+        'cells': cell_geojson,
+        'resolution': resolution,
+        'count': len(cell_geojson),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([AnonRateThrottle])
+def api_geocode_nominatim(request):
+    """
+    Geocode a location query using OpenStreetMap Nominatim.
+    Supports city names, coordinates (lat,lon), landmarks, streets.
+    """
+    import requests as req
+
+    query = request.GET.get('q', '').strip()
+    if not query:
+        return Response({'error': 'Query parameter required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # Check if query is coordinates (lat,lon format)
+        if ',' in query and len(query.split(',')) == 2:
+            parts = query.split(',')
+            lat, lon = float(parts[0]), float(parts[1])
+            if -90 <= lat <= 90 and -180 <= lon <= 180:
+                return Response({
+                    'results': [{
+                        'lat': lat,
+                        'lon': lon,
+                        'display_name': f"Coordinates: {lat}, {lon}",
+                        'type': 'coordinate',
+                    }]
+                })
+    except (ValueError, TypeError):
+        pass
+
+    try:
+        response = req.get(
+            'https://nominatim.openstreetmap.org/search',
+            params={
+                'q': query,
+                'format': 'json',
+                'limit': 10,
+                'addressdetails': 1,
+                'extratags': 1,
+            },
+            headers={'User-Agent': 'FloodGuard/1.0 (+https://floodguard.ai)'},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        results = []
+        for item in data:
+            results.append({
+                'lat': float(item.get('lat', 0)),
+                'lon': float(item.get('lon', 0)),
+                'display_name': item.get('display_name', ''),
+                'type': item.get('class', 'place'),
+                'importance': item.get('importance', 0),
+            })
+
+        return Response({'results': results})
+    except Exception as e:
+        logger.warning(f"Nominatim geocoding failed: {e}")
+        return Response({'error': 'Geocoding service unavailable'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([MonitoringRateThrottle])
+def api_emergency_services(request):
+    """
+    Get nearby emergency services (hospitals, shelters, police, rescue centers).
+    """
+    lat = request.GET.get('lat')
+    lon = request.GET.get('lon')
+    radius_km = float(request.GET.get('radius_km', 10.0))
+
+    if not lat or not lon:
+        return Response({'error': 'lat and lon required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid coordinates'}, status=status.HTTP_400_BAD_REQUEST)
+
+    import requests as req
+    results = {
+        'hospitals': [],
+        'shelters': [],
+        'police': [],
+        'rescue_centers': [],
+    }
+
+    try:
+        # Search for hospitals, police stations, and emergency services via Nominatim
+        for service_type in ['hospital', 'police', 'emergency']:
+            try:
+                response = req.get(
+                    'https://nominatim.openstreetmap.org/search',
+                    params={
+                        'q': service_type,
+                        'format': 'json',
+                        'limit': 20,
+                        'lat': lat,
+                        'lon': lon,
+                        'viewbox': f"{lon-0.5},{lat-0.5},{lon+0.5},{lat+0.5}",
+                        'bounded': 1,
+                    },
+                    headers={'User-Agent': 'FloodGuard/1.0 (+https://floodguard.ai)'},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                for item in data:
+                    service_data = {
+                        'lat': float(item.get('lat', 0)),
+                        'lon': float(item.get('lon', 0)),
+                        'name': item.get('display_name', '').split(',')[0],
+                        'distance_km': round(
+                            _haversine_m({'lat': lat, 'lon': lon}, {'lat': float(item.get('lat', 0)), 'lon': float(item.get('lon', 0))}) / 1000, 1
+                        ),
+                    }
+                    if service_type == 'hospital':
+                        results['hospitals'].append(service_data)
+                    elif service_type == 'police':
+                        results['police'].append(service_data)
+                    elif service_type == 'emergency':
+                        results['rescue_centers'].append(service_data)
+            except Exception:
+                pass
+
+        # Add known safe zones as shelters
+        safe_zones = AlertZone.objects.filter(risk_score__lte=0.4)[:10]
+        for zone in safe_zones:
+            if zone.polygon:
+                centroid = zone.polygon.centroid
+                results['shelters'].append({
+                    'lat': centroid.y,
+                    'lon': centroid.x,
+                    'name': zone.name,
+                    'distance_km': round(
+                        _haversine_m({'lat': lat, 'lon': lon}, {'lat': centroid.y, 'lon': centroid.x}) / 1000, 1
+                    ),
+                })
+
+        return Response(results)
+    except Exception as e:
+        logger.warning(f"Emergency services lookup failed: {e}")
+        return Response(results)
+
+
+def _haversine_m(a, b):
+    """Calculate distance in meters between two coordinates."""
+    radius = 6371000
+    lat1 = math.radians(a['lat'])
+    lat2 = math.radians(b['lat'])
+    dlat = math.radians(b['lat'] - a['lat'])
+    dlng = math.radians(b['lon'] - a['lon'])
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
+    return 2 * radius * math.asin(math.sqrt(h))

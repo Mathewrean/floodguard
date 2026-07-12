@@ -53,6 +53,92 @@ def get_risk_for_h3_cell(h3_index):
     return risk
 
 
+def _get_risk_level_label(risk_score):
+    """Convert risk score to three-tier label (high, medium, low)."""
+    if risk_score >= 0.7:
+        return 'high'
+    elif risk_score >= 0.4:
+        return 'medium'
+    return 'low'
+
+
+def get_h3_cell_for_point(lat, lon, resolution=None):
+    """
+    Get the H3 cell index for a specific point.
+    Returns cell index and risk data.
+    """
+    try:
+        import h3
+    except ImportError:
+        return None
+
+    if resolution is None:
+        resolution = _get_h3_resolution(lat, lon)
+
+    try:
+        cell = h3.geo_to_h3(float(lat), float(lon), resolution)
+        risk = get_risk_for_h3_cell(cell)
+        return {
+            'h3_index': cell,
+            'lat': lat,
+            'lon': lon,
+            'risk_score': round(risk, 3),
+            'risk_level': _get_risk_level_label(risk),
+            'resolution': resolution,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to get H3 cell for point {lat},{lon}: {e}")
+        return None
+
+
+def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
+    """
+    Get all H3 cells within a bounding box for map visualization.
+    Returns list of H3 indices and their risk scores.
+    """
+    try:
+        import h3
+    except ImportError:
+        return []
+
+    try:
+        if resolution is None:
+            resolution = H3_RESOLUTION_URBAN
+
+        # Get cells covering the polygon area
+        from django.contrib.gis.geos import Polygon
+        bbox_polygon = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
+
+        cells = h3.polyfill_geojson(
+            {
+                "type": "Polygon",
+                "coordinates": [[
+                    [min_lon, min_lat],
+                    [max_lon, min_lat],
+                    [max_lon, max_lat],
+                    [min_lon, max_lat],
+                    [min_lon, min_lat],
+                ]]
+            },
+            resolution
+        )
+
+        cell_data = []
+        for cell in cells:
+            risk = get_risk_for_h3_cell(cell)
+            if risk > 0:
+                cell_data.append({
+                    'h3_index': cell,
+                    'risk_score': round(risk, 3),
+                    'risk_level': _get_risk_level_label(risk),
+                })
+
+        return cell_data
+    except Exception as e:
+        logger.warning(f"Failed to get H3 cells for bbox: {e}")
+        return []
+
+
 def _calculate_h3_risk(h3_index):
     """
     Calculate flood risk for an H3 cell by checking intersection with AlertZones.

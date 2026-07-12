@@ -28,6 +28,7 @@ urlpatterns = [
     path('map/', views.map_view, name='map_view'),
     path('map-selection/', views.map_selection_view, name='map_selection'),
     path('safe-route/', views.safe_route_page, name='safe_route'),
+    path('gis/', views.gis_dashboard, name='gis_dashboard'),
     path('health/', views.health_view, name='health'),
     path('favicon.ico', views.favicon_view, name='favicon'),
     path('service-worker.js', views.service_worker_view, name='service-worker'),
@@ -45,5 +46,8 @@ urlpatterns = [
     path('api/v1/global-search/', views.api_global_search, name='api-global-search'),
     path('api/v1/nearby-zones/', views.api_nearby_zones, name='api-nearby-zones'),
     path('api/v1/zone-selection/', views.api_zone_selection, name='api-zone-selection'),
+    path('api/v1/h3-cells/', views.api_h3_cells, name='api-h3-cells'),
+    path('api/v1/geocode/', views.api_geocode_nominatim, name='api-geocode'),
+    path('api/v1/emergency-services/', views.api_emergency_services, name='api-emergency-services'),
     path('api/v1/', include(router.urls)),
 ]

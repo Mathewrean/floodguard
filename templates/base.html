@@ -27,6 +27,7 @@
                     <li><a href="{% url 'landing_index' %}">Home</a></li>
                     <li><a href="{% url 'about' %}">About</a></li>
                     <li><a href="{% url 'map_view' %}">Live Map</a></li>
+                    <li><a href="{% url 'gis_dashboard' %}">GIS Dashboard</a></li>
                     <li><a href="{% url 'safe_route' %}">Safe Route</a></li>
                     {% if user.is_authenticated %}
                         <li><a href="{% url 'dashboard_redirect' %}">Dashboard</a></li>
