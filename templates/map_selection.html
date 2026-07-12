@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js" defer></script>
+{% endblock %}
+
+{% block content %}
+<section class="map-selection-page">
+    <div class="map-selection-header">
+        <div>
+            <h1>Interactive Flood Zone Selector</h1>
+            <p>Draw, search, or click the map to select regions for flood monitoring.</p>
+        </div>
+        <div class="map-selection-actions">
+            <button id="btn-draw-polygon" class="btn btn-primary">Draw Polygon</button>
+            <button id="btn-draw-rectangle" class="btn btn-secondary">Draw Rectangle</button>
+            <button id="btn-clear-selection" class="btn btn-danger">Clear</button>
+            <button id="btn-save-selection" class="btn btn-success">Save Selection</button>
+        </div>
+    </div>
+
+    <div class="map-selection-layout">
+        <div class="map-selection-sidebar">
+            <div class="card">
+                <h3>Search Regions</h3>
+                <input type="text" id="region-search" placeholder="Search city, zone, or coordinates..." />
+                <button id="btn-search" class="btn btn-primary" style="width:100%;margin-top:8px;">Search</button>
+                <div id="search-results" style="margin-top:12px;"></div>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+                <h3>Selected Zones</h3>
+                <div id="selected-zones-list">
+                    <p style="color:#6B7A8D;">No zones selected yet. Draw on the map or search for a region.</p>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+                <h3>Quick Add</h3>
+                <p style="font-size:13px;color:#6B7A8D;">Add predefined regions:</p>
+                <select id="preset-regions" style="width:100%;margin-top:8px;">
+                    <option value="">-- Select Region --</option>
+                    <optgroup label="China">
+                        <option value="Shanghai - China">Shanghai</option>
+                        <option value="Beijing - China">Beijing</option>
+                        <option value="Guangzhou - China">Guangzhou</option>
+                        <option value="Shenzhen - China">Shenzhen</option>
+                        <option value="Chengdu - China">Chengdu</option>
+                        <option value="Wuhan - China">Wuhan</option>
+                        <option value="Xian - China">Xian</option>
+                    </optgroup>
+                    <optgroup label="Kenya">
+                        <option value="Nairobi - Kenya">Nairobi</option>
+                        <option value="Dagoreti - Nairobi, Kenya">Dagoreti</option>
+                        <option value="Westlands">Westlands</option>
+                        <option value="Kibera">Kibera</option>
+                    </optgroup>
+                </select>
+                <button id="btn-add-preset" class="btn btn-secondary" style="width:100%;margin-top:8px;">Add Region</button>
+            </div>
+        </div>
+
+        <div class="map-selection-main">
+            <div id="map-selection" class="map-container selection-map"></div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function() {
+    'use strict';
+
+    let map = null;
+    let drawnItems = null;
+    let selectedZones = [];
+    let drawControl = null;
+
+    async function initMap() {
+        map = L.map('map-selection').setView([20, 0], 2);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 20,
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        }).addTo(map);
+
+        drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        drawControl = new L.Control.Draw({
+            draw: {
+                polygon: { shapeOptions: { color: '#2E75B6', weight: 3 } },
+                rectangle: { shapeOptions: { color: '#2E75B6', weight: 3 } },
+                polyline: false,
+                circle: false,
+                marker: false,
+                circlemarker: false
+            },
+            edit: { featureGroup: drawnItems }
+        });
+        map.addControl(drawControl);
+
+        map.on(L.Draw.Event.CREATED, async function(e) {
+            const layer = e.layer;
+            drawnItems.addLayer(layer);
+            await reverseGeocodeAndAdd(layer);
+        });
+
+        map.on(L.Draw.Event.DELETED, function() {
+            refreshSelectedList();
+        });
+
+        document.getElementById('btn-clear-selection').addEventListener('click', function() {
+            drawnItems.clearLayers();
+            selectedZones = [];
+            refreshSelectedList();
+        });
+
+        document.getElementById('btn-save-selection').addEventListener('click', function() {
+            saveSelectedZones();
+        });
+
+        document.getElementById('btn-search').addEventListener('click', function() {
+            const q = document.getElementById('region-search').value.trim();
+            if (q) performSearch(q);
+        });
+
+        document.getElementById('region-search').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const q = this.value.trim();
+                if (q) performSearch(q);
+            }
+        });
+
+        document.getElementById('btn-add-preset').addEventListener('click', function() {
+            const select = document.getElementById('preset-regions');
+            const name = select.value;
+            if (!name) return;
+            addPresetZone(name);
+            select.value = '';
+        });
+
+        await loadExistingZones();
+    }
+
+    async function loadExistingZones() {
+        try {
+            const res = await fetch('/api/v1/zones/');
+            const data = await res.json();
+            const zones = Array.isArray(data) ? data : (data.results || []);
+            zones.forEach(zone => {
+                if (zone.polygon) {
+                    const layer = L.geoJSON(zone.polygon, {
+                        style: { color: '#dc2626', weight: 2, dashArray: '4,4' }
+                    });
+                    layer.bindPopup(`<strong>${zone.name}</strong><br>Risk: ${zone.risk_score}`);
+                    layer.addTo(map);
+                }
+            });
+        } catch (e) {
+            console.error('Failed to load existing zones:', e);
+        }
+    }
+
+    async function reverseGeocodeAndAdd(layer) {
+        try {
+            const latlng = layer.getBounds().getCenter();
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latlng.lat}&lon=${latlng.lng}&format=json`);
+            const data = await res.json();
+            const name = data.display_name || `Custom Zone ${selectedZones.length + 1}`;
+            
+            const zoneData = {
+                name: name.substring(0, 100),
+                polygon: layer.toGeoJSON(),
+                risk_score: 0.1,
+                risk_threshold: 0.65,
+                is_custom: true
+            };
+            
+            selectedZones.push(zoneData);
+            layer.zoneData = zoneData;
+            refreshSelectedList();
+        } catch (e) {
+            console.error('Reverse geocoding failed:', e);
+            const zoneData = {
+                name: `Custom Zone ${selectedZones.length + 1}`,
+                polygon: layer.toGeoJSON(),
+                risk_score: 0.1,
+                risk_threshold: 0.65,
+                is_custom: true
+            };
+            selectedZones.push(zoneData);
+            layer.zoneData = zoneData;
+            refreshSelectedList();
+        }
+    }
+
+    async function performSearch(q) {
+        const res = await fetch(`/api/v1/global-search/?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        const container = document.getElementById('search-results');
+        
+        if (!data.results.length) {
+            container.innerHTML = '<p style="color:#6B7A8D;">No results found.</p>';
+            return;
+        }
+
+        container.innerHTML = data.results.map(zone => `
+            <div class="search-result-item">
+                <strong>${zone.name}</strong>
+                <span>Risk: ${zone.risk_score}</span>
+                <button class="btn btn-sm btn-primary" data-zone-id="${zone.id}">Select</button>
+                <button class="btn btn-sm btn-secondary" data-zone-id="${zone.id}">Locate</button>
+            </div>
+        `).join('');
+
+        container.querySelectorAll('.search-result-item button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = parseInt(this.dataset.zoneId);
+                const action = this.textContent.trim().toLowerCase();
+                if (action === 'select') {
+                    selectZoneById(id);
+                } else if (action === 'locate') {
+                    locateZoneById(id);
+                }
+            });
+        });
+    }
+
+    async function selectZoneById(id) {
+        const res = await fetch(`/api/v1/zones/${id}/`);
+        const zone = await res.json();
+        selectedZones.push(zone);
+        refreshSelectedList();
+        
+        if (zone.polygon) {
+            const layer = L.geoJSON(zone.polygon, {
+                style: { color: '#2E75B6', weight: 3 }
+            });
+            layer.addTo(drawnItems);
+            map.fitBounds(layer.getBounds());
+        }
+    }
+
+    function locateZoneById(id) {
+        fetch(`/api/v1/zones/${id}/`).then(r => r.json()).then(zone => {
+            if (zone.centroid) {
+                const lat = Array.isArray(zone.centroid) ? zone.centroid[1] : zone.centroid.lat;
+                const lon = Array.isArray(zone.centroid) ? zone.centroid[0] : zone.centroid.lng;
+                map.setView([lat, lon], 12);
+            }
+        });
+    }
+
+    async function addPresetZone(name) {
+        const res = await fetch(`/api/v1/global-search/?q=${encodeURIComponent(name)}`);
+        const data = await res.json();
+        const zone = data.results.find(z => z.name === name);
+        if (zone) {
+            selectedZones.push(zone);
+            refreshSelectedList();
+            locateZoneById(zone.id);
+        } else {
+            alert('Region not found. Please search for it first.');
+        }
+    }
+
+    function refreshSelectedList() {
+        const container = document.getElementById('selected-zones-list');
+        if (!selectedZones.length) {
+            container.innerHTML = '<p style="color:#6B7A8D;">No zones selected yet.</p>';
+            return;
+        }
+
+        container.innerHTML = selectedZones.map((zone, idx) => `
+            <div class="selected-zone-item">
+                <span>${zone.name}</span>
+                <button class="btn btn-sm btn-danger" data-index="${idx}">Remove</button>
+            </div>
+        `).join('');
+
+        container.querySelectorAll('.selected-zone-item button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idx = parseInt(this.dataset.index);
+                selectedZones.splice(idx, 1);
+                drawnItems.clearLayers();
+                selectedZones.forEach(z => {
+                    if (z.polygon) {
+                        const layer = L.geoJSON(z.polygon, {
+                            style: { color: '#2E75B6', weight: 3 }
+                        });
+                        layer.addTo(drawnItems);
+                    }
+                });
+                refreshSelectedList();
+            });
+        });
+    }
+
+    async function saveSelectedZones() {
+        if (!selectedZones.length) {
+            alert('Please select at least one zone.');
+            return;
+        }
+
+        const payload = {
+            zones: selectedZones.map(z => ({
+                name: z.name,
+                polygon: z.polygon,
+                risk_score: z.risk_score || 0.1,
+                risk_threshold: z.risk_threshold || 0.65,
+            }))
+        };
+
+        const res = await fetch('/api/v1/zone-selection/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert('Zones saved successfully!');
+            selectedZones = [];
+            drawnItems.clearLayers();
+            refreshSelectedList();
+        } else {
+            alert('Failed to save zones.');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', initMap);
+})();
+</script>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.map-selection-page { padding: 24px; }
+.map-selection-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.map-selection-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.map-selection-layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
+.map-selection-sidebar { display: flex; flex-direction: column; }
+.map-selection-main { min-height: 600px; }
+.selection-map { height: 600px; border-radius: 8px; }
+.search-result-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+.selected-zone-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+#region-search { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; }
+#search-results { max-height: 300px; overflow-y: auto; }
+@media (max-width: 768px) {
+    .map-selection-layout { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}

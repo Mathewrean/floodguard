@@ -25,6 +25,7 @@ urlpatterns = [
     path('reports/', views.report_list, name='report_list'),
     path('alerts/history/', views.alert_history, name='alert_history'),
     path('map/', views.map_view, name='map_view'),
+    path('map-selection/', views.map_selection_view, name='map_selection'),
     path('safe-route/', views.safe_route_page, name='safe_route'),
     path('health/', views.health_view, name='health'),
     path('favicon.ico', views.favicon_view, name='favicon'),
@@ -41,5 +42,6 @@ urlpatterns = [
     path('api/v1/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
     path('api/v1/global-search/', views.api_global_search, name='api-global-search'),
     path('api/v1/nearby-zones/', views.api_nearby_zones, name='api-nearby-zones'),
+    path('api/v1/zone-selection/', views.api_zone_selection, name='api-zone-selection'),
     path('api/v1/', include(router.urls)),
 ]

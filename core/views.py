@@ -1018,6 +1018,11 @@ def map_view(request):
     return render(request, 'map.html', context)
 
 
+def map_selection_view(request):
+    """Interactive map selection page"""
+    return render(request, 'map_selection.html')
+
+
 def safe_route_page(request):
     """Safe-route navigation prototype."""
     return render(request, 'safe_route.html')
@@ -1141,10 +1146,51 @@ def api_nearby_zones(request):
             'risk_score': round(float(zone.risk_score or 0), 3),
             'risk_threshold': round(float(zone.risk_threshold or 0), 3),
             'centroid': [zone.polygon.centroid.x, zone.polygon.centroid.y] if zone.polygon else None,
-            'distance_approx_km': round(user_point.distance(zone.polygon.centroid) * 111, 1),
+            'distance_approx_km': round(float(zone.polygon.distance(user_point) * 111.32), 1) if zone.polygon else None,
         })
 
     return JsonResponse({'zones': data, 'count': len(data)})
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def api_zone_selection(request):
+    """Save selected zones from interactive map."""
+    zones_data = request.data.get('zones', [])
+    
+    if not zones_data:
+        return Response({'error': 'No zones provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+    saved_zones = []
+    for zone_data in zones_data:
+        try:
+            from django.contrib.gis.geos import Polygon
+            polygon = Polygon(zone_data['polygon']['coordinates'][0], srid=4326)
+            
+            zone, created = AlertZone.objects.get_or_create(
+                name=zone_data['name'],
+                defaults={
+                    'polygon': polygon,
+                    'risk_score': zone_data.get('risk_score', 0.1),
+                    'risk_threshold': zone_data.get('risk_threshold', 0.65),
+                }
+            )
+            
+            if not created:
+                zone.polygon = polygon
+                zone.risk_score = zone_data.get('risk_score', zone.risk_score)
+                zone.risk_threshold = zone_data.get('risk_threshold', zone.risk_threshold)
+                zone.save()
+            
+            saved_zones.append({
+                'id': zone.id,
+                'name': zone.name,
+                'created': created,
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({'saved_zones': saved_zones}, status=status.HTTP_201_CREATED)
 
 
 def _parse_dynamic_zone_payload(request):
