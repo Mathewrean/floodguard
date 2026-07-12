@@ -79,6 +79,28 @@ FloodGuard follows a modern, scalable architecture:
 git clone https://github.com/your-org/floodguard.git
 cd floodguard
 
+# One-command setup and startup
+scripts/init_project.sh
+```
+
+The initializer creates `.env` from `.env.example` when needed, provisions `floodguard-env`, installs dependencies, starts PostgreSQL/Redis or Docker Compose services, runs migrations, collects static files, and starts Django/Celery.
+
+Useful variants:
+
+```bash
+# Validate local prerequisites without starting services
+scripts/init_project.sh --check-only
+
+# Force Docker Compose mode
+scripts/init_project.sh --mode docker
+
+# Force local virtualenv/system-service mode
+scripts/init_project.sh --mode local --detach
+```
+
+### Manual Setup
+
+```bash
 # Create virtual environment
 python3.11 -m venv floodguard-env
 source floodguard-env/bin/activate  # On Windows: floodguard-env\Scripts\activate

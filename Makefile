@@ -3,12 +3,15 @@ VENV_DIR ?= floodguard-env
 VENV_PYTHON := $(VENV_DIR)/bin/python
 VENV_PIP := $(VENV_DIR)/bin/pip
 
-.PHONY: help install migrate run test lint format security-check docker-build docker-up docker-down clean
+.PHONY: help bootstrap install migrate run test lint format security-check docker-build docker-up docker-down clean
 
 help:  ## Show this help message
 	@echo 'FloodGuard Makefile Commands:'
 	@echo ''
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+bootstrap:  ## One-command setup and startup
+	./scripts/init_project.sh
 
 install:  ## Install Python dependencies in virtual environment
 	$(PYTHON) -m venv $(VENV_DIR)
