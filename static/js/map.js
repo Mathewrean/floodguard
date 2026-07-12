@@ -378,7 +378,7 @@ function locateUser(map) {
                 }
 
                 map.setView(latLng, accuracy < 500 ? 15 : 13);
-                fetchLiveZoneForLocation(latitude, longitude, map);
+                fetchLiveZoneForLocation(latitude, longitude, map, accuracy);
                 resolve(latLng);
             },
             (err) => {
@@ -398,14 +398,29 @@ function locateUser(map) {
     });
 }
 
-async function fetchLiveZoneForLocation(lat, lon, map) {
+async function fetchLiveZoneForLocation(lat, lon, map, accuracy = null) {
     try {
-        const res = await fetch(`/api/v1/dynamic-zone/?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+        const payload = { lat, lon, accuracy };
+        const res = await fetch('/api/v1/dynamic-zone/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': typeof getCookie === 'function' ? getCookie('csrftoken') : ''
+            },
+            body: JSON.stringify(payload)
+        });
         if (!res.ok) return;
         const data = await res.json();
 
-        if (data.has_zone && Array.isArray(data.zones) && data.zones.length) {
-            const zone = [...data.zones].sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))[0];
+        if (data.has_zone) {
+            const zone = Array.isArray(data.zones) && data.zones.length
+                ? [...data.zones].sort((a, b) => Number(b.risk_score || 0) - Number(a.risk_score || 0))[0]
+                : {
+                    id: data.zone_id,
+                    name: data.zone_name,
+                    risk_score: data.risk_score,
+                    risk_threshold: data.risk_threshold
+                };
             const score = Number(zone.risk_score || 0);
             const band = getRiskBand(score);
             const colour = band.colour;
@@ -418,7 +433,7 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
                         <div style="margin:6px 0">
                             <span style="font-size:12px;color:${colour};font-weight:700">${band.label} - ${(score * 100).toFixed(0)}%</span>
                         </div>
-                        <small style="color:#6B7A8D">You are inside a mapped flood zone.</small>
+                        <small style="color:#6B7A8D">${data.created_zone ? 'Live zone created from your GPS area.' : 'You are inside a mapped flood zone.'}</small>
                     </div>
                 `)
                 .openOn(map);
@@ -447,7 +462,7 @@ async function fetchLiveZoneForLocation(lat, lon, map) {
                             </div>
                             <span style="font-size:12px;color:${colour};font-weight:700">${pct}% - ${safeHTML(data.severity || band.label)}</span>
                         </div>
-                        <small style="color:#6B7A8D">Live assessment - Open-Meteo</small>
+                        <small style="color:#6B7A8D">Live assessment from FloodGuard sources</small>
                     </div>
                 `)
                 .openOn(map);

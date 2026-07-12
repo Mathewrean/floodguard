@@ -550,12 +550,14 @@ FloodGuard provides a comprehensive REST API at `/api/`
 | Endpoint | Method | Description | Access |
 |----------|--------|-------------|--------|
 | `/api/zones/` | GET | List all flood zones | Public |
-| `/api/zones/{id}/` | GET | Zone details | Public |
-| `/api/zones/{id}/override/` | POST | Manual override (Authority/Admin) | Restricted |
+| `/api/zones/{{id}}/` | GET | Zone details | Public |
+| `/api/zones/{{id}}/override/` | POST | Manual override (Authority/Admin) | Restricted |
 | `/api/readings/` | GET | Latest flood readings | Public |
 | `/api/reports/` | GET/POST | Incident reports (POST unauthenticated) | Public/Citizen |
 | `/api/alerts/` | GET | Alert history | Authenticated |
 | `/api/stats/` | GET | Dashboard statistics | Authenticated |
+| `/api/v1/dynamic-zone/` | GET | Read-only live assessment for submitted coordinates | Public |
+| `/api/v1/dynamic-zone/` | POST | Create or refresh a dynamic zone from browser GPS coordinates | Public, rate limited |
 
 ### WebSocket Endpoints
 
@@ -575,6 +577,29 @@ curl -X POST http://localhost:8000/api-token-auth/ \\
 # Use token
 curl -H "Authorization: Token YOUR_TOKEN" http://localhost:8000/api/zones/
 ```
+
+---
+
+## Dynamic GPS Zones
+
+FloodGuard defaults map views to Nairobi. When a user grants browser geolocation permission, the frontend captures `latitude`, `longitude`, and optional `accuracy` with `navigator.geolocation.getCurrentPosition()`, then sends the values to `POST /api/v1/dynamic-zone/` as JSON.
+
+The backend validates the coordinate range and configured `GEO_BOUNDS`, checks whether an existing `AlertZone` covers the point, and only creates or refreshes a dynamic zone when no mapped zone already applies. `GET /api/v1/dynamic-zone/?lat=...&lon=...` remains read-only for live assessment and does not mutate stored zones.
+
+Example request:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/dynamic-zone/ \\
+  -H "Content-Type: application/json" \\
+  -d '{{"lat": -1.287, "lon": 36.821, "accuracy": 45}}'
+```
+
+Privacy and security notes:
+- Browser permission denial falls back to Nairobi and does not send GPS data.
+- Dynamic zone creation is rate limited and bounded by `GEO_BOUNDS`.
+- Exact GPS coordinates are sent only to the same-origin API; CSP already allows `connect-src 'self'`.
+- `Permissions-Policy: geolocation=(self)` allows location access only for the FloodGuard origin.
+- Use HTTPS in production, because browser geolocation is restricted to secure contexts.
 
 ---
 
@@ -677,8 +702,9 @@ Configure these in production:
 | `DB_PASSWORD` | Database password | (required) |
 | `DB_HOST` | Database host | db |
 | `REDIS_URL` | Redis connection | redis://redis:6379/0 |
-| `AFRICAS_TALKING_USERNAME` | SMS API username | (required for SMS) |
-| `AFRICAS_TALKING_API_KEY` | SMS API key | (required for SMS) |
+| `AFRICASTALKING_USERNAME` | SMS API username | (required for SMS) |
+| `AFRICASTALKING_API_KEY` | SMS API key | (required for SMS) |
+| `GEO_BOUNDS` | Allowed dynamic-zone bounds as min_lon,min_lat,max_lon,max_lat | 33.0,-5.0,42.0,5.0 |
 
 ---
 

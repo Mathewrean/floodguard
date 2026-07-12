@@ -94,24 +94,45 @@ class TestDynamicZoneAPI:
     def setup_method(self):
         self.client = APIClient()
 
-    def test_dynamic_zone_creates_zone_from_current_location(self, mocker):
-        flood_payload = SimpleNamespace(
-            raise_for_status=lambda: None,
-            json=lambda: {'daily': {'river_discharge': [12.5]}}
-        )
+    def test_dynamic_zone_post_creates_zone_from_current_location(self, mocker):
         geo_payload = SimpleNamespace(
             raise_for_status=lambda: None,
             json=lambda: {'address': {'suburb': 'Westlands'}}
         )
-        mocker.patch('requests.get', side_effect=[flood_payload, geo_payload])
+        mocker.patch('requests.get', return_value=geo_payload)
+        mocker.patch(
+            'core.views.build_risk_feature_vector',
+            return_value={'sources_available': 3, 'data_confidence': 'high'},
+        )
+        mocker.patch('core.analytics.scoring.calculate_risk_score', return_value=0.72)
 
-        response = self.client.get(reverse('dynamic-zone'), {'lat': -1.287, 'lon': 36.821})
+        response = self.client.post(
+            reverse('dynamic-zone'),
+            {'lat': -1.287, 'lon': 36.821, 'accuracy': 45},
+            format='json',
+        )
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data['has_zone'] is True
         assert response.data['created_zone'] is True
-        assert response.data['zone_name'] == 'Westlands'
+        assert response.data['zone_name'] == 'Dynamic Zone - Westlands'
         assert AlertZone.objects.count() == 1
+
+    def test_dynamic_zone_get_is_read_only_live_assessment(self, mocker):
+        mocker.patch('requests.get', side_effect=Exception('reverse geocoder unavailable'))
+        mocker.patch(
+            'core.views.build_risk_feature_vector',
+            return_value={'sources_available': 1, 'data_confidence': 'low'},
+        )
+        mocker.patch('core.analytics.scoring.calculate_risk_score', return_value=0.25)
+
+        response = self.client.get(reverse('dynamic-zone'), {'lat': -1.287, 'lon': 36.821})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data['has_zone'] is False
+        assert response.data['created_zone'] is False
+        assert response.data['live_assessment'] is True
+        assert AlertZone.objects.count() == 0
 
 
 @pytest.mark.django_db
