@@ -44,40 +44,31 @@ class AlertZone(models.Model):
         """Check if manual override is currently active"""
         if not self.manual_override_active:
             return False
-        if self.manual_override_until and timezone.now() > self.manual_override_until:
-            # Override has expired, deactivate it
-            self.manual_override_active = False
-            self.manual_override_until = None
-            self.save(update_fields=['manual_override_active', 'manual_override_until'])
-            return False
+        if self.manual_override_until:
+            return timezone.now() < self.manual_override_until
         return True
 
     def clean(self):
         """Validate the alert zone"""
         super().clean()
         if self.polygon:
-            # Check if polygon is valid
             if not self.polygon.valid:
                 raise ValidationError({'polygon': 'Invalid polygon geometry'})
             
-            # Check if polygon is within configured geographic bounds
-            # Settings: GEO_BOUNDS = min_lon,min_lat,max_lon,max_lat
             bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
             if len(bounds) == 4:
-                allowed_bounds = Polygon.from_bbox(tuple(bounds))  # (min_lon, min_lat, max_lon, max_lat)
+                allowed_bounds = Polygon.from_bbox(tuple(bounds))
                 if not self.polygon.within(allowed_bounds):
                     raise ValidationError({
                         'polygon': f'Polygon must be within allowed geographic bounds ({bounds})'
                     })
 
     def save(self, *args, **kwargs):
-        """Override save to run validation and auto-deactivate expired overrides"""
-        # Auto-deactivate manual override if expired
+        """Override save to auto-deactivate expired overrides"""
         if self.manual_override_active and self.manual_override_until:
             if timezone.now() > self.manual_override_until:
                 self.manual_override_active = False
                 self.manual_override_until = None
-        self.full_clean()
         super().save(*args, **kwargs)
 
     class Meta:

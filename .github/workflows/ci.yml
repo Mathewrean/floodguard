@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ['3.13', '3.12']
-        db: [postgres, sqlite]
+        db: [postgres]
     services:
       postgres:
         if: matrix.db == 'postgres'

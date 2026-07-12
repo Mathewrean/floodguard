@@ -32,11 +32,13 @@ staticfiles/
 *.pid
 
 # Celery and Redis runtime artifacts
+celerybeat-schedule.db
 celerybeat-schedule
 celery.pid
 celery*.log
 dump.rdb
 *.rdb
+*.pid
 
 # Test, lint, and coverage output
 .pytest_cache/

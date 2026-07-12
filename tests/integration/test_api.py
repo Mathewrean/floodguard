@@ -95,6 +95,8 @@ class TestDynamicZoneAPI:
         self.client = APIClient()
 
     def test_dynamic_zone_post_creates_zone_from_current_location(self, mocker):
+        user = UserFactory()
+        self.client.force_authenticate(user=user)
         geo_payload = SimpleNamespace(
             raise_for_status=lambda: None,
             json=lambda: {'address': {'suburb': 'Westlands'}}
@@ -139,6 +141,8 @@ class TestDynamicZoneAPI:
 class TestRateLimiting:
     def setup_method(self):
         self.client = APIClient()
+        from django.core.cache import cache
+        cache.clear()
 
     def test_rate_limiter_429_after_10_submissions(self):
         url = reverse('incidentreport-list')
@@ -196,6 +200,9 @@ class TestAIFloodAnalysisAPI:
         settings.TOMORROW_IO_API_KEY = 'test-tomorrow-key'
         settings.WEATHERAPI_KEY = 'test-weatherapi-key'
         settings.NASA_EARTHDATA_TOKEN = 'test-nasa-token'
+
+        admin = UserFactory(is_staff=True, is_superuser=True)
+        self.client.force_authenticate(user=admin)
 
         zone = AlertZoneFactory(risk_score=0.5)
 

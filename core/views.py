@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import math
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
-from .permissions import is_authority_user
+from .permissions import is_authority_user, IsAuthority
 from django.contrib.gis.geos import LineString, Point, Polygon
 from datetime import timedelta
 import logging
@@ -56,13 +56,21 @@ class DynamicZoneThrottle(AnonRateThrottle):
     rate = '60/hour'
 
 
+class AIAnalysisThrottle(UserRateThrottle):
+    """Rate limit AI analysis to prevent Groq quota exhaustion."""
+    rate = '10/minute'
+
+
+class StandardPagination(LimitOffsetPagination):
+    default_limit = 100
+    max_limit = 500
+
+
 class AlertZoneViewSet(viewsets.ModelViewSet):
     queryset = AlertZone.objects.all().prefetch_related('alert_logs').order_by('-risk_score', 'name')
     serializer_class = AlertZoneSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    pagination_class = LimitOffsetPagination
-    pagination_class.default_limit = 100
-    pagination_class.max_limit = 500
+    pagination_class = StandardPagination
     throttle_classes = [MonitoringRateThrottle]
 
     def get_queryset(self):
@@ -317,13 +325,11 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'create']:
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        if self.action == 'create':
             return [permissions.AllowAny()]
-        if self.action in ['update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated()]
-        if self.action == 'verify':
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticated()]
+        return [IsAuthority()]
 
     def get_throttles(self):
         if self.action == 'create':
@@ -353,7 +359,7 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertLog.objects.all().select_related('alert_zone').order_by('-triggered_at')
     serializer_class = AlertLogSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
     throttle_classes = [MonitoringRateThrottle]
 
@@ -442,9 +448,8 @@ def _selected_analysis_location(request, zones, latest_reading):
 
 
 @api_view(['POST'])
-@csrf_exempt
-@permission_classes([permissions.AllowAny])
-@throttle_classes([])
+@permission_classes([permissions.IsAuthenticated])
+@throttle_classes([AIAnalysisThrottle])
 def ai_flood_analysis(request):
     import json
 
@@ -1161,6 +1166,11 @@ def dynamic_zone_check(request):
     GET is non-mutating. POST creates or refreshes a dynamic zone when no mapped
     zone already covers the submitted coordinate.
     """
+    if request.method == 'POST' and not request.user.is_authenticated:
+        return Response(
+            {'error': 'Authentication required'},
+            status=401
+        )
     try:
         lat, lon, accuracy = _parse_dynamic_zone_payload(request)
     except ValueError as exc:

@@ -6,15 +6,31 @@ from core.models import AlertZone, FloodReading, IncidentReport, AlertLog, UserP
 import requests
 import json
 import redis
+import joblib
 from django.conf import settings
 import logging
 from core.alerts.email import send_email_alert
 from core.data_sources.aggregator import build_risk_feature_vector
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 logger = logging.getLogger(__name__)
 
 # Initialize Redis connection lazily to avoid import-time failures when Redis is unavailable.
 redis_client = None
+
+_FLOOD_MODEL = None
+
+
+def get_flood_model():
+    global _FLOOD_MODEL
+    if _FLOOD_MODEL is None:
+        try:
+            _FLOOD_MODEL = joblib.load(settings.FLOOD_MODEL_PATH)
+        except Exception as e:
+            logger.error(f"Model load failed: {e}")
+            raise
+    return _FLOOD_MODEL
 
 
 def get_redis_client():
@@ -48,19 +64,34 @@ def fetch_flood_api(zone_id):
         discharge = float(features.get('river_discharge') or 0)
 
         from core.analytics.scoring import calculate_risk_score
-        risk_score = calculate_risk_score(features)
+        score = calculate_risk_score(zone.id)
+        if score >= zone.risk_threshold:
+            dispatch_alerts.delay(zone.id, score)
         source_count = int(features.get('sources_available', 0) or 0)
         source_name = 'multi_source' if source_count > 1 else 'open_meteo'
         FloodReading.objects.create(
             location=Point(lon, lat, srid=4326),
             water_level_metres=round(discharge / 100.0, 2),
-            risk_score=risk_score,
+            risk_score=score,
             source=source_name,
             verified=source_count > 0,
             metadata=features,
         )
-        zone.risk_score = risk_score
+        zone.risk_score = score
         zone.save(update_fields=['risk_score', 'updated_at'])
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            'flood_map_updates',
+            {
+                'type': 'flood.update',
+                'zone_id': zone.id,
+                'zone_name': zone.name,
+                'risk_score': float(zone.risk_score),
+                'severity': 'CRITICAL' if score > 0.85 else 'HIGH' if score > 0.7 else 'MODERATE' if score > 0.4 else 'LOW',
+                'timestamp': timezone.now().isoformat(),
+            }
+        )
         logger.info("Successfully fetched and stored multi-source flood data for zone %s", zone.name)
 
     except Exception as e:
@@ -88,7 +119,7 @@ def run_risk_scoring(reading_id):
     try:
         if reading.metadata:
             from core.analytics.scoring import calculate_risk_score
-            risk_score = calculate_risk_score(reading.metadata)
+            risk_score = calculate_risk_score(zone.id)
         else:
             import datetime
 
@@ -133,7 +164,7 @@ def run_risk_scoring(reading_id):
                 data_confidence = 'low'
 
             try:
-                model = joblib.load(settings.FLOOD_MODEL_PATH)
+                model = get_flood_model()
             except (FileNotFoundError, Exception):
                 raise RuntimeError('ML model not available')
 
@@ -151,6 +182,8 @@ def run_risk_scoring(reading_id):
             if data_confidence == 'low':
                 raw_score *= 0.75
             risk_score = max(0.0, min(1.0, raw_score))
+            if risk_score >= zone.risk_threshold:
+                dispatch_alerts.delay(zone.id, risk_score)
 
         # The task keeps the specific reading in sync with the final score.
         reading.risk_score = risk_score
@@ -230,6 +263,19 @@ def dispatch_alerts(zone_id, risk_score):
         alert_logs_created.append(alert_log)
     
     logger.info(f"Alert dispatch completed for zone {zone.name} with risk score {risk_score}. Sent to {len(alert_logs_created)} recipients")
+
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        'alert_updates',
+        {
+            'type': 'alert_message',
+            'zone': zone.name,
+            'severity': severity_label,
+            'message': message,
+            'risk_score': risk_score,
+            'timestamp': timezone.now().isoformat(),
+        }
+    )
     return alert_logs_created
 
 
@@ -458,3 +504,11 @@ def calculate_discharge_risk(discharge):
     if discharge < 80:
         return 0.80 + ((discharge - 30.0) / 50.0) * 0.15
     return 0.98
+
+
+@shared_task
+def expire_manual_overrides():
+    AlertZone.objects.filter(
+        manual_override_active=True,
+        manual_override_until__lt=timezone.now()
+    ).update(manual_override_active=False, manual_override_until=None)

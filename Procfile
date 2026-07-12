@@ -1,3 +1,5 @@
-web: DJANGO_SETTINGS_MODULE=floodguard.settings_production daphne -b 0.0.0.0 -p $PORT floodguard.asgi:application
-worker: DJANGO_SETTINGS_MODULE=floodguard.settings_production celery -A floodguard worker --loglevel=warning --without-gossip --without-mingle
-beat: DJANGO_SETTINGS_MODULE=floodguard.settings_production celery -A floodguard beat --loglevel=warning --schedule=/tmp/celerybeat-schedule
+web: gunicorn floodguard.asgi:application \
+  -w 4 -k uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:$PORT
+worker: celery -A floodguard worker --loglevel=warning
+beat: celery -A floodguard beat --loglevel=warning

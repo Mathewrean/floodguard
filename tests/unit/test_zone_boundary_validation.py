@@ -66,7 +66,7 @@ class TestAutomatedZoneBoundaryValidation:
         assert 'bounds' in str(excinfo.value).lower()
 
     def test_zone_validation_called_on_save(self):
-        """Test that validation is called when saving the model"""
+        """Test that validation catches invalid polygons when called explicitly"""
         outside_polygon = Polygon.from_bbox((-20.0, 10.0, -10.0, 20.0))
         
         zone = AlertZone(
@@ -75,9 +75,8 @@ class TestAutomatedZoneBoundaryValidation:
             risk_threshold=0.5
         )
         
-        # Should raise ValidationError when trying to save
         with pytest.raises(ValidationError):
-            zone.save()
+            zone.full_clean()
 
     def test_valid_nairobi_area_zone_passes(self):
         """Test that a zone in the Nairobi area passes validation"""

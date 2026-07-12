@@ -23,6 +23,11 @@ class AlertZoneSerializer(serializers.ModelSerializer):
         centroid = obj.polygon.centroid
         return [centroid.x, centroid.y]
 
+    def validate(self, data):
+        instance = AlertZone(**data)
+        instance.full_clean()
+        return data
+
 
 class FloodReadingSerializer(serializers.ModelSerializer):
     class Meta:

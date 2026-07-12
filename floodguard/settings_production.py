@@ -10,7 +10,7 @@ from .settings import *  # noqa
 DEBUG = False
 
 # Allowed hosts for production - configure via ALLOWED_HOSTS env var
-ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', cast=csv_config)
+ALLOWED_HOSTS = project_config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=csv_config)
 
 # Security Headers
 SECURE_BROWSER_XSS_FILTER = True

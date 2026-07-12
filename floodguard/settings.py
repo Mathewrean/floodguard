@@ -3,48 +3,22 @@ import ssl
 from pathlib import Path
 from decouple import config
 import dj_database_url
+from celery.schedules import crontab
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_FILES = (
-    BASE_DIR / '.local' / '.env.local',
-    BASE_DIR / '.env',
-)
-
-
-def _project_env():
-    values = {}
-    for env_file in ENV_FILES:
-        if not env_file.exists():
-            continue
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith('#') or '=' not in line:
-                continue
-            key, value = line.split('=', 1)
-            values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
-
-
-PROJECT_ENV = _project_env()
 
 
 def project_config(key, default=None, cast=None):
-    value = os.environ.get(key)
-    if value is None:
-        value = PROJECT_ENV.get(key)
-    if value is None:
-        value = config(key, default=default)
-    if value is None:
+    try:
+        if cast is not None:
+            return config(key, default=default, cast=cast)
+        return config(key, default=default)
+    except Exception:
+        if default is not None:
+            return default
         return None
-    if cast is bool:
-        if isinstance(value, bool):
-            return value
-        return str(value).lower() in {'1', 'true', 'yes', 'on'}
-    if cast:
-        return cast(value)
-    return value
 
 
 def csv_config(value):
@@ -157,7 +131,28 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
-CELERY_BEAT_SCHEDULE = {}
+CELERY_BEAT_SCHEDULE = {
+    'fetch-flood-api': {
+        'task': 'core.tasks.fetch_flood_api',
+        'schedule': 900,  # every 15 minutes
+    },
+    'run-risk-scoring': {
+        'task': 'core.tasks.run_risk_scoring',
+        'schedule': 900,  # every 15 minutes
+    },
+    'generate-7day-forecasts': {
+        'task': 'core.tasks.generate_7day_forecasts',
+        'schedule': crontab(hour='*/6'),  # every 6 hours
+    },
+    'cluster-incident-reports': {
+        'task': 'core.tasks.cluster_recent_reports',
+        'schedule': crontab(hour='*/3'),  # every 3 hours
+    },
+    'expire-overrides': {
+        'task': 'core.tasks.expire_manual_overrides',
+        'schedule': 300,  # every 5 minutes
+    },
+}
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300
 # Concurrency will be set via --concurrency flag in Railway
@@ -171,6 +166,12 @@ CHANNEL_LAYERS = {
         "CONFIG": {
             "hosts": [REDIS_URL],
         },
+    }
+}
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
     }
 }
 
@@ -255,6 +256,8 @@ SECURE_HSTS_PRELOAD = project_config('SECURE_HSTS_PRELOAD', default=False, cast=
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
