@@ -2,13 +2,14 @@ from django.urls import include, path
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 from . import views
-from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet
+from .views import AlertZoneViewSet, FloodReadingViewSet, IncidentReportViewSet, AlertLogViewSet, FloodPredictionViewSet
 
 router = DefaultRouter()
 router.register(r'zones', AlertZoneViewSet)
 router.register(r'readings', FloodReadingViewSet)
 router.register(r'reports', IncidentReportViewSet)
 router.register(r'alerts', AlertLogViewSet)
+router.register(r'predictions', FloodPredictionViewSet)
 
 urlpatterns = [
     # Landing page and user interface routes

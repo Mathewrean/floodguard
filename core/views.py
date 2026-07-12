@@ -8,7 +8,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
 import math
-from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile
+from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction
 from .permissions import is_authority_user, IsAuthority
 from django.contrib.gis.geos import LineString, Point, Polygon
 from datetime import timedelta
@@ -361,6 +361,14 @@ class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AlertLogSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
+    throttle_classes = [MonitoringRateThrottle]
+
+
+class FloodPredictionViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = FloodPrediction.objects.all().select_related('zone').order_by('-predicted_at', 'target_date')
+    serializer_class = FloodPredictionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardPagination
     throttle_classes = [MonitoringRateThrottle]
 
 
