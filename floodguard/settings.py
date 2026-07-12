@@ -152,6 +152,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.expire_manual_overrides',
         'schedule': 300,  # every 5 minutes
     },
+    'sync-dynamic-zones': {
+        'task': 'core.tasks.sync_dynamic_zones',
+        'schedule': 3600,  # every hour
+    },
 }
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300

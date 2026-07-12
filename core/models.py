@@ -360,3 +360,41 @@ class FloodPrediction(models.Model):
 
     def __str__(self):
         return f"Prediction for {self.zone.name} on {self.target_date}"
+
+
+class AlertZoneActivity(models.Model):
+    """
+    Tracks user interactions with zones for dynamic zone management.
+    This model enables the system to:
+    - Record when users check in to zones via GPS
+    - Determine which zones are actively used
+    - Support dynamic zone creation based on user density
+    """
+    SOURCE_CHOICES = [
+        ('static', 'Static / Predefined'),
+        ('dynamic', 'Dynamic / GPS-derived'),
+        ('user', 'User-created'),
+        ('imported', 'Imported'),
+    ]
+
+    zone = models.ForeignKey(AlertZone, on_delete=models.CASCADE, related_name='activities')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='zone_activities', null=True, blank=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='dynamic')
+    latitude = models.FloatField(help_text="User's latitude at check-in")
+    longitude = models.FloatField(help_text="User's longitude at check-in")
+    accuracy_meters = models.FloatField(null=True, blank=True, help_text="GPS accuracy in meters")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['zone', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['source']),
+            models.Index(fields=['-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Activity: {self.zone.name} at {self.created_at}"

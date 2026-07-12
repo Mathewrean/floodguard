@@ -101,22 +101,35 @@ async function initLocationButton() {
 
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
 
-            const data = await fetchJSON(`/api/v1/nearby-zones/?lat=${lat}&lon=${lon}&limit=10`);
+            const data = await fetchJSON(`/api/v1/user-zone/?lat=${lat}&lon=${lon}`);
             const tableBody = document.getElementById('global-search-table');
             const resultsDiv = document.getElementById('global-search-results');
 
-            if (tableBody && resultsDiv) {
-                tableBody.innerHTML = data.zones.length ? data.zones.map(zone => {
-                    const band = getRiskBand(zone.risk_score);
-                    return `<tr>
-                        <td><strong>${zone.name}</strong><br><small>${zone.distance_approx_km} km away</small></td>
+            if (!data.has_zone && data.live_assessment) {
+                const band = getRiskBand(data.risk_score);
+                if (tableBody && resultsDiv) {
+                    tableBody.innerHTML = `<tr>
+                        <td><strong>${data.zone_name}</strong><br><small>Live assessment</small></td>
+                        <td style="color:${band.colour};font-weight:bold;">${band.label} (${data.risk_score})</td>
+                        <td>${data.risk_threshold}</td>
+                        <td><span class="badge low">DYNAMIC</span></td>
+                    </tr>`;
+                    resultsDiv.style.display = 'block';
+                }
+            } else if (data.has_zone) {
+                const zone = data.zone;
+                const band = getRiskBand(zone.risk_score);
+                if (tableBody && resultsDiv) {
+                    tableBody.innerHTML = `<tr>
+                        <td><strong>${zone.name}</strong></td>
                         <td style="color:${band.colour};font-weight:bold;">${band.label} (${zone.risk_score})</td>
                         <td>${zone.risk_threshold}</td>
                         <td><a class="btn btn-sm btn-primary" href="/map/#zone-${zone.id}">View</a></td>
                     </tr>`;
-                }).join('') : '<tr><td colspan="4">No zones found near your location.</td></tr>';
-                resultsDiv.style.display = 'block';
+                    resultsDiv.style.display = 'block';
+                }
             }
         } catch (e) {
             alert('Unable to retrieve your location: ' + e.message);

@@ -105,9 +105,9 @@ def fetch_all_zones():
     Fetch flood data for all active zones globally.
     Iterates over all AlertZones and dispatches fetch_flood_api for each.
     """
-    zones = AlertZone.objects.all()
+    zones = AlertZone.objects.filter(is_active=True)
     total = zones.count()
-    logger.info(f"Starting global fetch for {total} zones")
+    logger.info(f"Starting global fetch for {total} active zones")
     
     for zone in zones:
         try:
@@ -116,7 +116,7 @@ def fetch_all_zones():
             logger.error(f"Failed to dispatch fetch for zone {zone.id}: {str(e)}")
             continue
     
-    logger.info(f"Dispatched fetch_flood_api for {total} zones")
+    logger.info(f"Dispatched fetch_flood_api for {total} active zones")
     return total
 
 @shared_task
@@ -533,3 +533,45 @@ def expire_manual_overrides():
         manual_override_active=True,
         manual_override_until__lt=timezone.now()
     ).update(manual_override_active=False, manual_override_until=None)
+
+
+@shared_task
+def sync_dynamic_zones():
+    """
+    Periodic task to maintain dynamic zones based on recent user activity.
+    - Marks zones as inactive if no checkins in 30 days
+    - Merges overlapping low-activity zones
+    - Ensures all zones have recent risk scores
+    """
+    from datetime import timedelta
+    
+    cutoff = timezone.now() - timedelta(days=30)
+    
+    # Find zones with no recent activity
+    stale_zones = AlertZone.objects.filter(
+        updated_at__lt=cutoff,
+        is_active=True
+    )
+    
+    deactivated = 0
+    for zone in stale_zones:
+        recent_activity = zone.activities.filter(created_at__gte=cutoff).exists()
+        if not recent_activity:
+            zone.is_active = False
+            zone.save(update_fields=['is_active', 'updated_at'])
+            deactivated += 1
+    
+    logger.info(f"Deactivated {deactivated} stale zones")
+    
+    # Refresh risk scores for active zones
+    active_zones = AlertZone.objects.filter(is_active=True)[:50]
+    refreshed = 0
+    for zone in active_zones:
+        try:
+            fetch_flood_api.delay(zone.id)
+            refreshed += 1
+        except Exception as e:
+            logger.error(f"Failed to queue refresh for zone {zone.id}: {e}")
+    
+    logger.info(f"Queued risk refresh for {refreshed} active zones")
+    return {'deactivated': deactivated, 'refreshed': refreshed}

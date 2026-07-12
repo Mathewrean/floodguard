@@ -53,7 +53,7 @@ FloodGuard follows a modern, scalable architecture:
             - **scikit-learn ML Model** - Flood risk prediction engine
             - **Alert Consumer** - Real-time notification system
 
-**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction
+**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction, AlertZoneActivity
 
 **API:** RESTful endpoints powered by Django REST Framework with token authentication.
 

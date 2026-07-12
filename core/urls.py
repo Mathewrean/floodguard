@@ -39,6 +39,7 @@ urlpatterns = [
     path('api/v1/safe-route/', views.safe_route_view, name='safe-route'),
     path('api/v1/safe-route/snap/', views.snap_coordinate_view, name='safe-route-snap'),
     path('api/v1/dynamic-zone/', views.dynamic_zone_check, name='dynamic-zone'),
+    path('api/v1/user-zone/', views.api_user_zone, name='user-zone'),
     path('api/v1/dashboard/stats/', views.api_dashboard_stats, name='api-dashboard-stats'),
     path('api/v1/global-search/', views.api_global_search, name='api-global-search'),
     path('api/v1/nearby-zones/', views.api_nearby_zones, name='api-nearby-zones'),

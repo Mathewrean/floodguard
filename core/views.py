@@ -1152,6 +1152,117 @@ def api_nearby_zones(request):
     return JsonResponse({'zones': data, 'count': len(data)})
 
 
+@api_view(['GET', 'POST'])
+@permission_classes([permissions.AllowAny])
+def api_user_zone(request):
+    """
+    Dynamic zone lookup/creation based on user GPS coordinates.
+    
+    GET: Returns the zone covering the given coordinates, or a live assessment
+    POST: Creates/updates a zone for the coordinates if user is authenticated
+    """
+    lat = request.GET.get('lat') or request.data.get('lat')
+    lon = request.GET.get('lon') or request.data.get('lon')
+    accuracy = request.GET.get('accuracy') or request.data.get('accuracy')
+
+    if not lat or not lon:
+        return Response({'error': 'lat and lon are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+        accuracy_f = float(accuracy) if accuracy else None
+    except (TypeError, ValueError):
+        return Response({'error': 'Invalid coordinates'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+        return Response({'error': 'Coordinates out of range'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user_point = Point(lon_f, lat_f, srid=4326)
+    matched_zones = AlertZone.objects.filter(polygon__covers=user_point).order_by('-risk_score', 'name')
+
+    if matched_zones.exists():
+        zone = matched_zones.first()
+        return Response({
+            'has_zone': True,
+            'created_zone': False,
+            'source': 'existing',
+            'zone': _zone_summary(zone),
+        })
+
+    zone_name = _dynamic_zone_name(lat_f, lon_f)
+    features, risk_score = _dynamic_risk_assessment(lat_f, lon_f, zone_name)
+    severity = (
+        'CRITICAL' if risk_score > 0.85 else
+        'HIGH' if risk_score > 0.7 else
+        'MODERATE' if risk_score > 0.4 else
+        'SAFE'
+    )
+
+    if request.method == 'GET':
+        return Response({
+            'has_zone': False,
+            'created_zone': False,
+            'live_assessment': True,
+            'zone_name': zone_name,
+            'risk_score': round(risk_score, 3),
+            'risk_threshold': max(0.2, min(0.95, risk_score)),
+            'severity': severity,
+            'source_count': int(features.get('sources_available', 0) or 0),
+            'data_confidence': features.get('data_confidence', 'low'),
+        })
+
+    if not request.user.is_authenticated:
+        return Response({'error': 'Authentication required to create zones'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    zone_polygon = _dynamic_zone_polygon(lat_f, lon_f, accuracy_f)
+    zone, created = AlertZone.objects.get_or_create(
+        name=zone_name,
+        defaults={
+            'polygon': zone_polygon,
+            'risk_threshold': max(0.2, min(0.95, risk_score)),
+            'risk_score': round(risk_score, 3),
+        }
+    )
+    if not created:
+        zone.polygon = zone_polygon
+        zone.risk_score = round(risk_score, 3)
+        zone.risk_threshold = max(0.2, min(0.95, risk_score))
+        zone.save(update_fields=['polygon', 'risk_score', 'risk_threshold', 'updated_at'])
+
+    from core.models import AlertZoneActivity
+    AlertZoneActivity.objects.create(
+        zone=zone,
+        user=request.user,
+        source='dynamic',
+        latitude=lat_f,
+        longitude=lon_f,
+        accuracy_meters=accuracy_f,
+        ip_address=get_client_ip(request),
+        user_agent=request.META.get('HTTP_USER_AGENT', '')[:255],
+    )
+
+    return Response({
+        'has_zone': True,
+        'created_zone': created,
+        'zone_id': zone.id,
+        'zone_name': zone.name,
+        'risk_score': round(float(zone.risk_score or 0), 3),
+        'risk_threshold': round(float(zone.risk_threshold or 0), 3),
+        'severity': severity,
+        'source_count': int(features.get('sources_available', 0) or 0),
+        'data_confidence': features.get('data_confidence', 'low'),
+        'message': f'Live flood assessment for {zone_name}',
+    })
+
+
+def get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR')
+
+
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def api_zone_selection(request):

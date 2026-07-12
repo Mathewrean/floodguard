@@ -30,7 +30,7 @@ GLOBAL_ZONES = [
 
 
 class Command(BaseCommand):
-    help = 'Populate database with global flood risk zones for worldwide coverage'
+    help = 'Populate database with global flood risk zones for worldwide coverage (STATIC - use sync_zones_from_activity for dynamic)'
 
     def add_arguments(self, parser):
         parser.add_argument(
