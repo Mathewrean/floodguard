@@ -349,7 +349,7 @@ class ReadmeGenerator:
 ![ Django](https://img.shields.io/badge/Django-4.2.30-green?logo=django)
 ![ DRF](https://img.shields.io/badge/DRF-3.14.0-blue)
 ![ PostGIS](https://img.shields.io/badge/PostGIS-3.4-cyan?logo=postgresql)
-![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
+![ Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
 **Last updated:** {data['generated_at'][:10]}
@@ -444,7 +444,7 @@ FloodGuard follows a modern, scalable architecture:
 
 ### Prerequisites
 
-- Python 3.13 or higher
+- Python 3.11.x
 - PostgreSQL 18+ with PostGIS extension
 - Redis 7+ (for caching and Celery broker)
 - Git
@@ -457,8 +457,8 @@ git clone https://github.com/your-org/floodguard.git
 cd floodguard
 
 # Create virtual environment
-python -m venv floodguard_env
-source floodguard_env/bin/activate  # On Windows: floodguard_env\\Scripts\\activate
+python3.11 -m venv floodguard-env
+source floodguard-env/bin/activate  # On Windows: floodguard-env\\Scripts\\activate
 
 # Install dependencies
 pip install -r requirements.txt

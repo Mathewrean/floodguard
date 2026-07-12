@@ -1,3 +1,8 @@
+PYTHON ?= python3.11
+VENV_DIR ?= floodguard-env
+VENV_PYTHON := $(VENV_DIR)/bin/python
+VENV_PIP := $(VENV_DIR)/bin/pip
+
 .PHONY: help install migrate run test lint format security-check docker-build docker-up docker-down clean
 
 help:  ## Show this help message
@@ -6,34 +11,34 @@ help:  ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install:  ## Install Python dependencies in virtual environment
-	python -m venv floodguard_env
-	. floodguard_env/bin/activate && pip install --upgrade pip
-	. floodguard_env/bin/activate && pip install -r requirements.txt
-	@echo "Dependencies installed. Activate with: source floodguard_env/bin/activate"
+	$(PYTHON) -m venv $(VENV_DIR)
+	$(VENV_PYTHON) -m pip install --upgrade pip
+	$(VENV_PYTHON) -m pip install -r requirements.txt
+	@echo "Dependencies installed. Activate with: source $(VENV_DIR)/bin/activate"
 
 migrate:  ## Apply database migrations
-	. floodguard_env/bin/activate && python manage.py migrate
+	$(VENV_PYTHON) manage.py migrate
 
 collectstatic:  ## Collect static files
-	. floodguard_env/bin/activate && python manage.py collectstatic --noinput
+	$(VENV_PYTHON) manage.py collectstatic --noinput
 
 createsuperuser:  ## Create Django superuser (interactive)
-	. floodguard_env/bin/activate && python manage.py createsuperuser
+	$(VENV_PYTHON) manage.py createsuperuser
 
 seed-demo:  ## Seed demo data for development
-	. floodguard_env/bin/activate && python manage.py seed_demo_data
+	$(VENV_PYTHON) manage.py seed_demo_data
 
-run:  ## Run the full development stack
-	./dev_start.sh
+run:  ## Run the Django development server
+	$(VENV_PYTHON) manage.py runserver 0.0.0.0:8000
 
-run-all:  ## Run all services through the bootstrap script
-	./dev_start.sh
+run-all:  ## Run the Django development server
+	$(VENV_PYTHON) manage.py runserver 0.0.0.0:8000
 
 celery-worker:  ## Start Celery worker
-	. floodguard_env/bin/activate && celery -A floodguard worker -l info
+	$(VENV_DIR)/bin/celery -A floodguard worker -l info
 
 celery-beat:  ## Start Celery beat scheduler
-	. floodguard_env/bin/activate && celery -A floodguard beat -l info
+	$(VENV_DIR)/bin/celery -A floodguard beat -l info
 
 redis-start:  ## Start Redis server (if not running)
 	@echo "Starting Redis server..."
@@ -42,25 +47,25 @@ redis-start:  ## Start Redis server (if not running)
 	@echo "Redis started on port 6379"
 
 test:  ## Run test suite with coverage
-	. floodguard_env/bin/activate && pytest --cov=core --cov-report=html --cov-report=term
+	$(VENV_DIR)/bin/pytest --cov=core --cov-report=html --cov-report=term
 
 test-unit:  ## Run unit tests only
-	. floodguard_env/bin/activate && pytest tests/unit/
+	$(VENV_DIR)/bin/pytest tests/unit/
 
 test-integration:  ## Run integration tests only
-	. floodguard_env/bin/activate && pytest tests/integration/
+	$(VENV_DIR)/bin/pytest tests/integration/
 
 test-e2e:  ## Run end-to-end tests only
-	. floodguard_env/bin/activate && pytest tests/e2e/
+	$(VENV_DIR)/bin/pytest tests/e2e/
 
 lint:  ## Run code linting (flake8)
-	. floodguard_env/bin/activate && flake8 core --max-line-length=100
+	$(VENV_DIR)/bin/flake8 core --max-line-length=100
 
 format:  ## Auto-format code (black)
-	. floodguard_env/bin/activate && black core tests --line-length 100
+	$(VENV_DIR)/bin/black core tests --line-length 100
 
 security-check:  ## Run security checks (bandit)
-	. floodguard_env/bin/activate && bandit -r core -ll
+	$(VENV_DIR)/bin/bandit -r core -ll
 
 docker-build:  ## Build Docker images
 	docker-compose build
@@ -93,10 +98,10 @@ clean:  ## Clean Python cache files and temporary files
 	@echo "Cleaned build artifacts"
 
 update-readme:  ## Regenerate README.md from project structure
-	. floodguard_env/bin/activate && python scripts/generate_readme.py --output README.md
+	$(VENV_PYTHON) scripts/generate_readme.py --output README.md
 
 pre-commit-install:  ## Install pre-commit hook
 	pre-commit install
 
 ci-test:  ## Run CI pipeline test suite (headless)
-	. floodguard_env/bin/activate && pytest --cov=core --cov-report=xml
+	$(VENV_DIR)/bin/pytest --cov=core --cov-report=xml

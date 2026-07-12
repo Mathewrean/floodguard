@@ -5,7 +5,7 @@
 ![ Django](https://img.shields.io/badge/Django-4.2.30-green?logo=django)
 ![ DRF](https://img.shields.io/badge/DRF-3.14.0-blue)
 ![ PostGIS](https://img.shields.io/badge/PostGIS-3.4-cyan?logo=postgresql)
-![ Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
+![ Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
 **Last updated:** 2026-07-12
@@ -35,7 +35,7 @@ A comprehensive flood monitoring and alert system leveraging geospatial analytic
 | Category | Technologies |
 |----------|--------------|
 | Web Framework | `Django==4.2.30` `djangorestframework>=3.15.0` `channels==4.1.0` `daphne==4.1.0` |
-| Database & GIS | `GDAL==3.6.2` `psycopg2-binary==2.9.12` |
+| Database & GIS | `psycopg2-binary==2.9.12` |
 | Async & Tasks | `redis==7.4.0` `celery==5.4.0` `django-celery-beat==2.5.0` |
 | ML & Data | `joblib==1.5.3` `numpy==2.4.4` `scipy==1.17.1` `scikit-learn==1.5.0` |
 | Testing | `pytest-django==4.8.0` `factory-boy==3.3.1` `Faker==33.1.0` |
@@ -67,7 +67,7 @@ FloodGuard follows a modern, scalable architecture:
 
 ### Prerequisites
 
-- Python 3.13 or higher
+- Python 3.11.x
 - PostgreSQL 18+ with PostGIS extension
 - Redis 7+ (for caching and Celery broker)
 - Git
@@ -80,8 +80,8 @@ git clone https://github.com/your-org/floodguard.git
 cd floodguard
 
 # Create virtual environment
-python -m venv floodguard_env
-source floodguard_env/bin/activate  # On Windows: floodguard_env\Scripts\activate
+python3.11 -m venv floodguard-env
+source floodguard-env/bin/activate  # On Windows: floodguard-env\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -223,7 +223,7 @@ Privacy and security notes:
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 21 test files.
+FloodGuard has comprehensive test coverage with 1537 test files.
 
 ### Running Tests
 

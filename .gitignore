@@ -11,7 +11,9 @@ env/
 ENV/
 env.bak/
 venv.bak/
+floodguard-env/
 floodguard_env/
+floodguard_enc/
 virtualenv/
 
 # Local configuration and secrets
@@ -108,6 +110,3 @@ Thumbs.db
 .pydevproject
 *.sublime-project
 *.sublime-workspace
-
-
-nn
