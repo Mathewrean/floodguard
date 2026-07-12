@@ -38,7 +38,8 @@ from .serializers import (
     AlertZoneSerializer,
     FloodReadingSerializer,
     IncidentReportSerializer,
-    AlertLogSerializer
+    AlertLogSerializer,
+    FloodPredictionSerializer
 )
 
 class MonitoringRateThrottle(UserRateThrottle):
