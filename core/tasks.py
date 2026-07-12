@@ -575,3 +575,59 @@ def sync_dynamic_zones():
     
     logger.info(f"Queued risk refresh for {refreshed} active zones")
     return {'deactivated': deactivated, 'refreshed': refreshed}
+
+
+@shared_task
+def update_h3_risk_scores():
+    """
+    Update H3 cell risk scores from current AlertZone data.
+    This enables fast flood-risk lookups for route planning.
+    """
+    from django.core.cache import cache
+    from core.h3_risk import get_risk_for_h3_cell, _get_h3_resolution
+    
+    zones = AlertZone.objects.filter(is_active=True)
+    total_cells = 0
+    
+    for zone in zones:
+        try:
+            # Get zone centroid and extent
+            centroid = zone.polygon.centroid
+            lat, lon = centroid.y, centroid.x
+            resolution = _get_h3_resolution(lat, lon)
+            
+            # Get H3 cells covering this zone
+            import h3
+            boundary = zone.polygon.coords[0] if hasattr(zone.polygon, 'coords') else []
+            if not boundary:
+                continue
+            
+            # Convert polygon boundary to H3 cells
+            h3_cells = set()
+            for coord in boundary:
+                try:
+                    h3_cell = h3.geo_to_h3(coord[1], coord[0], resolution)
+                    h3_cells.add(h3_cell)
+                except (ValueError, TypeError):
+                    continue
+            
+            # Also fill interior with k-ring
+            for cell in list(h3_cells):
+                try:
+                    ring = h3.k_ring(cell, 2)
+                    h3_cells.update(ring)
+                except Exception:
+                    continue
+            
+            # Cache risk for each cell
+            for cell in h3_cells:
+                risk = float(zone.risk_score or 0)
+                cache.set(f"h3:{cell}:risk_score", risk, 3600)
+                total_cells += 1
+                
+        except Exception as e:
+            logger.error(f"Failed to update H3 cells for zone {zone.id}: {e}")
+            continue
+    
+    logger.info(f"Updated {total_cells} H3 cells from {zones.count()} zones")
+    return {'cells_updated': total_cells, 'zones_processed': zones.count()}

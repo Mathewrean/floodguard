@@ -156,6 +156,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.sync_dynamic_zones',
         'schedule': 3600,  # every hour
     },
+    'update-h3-risk': {
+        'task': 'core.tasks.update_h3_risk_scores',
+        'schedule': 900,  # every 15 minutes
+    },
 }
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300
@@ -298,6 +302,15 @@ REST_FRAMEWORK = {
 
 # FloodGuard specific settings
 FLOOD_MODEL_PATH = os.path.join(BASE_DIR, 'ml_model', 'flood_model.pkl')
+
+# Safe Route / GraphHopper configuration
+GRAPHOPPER_API_KEY = project_config('GRAPHOPPER_API_KEY', default='')
+GRAPHOPPER_URL = project_config(
+    'GRAPHOPPER_URL',
+    default='https://graphhopper.com/api/1/route'
+)
+SAFE_ROUTE_DEFAULT_VEHICLE = project_config('SAFE_ROUTE_VEHICLE', default='car')
+H3_RESOLUTION = int(project_config('H3_RESOLUTION', default=7))
 
 # Geographic boundary validation (format: min_lon,min_lat,max_lon,max_lat)
 # Set to empty string/None for global coverage (no bounds restriction)

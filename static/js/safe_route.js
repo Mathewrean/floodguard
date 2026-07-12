@@ -81,9 +81,9 @@ function renderRoutes(routes) {
     const colours = {
         safest: '#16A34A',
         balanced: '#D97706',
-        fastest: '#2B83D3',
+        fastest: '#DC2626',
     };
-    const weights = { safest: 7, balanced: 6, fastest: 4 };
+    const weights = { safest: 7, balanced: 6, fastest: 5 };
     const bounds = [];
 
     routes.forEach(route => {
@@ -97,16 +97,22 @@ function renderRoutes(routes) {
             lineJoin: 'round',
         }).bindPopup(`
             <strong>${escapeHTML(route.label)}</strong><br>
-            Safety: ${route.safety_score}/100<br>
-            Distance: ${(route.distance_m / 1000).toFixed(2)} km<br>
-            ETA: ${route.duration_min} min
+            Distance: ${(route.distance_km || route.distance_m / 1000).toFixed(2)} km<br>
+            ETA: ${(route.duration_minutes || route.duration_min).toFixed(1)} min<br>
+            Flood Risk: ${route.risk_label || 'N/A'} (${(route.flood_risk || 0) * 100}%)
         `).addTo(routeState.map);
         routeState.routeLayers.push(layer);
-        geometry.forEach(point => bounds.push(point));
+        geometry.forEach(point => {
+            if (Array.isArray(point) && point.length >= 2) {
+                bounds.push([point[1], point[0]]);
+            }
+        });
     });
 
     if (bounds.length) {
-        routeState.map.fitBounds(bounds, { padding: [40, 40] });
+        try {
+            routeState.map.fitBounds(bounds, { padding: [40, 40] });
+        } catch (e) {}
     }
 }
 
@@ -118,19 +124,26 @@ function renderRouteCards(routes, engine) {
         return;
     }
 
-    container.innerHTML = routes.map(route => `
-        <article class="route-result-card ${route.profile}">
-            <div>
-                <strong>${escapeHTML(route.label)}</strong>
-                <span>${(Array.isArray(route.crossed_zones) && route.crossed_zones.length) ? `Risk zones: ${route.crossed_zones.map(escapeHTML).join(', ')}` : 'No mapped risk zones crossed'}</span>
-            </div>
-            <div class="route-result-metrics">
-                <span>${route.safety_score}/100 safety</span>
-                <span>${(route.distance_m / 1000).toFixed(2)} km</span>
-                <span>${route.duration_min} min</span>
-            </div>
-        </article>
-    `).join('') + `<p class="route-engine-note">${escapeHTML(engine.algorithm)}</p>`;
+    container.innerHTML = routes.map(route => {
+        const risk = route.flood_risk || 0;
+        const riskLabel = route.risk_label || 'N/A';
+        const riskPct = (risk * 100).toFixed(0);
+        const distance = route.distance_km || (route.distance_m / 1000);
+        const duration = route.duration_minutes || route.duration_min;
+        
+        return `
+            <article class="route-result-card ${route.profile}">
+                <div>
+                    <strong>${escapeHTML(route.label)}</strong>
+                    <span class="route-risk-badge ${riskLabel.toLowerCase()}">${riskLabel} (${riskPct}%)</span>
+                </div>
+                <div class="route-result-metrics">
+                    <span>${distance.toFixed(2)} km</span>
+                    <span>${duration.toFixed(1)} min</span>
+                </div>
+            </article>
+        `;
+    }).join('') + `<p class="route-engine-note">${escapeHTML(engine.algorithm || 'FloodGuard Safe Route')}</p>`;
 }
 
 async function calculateSafeRoute() {
@@ -139,7 +152,30 @@ async function calculateSafeRoute() {
         return;
     }
 
-    setRouteStatus('Calculating safety-weighted route options...');
+    setRouteStatus('Calculating safe routes...');
+    
+    // Try GraphHopper + H3 endpoint first (GET)
+    try {
+        const params = new URLSearchParams({
+            origin_lat: routeState.origin.lat,
+            origin_lon: routeState.origin.lng,
+            dest_lat: routeState.destination.lat,
+            dest_lon: routeState.destination.lng,
+            vehicle: 'car',
+        });
+        
+        const data = await fetchJSON(`/api/v1/safe-route/?${params.toString()}`);
+        if (data.routes && data.routes.length) {
+            renderRoutes(data.routes);
+            renderRouteCards(data.routes, data.engine || {});
+            setRouteStatus(data.recommendation || 'Route options ready.', 'success');
+            return;
+        }
+    } catch (error) {
+        console.warn('GraphHopper route failed, falling back to prototype:', error);
+    }
+    
+    // Fallback to prototype POST endpoint
     try {
         const data = await fetchJSON('/api/v1/safe-route/', {
             method: 'POST',
@@ -155,7 +191,7 @@ async function calculateSafeRoute() {
         });
         renderRoutes(data.routes || []);
         renderRouteCards(data.routes || [], data.engine || {});
-        setRouteStatus('Route options ready.', 'success');
+        setRouteStatus('Route options ready (prototype mode).', 'success');
     } catch (error) {
         setRouteStatus('Safe-route service failed. Check coordinates and try again.', 'error');
     }

@@ -709,9 +709,19 @@ def _route_weights(profile):
     return profiles.get(profile, profiles['balanced'])
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([permissions.AllowAny])
 def safe_route_view(request):
+    """
+    Safe route recommendation with flood risk overlay.
+    
+    GET: Uses GraphHopper API + H3 flood risk overlay (if configured)
+    POST: Uses internal prototype routing engine (fallback)
+    """
+    if request.method == 'GET':
+        return _safe_route_graphhopper(request)
+    
+    # POST: existing prototype behavior
     try:
         raw_origin = _parse_route_coord(request.data.get('origin'), 'origin')
         raw_destination = _parse_route_coord(request.data.get('destination'), 'destination')
@@ -766,6 +776,156 @@ def safe_route_view(request):
             'updated_at': timezone.now().isoformat(),
         }
     })
+
+
+def _safe_route_graphhopper(request):
+    """
+    GraphHopper-based safe route with H3 flood risk overlay.
+    """
+    origin_lat = request.GET.get('origin_lat')
+    origin_lon = request.GET.get('origin_lon')
+    dest_lat = request.GET.get('dest_lat')
+    dest_lon = request.GET.get('dest_lon')
+    vehicle = request.GET.get('vehicle', getattr(settings, 'SAFE_ROUTE_DEFAULT_VEHICLE', 'car'))
+
+    if not all([origin_lat, origin_lon, dest_lat, dest_lon]):
+        return Response({
+            'error': 'Missing required parameters: origin_lat, origin_lon, dest_lat, dest_lon'
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        origin_lat = float(origin_lat)
+        origin_lon = float(origin_lon)
+        dest_lat = float(dest_lat)
+        dest_lon = float(dest_lon)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid coordinate format'}, status=status.HTTP_400_BAD_REQUEST)
+
+    api_key = getattr(settings, 'GRAPHOPPER_API_KEY', '')
+    if not api_key:
+        return Response({
+            'error': 'GraphHopper API key not configured. Set GRAPHOPPER_API_KEY in .env',
+            'fallback': 'POST to /api/v1/safe-route/ for prototype routing'
+        }, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+    # Request multiple route strategies from GraphHopper
+    strategies = ['fastest', 'shortest']
+    route_candidates = {}
+
+    for strategy in strategies:
+        gh_url = (
+            f"{settings.GRAPHOPPER_URL}"
+            f"?point={origin_lat},{origin_lon}"
+            f"&point={dest_lat},{dest_lon}"
+            f"&vehicle={vehicle}"
+            f"&algorithm={strategy}"
+            f"&points_encoded=false"
+            f"&key={api_key}"
+        )
+
+        try:
+            import requests as req
+            response = req.get(gh_url, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            paths = data.get('paths', [])
+            if paths:
+                route_candidates[strategy] = paths[0]
+        except Exception as e:
+            logger.warning(f"GraphHopper request failed for strategy {strategy}: {e}")
+            continue
+
+    if not route_candidates:
+        return Response({
+            'error': 'GraphHopper returned no routes',
+            'fallback': 'POST to /api/v1/safe-route/ for prototype routing'
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    # Evaluate flood risk for each candidate route using H3
+    from core.h3_risk import get_risk_for_route, get_risk_label
+    
+    evaluated_routes = []
+    for strategy, path in route_candidates.items():
+        geometry = path.get('geometry', [])
+        if isinstance(geometry, str):
+            # Decode polyline if needed - GraphHopper returns GeoJSON when points_encoded=false
+            geometry = []
+        
+        risk_data = get_risk_for_route(geometry) if geometry else {'avg_risk': 0.0, 'max_risk': 0.0, 'cell_count': 0}
+        
+        evaluated_routes.append({
+            'id': strategy,
+            'profile': strategy,
+            'label': _route_label(strategy),
+            'distance_km': round(path.get('distance', 0) / 1000, 1),
+            'duration_minutes': round(path.get('time', 0) / 60000, 1),
+            'flood_risk': risk_data.get('avg_risk', 0.0),
+            'max_flood_risk': risk_data.get('max_risk', 0.0),
+            'risk_label': get_risk_label(risk_data.get('avg_risk', 0.0)),
+            'geometry': geometry,
+            'instructions': path.get('instructions', []),
+            'engine': 'GraphHopper + H3 Flood Overlay',
+        })
+
+    # Sort: safest first, then balanced, then fastest
+    evaluated_routes.sort(key=lambda r: (r['flood_risk'], r['distance_km']))
+    
+    # Assign final labels
+    if len(evaluated_routes) >= 1:
+        evaluated_routes[0]['profile'] = 'safest'
+        evaluated_routes[0]['label'] = 'Safest Route'
+    if len(evaluated_routes) >= 2:
+        evaluated_routes[1]['profile'] = 'balanced'
+        evaluated_routes[1]['label'] = 'Balanced Route'
+    if len(evaluated_routes) >= 3:
+        evaluated_routes[2]['profile'] = 'fastest'
+        evaluated_routes[2]['label'] = 'Fastest Route'
+
+    # Generate recommendation
+    safest = evaluated_routes[0] if evaluated_routes else None
+    recommendation = _generate_recommendation(evaluated_routes, safest)
+
+    return Response({
+        'origin': {'lat': origin_lat, 'lon': origin_lon},
+        'destination': {'lat': dest_lat, 'lon': dest_lon},
+        'routes': evaluated_routes[:3],
+        'recommendation': recommendation,
+        'engine': {
+            'algorithm': 'GraphHopper routing + H3 flood risk overlay',
+            'vehicle': vehicle,
+            'updated_at': timezone.now().isoformat(),
+        }
+    })
+
+
+def _route_label(strategy):
+    labels = {
+        'fastest': 'Fastest Route',
+        'shortest': 'Shortest Route',
+        'balanced': 'Balanced Route',
+        'safest': 'Safest Route',
+    }
+    return labels.get(strategy, strategy.title())
+
+
+def _generate_recommendation(routes, safest):
+    """Generate human-readable route recommendation."""
+    if not routes:
+        return "No routes available."
+    
+    if len(routes) == 1:
+        route = routes[0]
+        return f"Only route available: {route['label']}. Flood risk: {route['risk_label']} ({route['flood_risk']})."
+    
+    safe_count = sum(1 for r in routes if r['flood_risk'] < 0.4)
+    high_risk_count = sum(1 for r in routes if r['flood_risk'] >= 0.7)
+    
+    if high_risk_count == len(routes):
+        return "WARNING: All available routes have high flood risk. Consider delaying travel."
+    elif safe_count >= 2:
+        return f"Recommended: {safest['label']} with {safest['risk_label']} flood risk ({safest['flood_risk']})."
+    else:
+        return f"Caution: {safest['label']} has {safest['risk_label']} flood risk ({safest['flood_risk']}). Consider alternatives."
 
 
 @api_view(['POST'])
