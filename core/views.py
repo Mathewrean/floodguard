@@ -886,8 +886,12 @@ def dashboard_redirect(request):
 def citizen_dashboard(request):
     """Citizen dashboard"""
     UserProfile.objects.get_or_create(user=request.user, defaults={'role': 'citizen'})
+    
+    # Pre-fetch global zones for initial dashboard load
+    zones = AlertZone.objects.all().order_by('-risk_score', 'name')[:15]
     context = {
         'user': request.user,
+        'preloaded_zones': zones,
     }
     return render(request, 'dashboard/public.html', context)
 
@@ -932,8 +936,8 @@ def report_submit(request):
                 raise ValueError("Description must be at least 10 characters")
             
             # Validate coordinates within configured geographic bounds
-            bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
-            if len(bounds) == 4:
+            bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+            if bounds and len(bounds) == 4:
                 min_lon, min_lat, max_lon, max_lat = bounds
                 if not (min_lon <= longitude <= max_lon and min_lat <= latitude <= max_lat):
                     raise ValueError(f"Location outside supported area (bounds: {bounds})")
@@ -1069,6 +1073,80 @@ def api_dashboard_stats(request):
     return JsonResponse(stats)
 
 
+@require_http_methods(["GET"])
+def api_global_search(request):
+    """Global search for flood zones by name, city, or coordinates."""
+    query = request.GET.get('q', '').strip()
+    lat = request.GET.get('lat')
+    lon = request.GET.get('lon')
+    radius_km = float(request.GET.get('radius_km', 50))
+
+    results = []
+    if query:
+        results = AlertZone.objects.filter(name__icontains=query).order_by('-risk_score')[:20]
+    elif lat and lon:
+        try:
+            lat_f = float(lat)
+            lon_f = float(lon)
+            if -90 <= lat_f <= 90 and -180 <= lon_f <= 180:
+                user_point = Point(lon_f, lat_f, srid=4326)
+                results = AlertZone.objects.filter(
+                    polygon__distance_lte=(user_point, 0.01)
+                ).order_by('-risk_score')[:20]
+        except (ValueError, TypeError):
+            pass
+
+    data = []
+    for zone in results:
+        data.append({
+            'id': zone.id,
+            'name': zone.name,
+            'risk_score': round(float(zone.risk_score or 0), 3),
+            'risk_threshold': round(float(zone.risk_threshold or 0), 3),
+            'centroid': [zone.polygon.centroid.x, zone.polygon.centroid.y] if zone.polygon else None,
+        })
+
+    return JsonResponse({'results': data, 'count': len(data)})
+
+
+@require_http_methods(["GET"])
+def api_nearby_zones(request):
+    """Return zones near the user's location for dashboard auto-population."""
+    lat = request.GET.get('lat')
+    lon = request.GET.get('lon')
+    limit = int(request.GET.get('limit', 10))
+
+    if not lat or not lon:
+        return JsonResponse({'zones': [], 'count': 0})
+
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (ValueError, TypeError):
+        return JsonResponse({'zones': [], 'count': 0})
+
+    if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+        return JsonResponse({'zones': [], 'count': 0})
+
+    user_point = Point(lon_f, lat_f, srid=4326)
+    zones = AlertZone.objects.filter(
+        polygon__distance_lte=(user_point, 0.05)
+    ).order_by('-risk_score')[:limit]
+
+    data = []
+    for zone in zones:
+        data.append({
+            'id': zone.id,
+            'name': zone.name,
+            'risk_score': round(float(zone.risk_score or 0), 3),
+            'risk_threshold': round(float(zone.risk_threshold or 0), 3),
+            'centroid': [zone.polygon.centroid.x, zone.polygon.centroid.y] if zone.polygon else None,
+            'distance_approx_km': round(user_point.distance(zone.polygon.centroid) * 111, 1),
+        })
+
+    return JsonResponse({'zones': data, 'count': len(data)})
+
+
 def _parse_dynamic_zone_payload(request):
     payload = request.data if request.method == 'POST' else request.query_params
     lat = payload.get('lat', payload.get('latitude'))
@@ -1089,8 +1167,8 @@ def _parse_dynamic_zone_payload(request):
     if accuracy is not None and (not math.isfinite(accuracy) or accuracy < 0):
         raise ValueError('Accuracy must be a positive number')
 
-    bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
-    if len(bounds) == 4:
+    bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+    if bounds and len(bounds) == 4:
         min_lon, min_lat, max_lon, max_lat = bounds
         if not (min_lon <= lon <= max_lon and min_lat <= lat <= max_lat):
             raise ValueError('Location is outside the configured FloodGuard coverage area')

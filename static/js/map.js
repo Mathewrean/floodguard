@@ -1,5 +1,5 @@
-const NAIROBI = { lat: -1.2921, lng: 36.8219 };
-const NAIROBI_LATLNG = [NAIROBI.lat, NAIROBI.lng];
+const DEFAULT_LOCATION = { lat: 20.0, lng: 0.0 };
+const DEFAULT_LATLNG = [DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng];
 
 const BASEMAPS = [
     {
@@ -139,13 +139,13 @@ function createBaseMap(elementId, zoom = 12) {
     if (!element || typeof L === 'undefined') return null;
     if (element._leaflet_id) return null;
 
-    const map = L.map(elementId).setView(NAIROBI_LATLNG, zoom);
+    const map = L.map(elementId).setView(DEFAULT_LATLNG, zoom);
     addBasemap(map, 0);
     return map;
 }
 
 function defaultLocation() {
-    return { ...NAIROBI };
+    return { ...DEFAULT_LOCATION };
 }
 
 function addBasemap(map, index) {
@@ -332,10 +332,10 @@ function locateUser(map) {
 
         const useFallback = (reason) => {
             console.info('Location fallback:', reason);
-            map.setView(NAIROBI_LATLNG, 12);
-            showStatus('Using Nairobi as the default location.', null);
+            map.setView(DEFAULT_LATLNG, 12);
+            showStatus('Using default global view.', null);
             setTimeout(hideStatus, 4000);
-            resolve({ ...NAIROBI, source: 'default' });
+            resolve({ ...DEFAULT_LOCATION, source: 'default' });
         };
 
         if (!('geolocation' in navigator)) {

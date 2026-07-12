@@ -85,9 +85,8 @@ class IncidentReportSerializer(serializers.ModelSerializer):
         # Validate location is within configured geographic bounds
         lon = value.x
         lat = value.y
-        # Use configured bounds from settings (default: Kenya/East Africa)
-        bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
-        if len(bounds) == 4:
+        bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+        if bounds and len(bounds) == 4:
             min_lon, min_lat, max_lon, max_lat = bounds
             if not (min_lon <= lon <= max_lon and min_lat <= lat <= max_lat):
                 raise serializers.ValidationError(

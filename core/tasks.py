@@ -98,6 +98,27 @@ def fetch_flood_api(zone_id):
         logger.error(f"Error fetching flood data for zone {zone.id}: {str(e)}")
         return
 
+
+@shared_task
+def fetch_all_zones():
+    """
+    Fetch flood data for all active zones globally.
+    Iterates over all AlertZones and dispatches fetch_flood_api for each.
+    """
+    zones = AlertZone.objects.all()
+    total = zones.count()
+    logger.info(f"Starting global fetch for {total} zones")
+    
+    for zone in zones:
+        try:
+            fetch_flood_api.delay(zone.id)
+        except Exception as e:
+            logger.error(f"Failed to dispatch fetch for zone {zone.id}: {str(e)}")
+            continue
+    
+    logger.info(f"Dispatched fetch_flood_api for {total} zones")
+    return total
+
 @shared_task
 def run_risk_scoring(reading_id):
     """

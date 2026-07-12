@@ -26,7 +26,8 @@ class TestIncidentReportAPI:
         assert response.status_code == status.HTTP_201_CREATED
         assert IncidentReport.objects.count() == 1
 
-    def test_post_reports_400_with_out_of_bounds(self):
+    def test_post_reports_400_with_out_of_bounds(self, settings):
+        settings.DEFAULT_GEO_BOUNDS = [33.0, -5.0, 42.0, 5.0]
         url = reverse('incidentreport-list')
         data = {
             'location': {'type': 'Point', 'coordinates': [30.0, 0.0]},

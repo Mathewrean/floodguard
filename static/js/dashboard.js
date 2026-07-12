@@ -12,16 +12,119 @@ function timeAgo(dateString) {
     return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+function getRiskBand(score) {
+    if (score >= 0.85) return { label: 'CRITICAL', colour: '#dc2626' };
+    if (score >= 0.7) return { label: 'HIGH', colour: '#ea580c' };
+    if (score >= 0.4) return { label: 'MODERATE', colour: '#ca8a04' };
+    return { label: 'LOW', colour: '#16a34a' };
+}
+
 async function initCitizenDashboard() {
-    const [zones, reports] = await Promise.all([
+    const [zones, reports, globalCount] = await Promise.all([
         fetchJSON('/api/v1/zones/').then(normaliseList).catch(() => []),
         fetchJSON('/api/v1/reports/?submitted_by=me').then(normaliseList).catch(() => []),
+        fetchJSON('/api/v1/zones/').then(r => r.count || r.results?.length || 0).catch(() => 0),
     ]);
+
+    if (document.getElementById('global-zone-count')) {
+        document.getElementById('global-zone-count').textContent = globalCount;
+    }
 
     renderNearestZone(zones);
     renderMyReports(reports);
     initReportsMap(reports);
     initAiSummaryCard();
+    initGlobalSearch();
+    initLocationButton();
+}
+
+async function initGlobalSearch() {
+    const input = document.getElementById('global-search-input');
+    const btn = document.getElementById('global-search-btn');
+    const resultsDiv = document.getElementById('global-search-results');
+    const tableBody = document.getElementById('global-search-table');
+    if (!input || !btn || !resultsDiv || !tableBody) return;
+
+    async function doSearch() {
+        const q = input.value.trim();
+        let url = '/api/v1/global-search/';
+        if (q) {
+            url += `?q=${encodeURIComponent(q)}`;
+        } else {
+            resultsDiv.style.display = 'none';
+            return;
+        }
+
+        try {
+            const data = await fetchJSON(url);
+            tableBody.innerHTML = data.results.length ? data.results.map(zone => {
+                const band = getRiskBand(zone.risk_score);
+                return `<tr>
+                    <td><strong>${zone.name}</strong></td>
+                    <td style="color:${band.colour};font-weight:bold;">${band.label} (${zone.risk_score})</td>
+                    <td>${zone.risk_threshold}</td>
+                    <td><a class="btn btn-sm btn-primary" href="/map/#zone-${zone.id}">View</a></td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="4">No zones found.</td></tr>';
+            resultsDiv.style.display = 'block';
+        } catch (e) {
+            tableBody.innerHTML = `<tr><td colspan="4">Search failed: ${e.message}</td></tr>`;
+            resultsDiv.style.display = 'block';
+        }
+    }
+
+    btn.addEventListener('click', doSearch);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+}
+
+async function initLocationButton() {
+    const btn = document.getElementById('global-location-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported by your browser');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Locating...';
+
+        try {
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 300000
+                });
+            });
+
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            const data = await fetchJSON(`/api/v1/nearby-zones/?lat=${lat}&lon=${lon}&limit=10`);
+            const tableBody = document.getElementById('global-search-table');
+            const resultsDiv = document.getElementById('global-search-results');
+
+            if (tableBody && resultsDiv) {
+                tableBody.innerHTML = data.zones.length ? data.zones.map(zone => {
+                    const band = getRiskBand(zone.risk_score);
+                    return `<tr>
+                        <td><strong>${zone.name}</strong><br><small>${zone.distance_approx_km} km away</small></td>
+                        <td style="color:${band.colour};font-weight:bold;">${band.label} (${zone.risk_score})</td>
+                        <td>${zone.risk_threshold}</td>
+                        <td><a class="btn btn-sm btn-primary" href="/map/#zone-${zone.id}">View</a></td>
+                    </tr>`;
+                }).join('') : '<tr><td colspan="4">No zones found near your location.</td></tr>';
+                resultsDiv.style.display = 'block';
+            }
+        } catch (e) {
+            alert('Unable to retrieve your location: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Use My Location';
+        }
+    });
 }
 
 async function initAiSummaryCard() {
@@ -63,7 +166,7 @@ function renderMyReports(reports) {
     const count = document.getElementById('my-reports-count');
     const verified = document.getElementById('verified-reports-count');
     if (count) count.textContent = reports.length;
-    if (verified) verified.textContent = reports.filter(report => report.status === 'verified').length;
+    if (verified) verified.textContent = reports.filter(report => report.status === 'verified').count || reports.filter(report => report.status === 'verified').length;
     if (!table) return;
 
     table.innerHTML = reports.length ? reports.map(report => `

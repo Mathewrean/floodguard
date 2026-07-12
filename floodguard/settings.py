@@ -133,7 +133,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 CELERY_BEAT_SCHEDULE = {
     'fetch-flood-api': {
-        'task': 'core.tasks.fetch_flood_api',
+        'task': 'core.tasks.fetch_all_zones',
         'schedule': 900,  # every 15 minutes
     },
     'run-risk-scoring': {
@@ -296,16 +296,16 @@ REST_FRAMEWORK = {
 FLOOD_MODEL_PATH = os.path.join(BASE_DIR, 'ml_model', 'flood_model.pkl')
 
 # Geographic boundary validation (format: min_lon,min_lat,max_lon,max_lat)
-# Default to Kenya/East Africa bounds; override for other regions
+# Set to empty string/None for global coverage (no bounds restriction)
 DEFAULT_GEO_BOUNDS = project_config(
     'GEO_BOUNDS',
-    default='33.0,-5.0,42.0,5.0',  # Kenya/East Africa
-    cast=lambda v: [float(c) for c in v.split(',')]
+    default=None,
 )
-
-# Validation: ensure 4 values
-if len(DEFAULT_GEO_BOUNDS) != 4:
-    raise ValueError("GEO_BOUNDS must be min_lon,min_lat,max_lon,max_lat")
+if DEFAULT_GEO_BOUNDS is not None:
+    if isinstance(DEFAULT_GEO_BOUNDS, str):
+        DEFAULT_GEO_BOUNDS = [float(c) for c in DEFAULT_GEO_BOUNDS.split(',')]
+    if len(DEFAULT_GEO_BOUNDS) != 4:
+        raise ValueError("GEO_BOUNDS must be min_lon,min_lat,max_lon,max_lat")
 
 # External service credentials
 OPENWEATHER_API_KEY = project_config('OPENWEATHER_API_KEY', default='')

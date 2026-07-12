@@ -8,10 +8,11 @@ from tests.factories import UserFactory, FloodReadingFactory
 
 class TestIncidentReportSerializer:
     @pytest.mark.django_db
-    def test_rejects_out_of_bounds_coordinates(self):
+    def test_rejects_out_of_bounds_coordinates(self, settings):
+        settings.DEFAULT_GEO_BOUNDS = [33.0, -5.0, 42.0, 5.0]
         user = UserFactory()
         data = {
-            'location': Point(30.0, 0.0, srid=4326),  # Outside Nairobi
+            'location': Point(30.0, 0.0, srid=4326),  # Outside bounds
             'severity': 3,
             'description': 'Test',
             'submitted_by': user.id

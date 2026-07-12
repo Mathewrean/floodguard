@@ -48,35 +48,45 @@ class TestAutomatedZoneBoundaryValidation:
         assert 'polygon' in str(excinfo.value)
 
     def test_zone_outside_default_bounds_raises_validation_error(self):
-        """Test that a zone outside configured bounds raises validation error"""
-        # Create a polygon outside default bounds (e.g., in Atlantic Ocean, far from Kenya)
-        outside_polygon = Polygon.from_bbox((-20.0, 10.0, -10.0, 20.0))
-        
-        zone = AlertZone(
-            name="Outside Zone",
-            polygon=outside_polygon,
-            risk_threshold=0.5
-        )
-        
-        # Should raise ValidationError
-        with pytest.raises(ValidationError) as excinfo:
-            zone.full_clean()
-        
-        assert 'polygon' in str(excinfo.value)
-        assert 'bounds' in str(excinfo.value).lower()
+        """Test that a zone outside configured bounds raises validation error when bounds are set"""
+        from django.conf import settings
+        original_bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+        try:
+            settings.DEFAULT_GEO_BOUNDS = [33.0, -5.0, 42.0, 5.0]
+            outside_polygon = Polygon.from_bbox((-20.0, 10.0, -10.0, 20.0))
+            
+            zone = AlertZone(
+                name="Outside Zone",
+                polygon=outside_polygon,
+                risk_threshold=0.5
+            )
+            
+            with pytest.raises(ValidationError) as excinfo:
+                zone.full_clean()
+            
+            assert 'polygon' in str(excinfo.value)
+            assert 'bounds' in str(excinfo.value).lower()
+        finally:
+            settings.DEFAULT_GEO_BOUNDS = original_bounds
 
     def test_zone_validation_called_on_save(self):
-        """Test that validation catches invalid polygons when called explicitly"""
-        outside_polygon = Polygon.from_bbox((-20.0, 10.0, -10.0, 20.0))
-        
-        zone = AlertZone(
-            name="Outside Zone",
-            polygon=outside_polygon,
-            risk_threshold=0.5
-        )
-        
-        with pytest.raises(ValidationError):
-            zone.full_clean()
+        """Test that validation catches invalid polygons when bounds are configured"""
+        from django.conf import settings
+        original_bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+        try:
+            settings.DEFAULT_GEO_BOUNDS = [33.0, -5.0, 42.0, 5.0]
+            outside_polygon = Polygon.from_bbox((-20.0, 10.0, -10.0, 20.0))
+            
+            zone = AlertZone(
+                name="Outside Zone",
+                polygon=outside_polygon,
+                risk_threshold=0.5
+            )
+            
+            with pytest.raises(ValidationError):
+                zone.full_clean()
+        finally:
+            settings.DEFAULT_GEO_BOUNDS = original_bounds
 
     def test_valid_nairobi_area_zone_passes(self):
         """Test that a zone in the Nairobi area passes validation"""

@@ -55,8 +55,8 @@ class AlertZone(models.Model):
             if not self.polygon.valid:
                 raise ValidationError({'polygon': 'Invalid polygon geometry'})
             
-            bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', [33.0, -5.0, 42.0, 5.0])
-            if len(bounds) == 4:
+            bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+            if bounds and len(bounds) == 4:
                 allowed_bounds = Polygon.from_bbox(tuple(bounds))
                 if not self.polygon.within(allowed_bounds):
                     raise ValidationError({

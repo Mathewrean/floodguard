@@ -25,21 +25,22 @@
             <div class="stat-card card"><span>Verified</span><strong id="verified-reports-count">0</strong><small>Your verified reports</small></div>
             <div class="stat-card card"><span>High Risk Zones</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Currently elevated</small></div>
             <div class="stat-card card"><span>Critical Zones</span><strong class="stat-value" data-stat="critical_zones">0</strong><small>Immediate action</small></div>
+            <div class="stat-card card"><span>Global Zones</span><strong id="global-zone-count">0</strong><small>Worldwide coverage</small></div>
         </div>
 
         <section class="dashboard-section card">
             <div class="section-header compact">
-                <h2 class="card-title">My Reports</h2>
-                <a class="btn btn-sm btn-primary" href="{% url 'report_submit' %}">New Report</a>
+                <h2 class="card-title">Global Flood Search</h2>
             </div>
-            <div class="table-responsive">
+            <div class="search-bar">
+                <input type="text" id="global-search-input" placeholder="Search by city, zone name, or use coordinates (lat,lon)..." />
+                <button id="global-search-btn" class="btn btn-primary">Search</button>
+                <button id="global-location-btn" class="btn btn-secondary">Use My Location</button>
+            </div>
+            <div id="global-search-results" class="search-results" style="display:none;">
                 <table class="data-table">
-                    <thead>
-                        <tr><th>Status</th><th>Severity</th><th>Created</th><th>Description</th></tr>
-                    </thead>
-                    <tbody id="my-reports-table">
-                        <tr><td colspan="4"><span class="skeleton skeleton-line"></span></td></tr>
-                    </tbody>
+                    <thead><tr><th>Zone</th><th>Risk</th><th>Threshold</th><th>Action</th></tr></thead>
+                    <tbody id="global-search-table"></tbody>
                 </table>
             </div>
         </section>
