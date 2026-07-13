@@ -1187,12 +1187,9 @@ def alert_history(request):
     return render(request, 'alerts/history.html', context)
 
 def map_view(request):
-    """Full screen map view"""
-    zones = AlertZone.objects.all().only('id', 'name', 'polygon', 'risk_score', 'risk_threshold')
-    context = {
-        'zones': zones,
-    }
-    return render(request, 'map.html', context)
+    """Redirect old map page to GIS dashboard"""
+    from django.shortcuts import redirect
+    return redirect('gis_dashboard')
 
 
 def map_selection_view(request):

@@ -20,6 +20,10 @@
   --radius: 8px;
   --radius-lg: 18px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  --map-z-index: 1;
+  --overlay-z-index: 1000;
+  --panel-z-index: 1001;
+  --legend-z-index: 1002;
 }
 
 /* Dark mode color scheme */
