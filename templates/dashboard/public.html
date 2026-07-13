@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block content %}
-<section class="dashboard">
+<section class="dashboard public-dashboard">
     <aside class="dashboard-sidebar">
         <a class="active" href="{% url 'citizen_dashboard' %}">Dashboard</a>
         <a href="{% url 'report_submit' %}">Report</a>
@@ -12,20 +12,14 @@
     <div class="container dashboard-content">
         <div class="dashboard-header">
             <h1 class="section-title">Citizen Dashboard</h1>
-            <p class="section-subtitle">Welcome back, {{ user.username }}.</p>
+            <p class="section-subtitle">Welcome back, {{ user.username }}. Stay informed about flood risks in your area.</p>
         </div>
 
         <div class="stats-grid">
             <div class="stat-card card"><span>Reports</span><strong id="my-reports-count">0</strong><small>Submitted by you</small></div>
             <div class="stat-card card"><span>Nearest Zone</span><strong id="nearest-zone-risk">--</strong><small id="nearest-zone-name">Loading zone</small></div>
-            <div class="ai-card card">
-                <h4>Current Flood Intelligence</h4>
-                <div id="ai-summary">Loading...</div>
-            </div>
+            <div class="stat-card card"><span>High Risk</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Currently elevated</small></div>
             <div class="stat-card card"><span>Verified</span><strong id="verified-reports-count">0</strong><small>Your verified reports</small></div>
-            <div class="stat-card card"><span>High Risk Zones</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Currently elevated</small></div>
-            <div class="stat-card card"><span>Critical Zones</span><strong class="stat-value" data-stat="critical_zones">0</strong><small>Immediate action</small></div>
-            <div class="stat-card card"><span>Global Zones</span><strong id="global-zone-count">0</strong><small>Worldwide coverage</small></div>
         </div>
 
         <section class="dashboard-section card">
@@ -33,7 +27,7 @@
                 <h2 class="card-title">Global Flood Search</h2>
             </div>
             <div class="search-bar">
-                <input type="text" id="global-search-input" placeholder="Search by city, zone name, or use coordinates (lat,lon)..." />
+                <input type="text" id="global-search-input" placeholder="Search by city, zone name, or coordinates (lat,lon)..." />
                 <button id="global-search-btn" class="btn btn-primary">Search</button>
                 <button id="global-location-btn" class="btn btn-secondary">Use My Location</button>
             </div>
@@ -45,7 +39,17 @@
             </div>
         </section>
 
-        <section class="dashboard-section">
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">Current Flood Intelligence</h2>
+            </div>
+            <div id="ai-summary" class="ai-content">Loading...</div>
+        </section>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">Live Reports Map</h2>
+            </div>
             <div id="reports-map" class="map-container reports-map"></div>
         </section>
     </div>
@@ -53,5 +57,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/dashboard.js' %}"></script>
+<script src="{% static 'js/dashboard.js' %}?v={{ STATIC_VERSION }}"></script>
 {% endblock %}

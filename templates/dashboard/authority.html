@@ -2,7 +2,7 @@
 {% load static %}
 
 {% block content %}
-<section class="dashboard">
+<section class="dashboard authority-dashboard">
     <aside class="dashboard-sidebar">
         <a class="active" href="{% url 'authority_dashboard' %}">Review</a>
         <a href="{% url 'gis_dashboard' %}">Map</a>
@@ -15,42 +15,43 @@
             <p class="section-subtitle">Emergency review queue and live zone overview.</p>
         </div>
 
-        <div class="stats-grid">
+        <div class="dashboard-grid">
             <div class="stat-card card"><span>Alerts Today</span><strong class="stat-value" data-stat="alerts_today">0</strong><small>Issued today</small></div>
             <div class="stat-card card"><span>Reports This Week</span><strong class="stat-value" data-stat="reports_this_week">0</strong><small>Community submissions</small></div>
             <div class="stat-card card"><span>Pending Review</span><strong id="pending-reports-count">0</strong><small>Awaiting action</small></div>
             <div class="stat-card card"><span>High Risk</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Zones above threshold</small></div>
-            <div class="stat-card card"><span>Critical</span><strong class="stat-value" data-stat="critical_zones">0</strong><small>Immediate danger</small></div>
         </div>
 
-        <section class="dashboard-section card">
-            <div class="section-header compact">
-                <h2 class="card-title">Reports Requiring Review</h2>
-                <span class="card-meta">Verify or reject without reloading the page.</span>
-            </div>
-            <div class="table-responsive">
-                <table class="data-table">
-                    <thead>
-                        <tr><th>ID</th><th>Status</th><th>Severity</th><th>Created</th><th>Description</th><th>Actions</th></tr>
-                    </thead>
-                    <tbody id="pending-reports-table">
-                        <tr><td colspan="6"><span class="skeleton skeleton-line"></span></td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        <div class="dashboard-two-column">
+            <section class="dashboard-section card">
+                <div class="section-header compact">
+                    <h2 class="card-title">Reports Requiring Review</h2>
+                    <span class="card-meta">Verify or reject without reloading.</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>ID</th><th>Status</th><th>Severity</th><th>Created</th><th>Description</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody id="pending-reports-table">
+                            <tr><td colspan="6"><span class="skeleton skeleton-line"></span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
-        <section class="dashboard-section card">
-            <div class="section-header compact">
-                <h2 class="card-title">Flood Zones</h2>
-                <a href="/admin/core/alertzone/" class="btn btn-sm btn-outline">Manage Zones</a>
-            </div>
-            <div id="zones-list" class="zone-overview-grid"></div>
-        </section>
+            <section class="dashboard-section card">
+                <div class="section-header compact">
+                    <h2 class="card-title">Flood Zones</h2>
+                    <a href="/admin/core/alertzone/" class="btn btn-sm btn-outline">Manage Zones</a>
+                </div>
+                <div id="zones-list" class="zone-overview-grid"></div>
+            </section>
+        </div>
     </div>
 </section>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/authority.js' %}"></script>
+<script src="{% static 'js/authority.js' %}?v={{ STATIC_VERSION }}"></script>
 {% endblock %}

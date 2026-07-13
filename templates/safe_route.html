@@ -58,6 +58,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/map.js' %}"></script>
-<script src="{% static 'js/safe_route.js' %}"></script>
+<script src="{% static 'js/map.js' %}?v={{ STATIC_VERSION }}"></script>
+<script src="{% static 'js/safe_route.js' %}?v={{ STATIC_VERSION }}"></script>
 {% endblock %}

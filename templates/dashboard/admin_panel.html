@@ -5,14 +5,15 @@
 <section class="dashboard admin-dashboard">
     <aside class="dashboard-sidebar" id="admin-sidebar">
         <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="true" title="Toggle sidebar">
-            ✕
+            ☰
         </button>
-        <a class="active" href="{% url 'admin_dashboard' %}">Overview</a>
-        <a href="{% url 'admin_dashboard' %}?view=zones">Zones</a>
-        <a href="{% url 'admin_dashboard' %}?view=alerts">Alerts</a>
-        <a href="{% url 'admin_dashboard' %}?view=reports">Reports</a>
-        <a href="{% url 'admin_dashboard' %}?view=users">Users</a>
-        <a href="{% url 'admin:index' %}">Django Admin</a>
+        <div class="admin-tabs">
+            <button class="admin-tab active" data-view="overview">Overview</button>
+            <button class="admin-tab" data-view="zones">Zones</button>
+            <button class="admin-tab" data-view="alerts">Alerts</button>
+            <button class="admin-tab" data-view="reports">Reports</button>
+            <button class="admin-tab" data-view="users">Users</button>
+        </div>
     </aside>
     <div class="container dashboard-content">
         <div class="dashboard-header">
@@ -20,114 +21,112 @@
             <p class="section-subtitle">System-wide flood monitoring and emergency oversight</p>
         </div>
 
-        <!-- KPI Cards Row -->
-        <div class="stats-grid">
-            <div class="stat-card card">
-                <span>Active Zones</span>
-                <strong id="total-zones">--</strong>
-                <small>Monitored areas</small>
+        <div id="tab-content-overview" class="admin-tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card card"><span>Active Zones</span><strong id="total-zones">--</strong><small>Monitored areas</small></div>
+                <div class="stat-card card"><span>High Risk Zones</span><strong id="high-risk-zones" class="text-warning">0</strong><small>Elevated but not critical</small></div>
+                <div class="stat-card card"><span>Critical Zones</span><strong id="critical-zones" class="text-danger">0</strong><small>Immediate attention</small></div>
+                <div class="stat-card card"><span>Pending Reports</span><strong id="pending-reports">0</strong><small>Awaiting review</small></div>
+                <div class="stat-card card"><span>Alerts Sent (24h)</span><strong id="alerts-24h">0</strong><small>SMS + Email</small></div>
             </div>
-            <div class="stat-card card">
-                <span>High Risk Zones</span>
-                <strong id="high-risk-zones" class="text-warning">0</strong>
-                <small>Elevated but not critical</small>
-            </div>
-            <div class="stat-card card">
-                <span>Critical Zones</span>
-                <strong id="critical-zones" class="text-danger">0</strong>
-                <small>Immediate attention</small>
-            </div>
-            <div class="stat-card card">
-                <span>Pending Reports</span>
-                <strong id="pending-reports">0</strong>
-                <small>Awaiting review</small>
-            </div>
-            <div class="stat-card card">
-                <span>Alerts Sent (24h)</span>
-                <strong id="alerts-24h">0</strong>
-                <small>SMS + Email</small>
+
+            <section class="dashboard-section card">
+                <div class="section-header compact">
+                    <h2 class="card-title">System Health</h2>
+                    <span id="data-confidence" class="status-badge pending">Checking</span>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="stat-card card"><span>Data Sources</span><strong id="data-sources-active">--/6</strong><small>Checking providers</small></div>
+                    <div class="stat-card card"><span>Open-Meteo</span><strong id="source-open-meteo">--</strong><small>River discharge</small></div>
+                    <div class="stat-card card"><span>Weather APIs</span><strong id="source-weather-count">--</strong><small>OpenWeather, Tomorrow.io, WeatherAPI</small></div>
+                    <div class="stat-card card"><span>Satellite</span><strong id="source-satellite-count">--</strong><small>NASA GPM, Google Earth Engine</small></div>
+                </div>
+                <div id="data-sources-list" class="card-meta" style="margin-top: 12px;">
+                    Loading source status...
+                </div>
+            </section>
+
+            <section class="dashboard-section card">
+                <div class="section-header compact">
+                    <h2 class="card-title">Global Zone Status</h2>
+                    <div class="map-controls-mini">
+                        <label><input type="checkbox" id="show-heatmap" checked> Heatmap</label>
+                        <label><input type="checkbox" id="show-clusters" checked> Clusters</label>
+                    </div>
+                </div>
+                <div id="admin-map" class="map-container large" style="height: 500px;"></div>
+            </section>
+
+            <section class="dashboard-section card">
+                <div class="section-header compact">
+                    <h2 class="card-title">Recent Alerts</h2>
+                    <a href="#" class="btn btn-sm">View All</a>
+                </div>
+                <div class="alerts-feed" id="alerts-feed">
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+            </section>
+        </div>
+
+        <div id="tab-content-zones" class="admin-tab-content">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Zone</th>
+                            <th>Risk Score</th>
+                            <th>Threshold</th>
+                            <th>Status</th>
+                            <th>Override</th>
+                            <th>Last Reading</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="zones-table-body">
+                        <tr><td colspan="7"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
-        <!-- System Health / Data Sources -->
-        <section class="dashboard-section card">
-            <div class="section-header compact">
-                <h2 class="card-title">System Health</h2>
-                <span id="data-confidence" class="status-badge pending">Checking</span>
+        <div id="tab-content-alerts" class="admin-tab-content">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>ID</th><th>Zone</th><th>Risk</th><th>Sent</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="alerts-table-body">
+                        <tr><td colspan="5"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
             </div>
-            <div class="stats-grid compact">
-                <div class="stat-card card">
-                    <span>Data Sources</span>
-                    <strong id="data-sources-active">--/6</strong>
-                    <small id="data-sources-summary">Checking configured providers</small>
-                </div>
-                <div class="stat-card card">
-                    <span>Open-Meteo</span>
-                    <strong id="source-open-meteo">--</strong>
-                    <small>River discharge</small>
-                </div>
-                <div class="stat-card card">
-                    <span>Weather APIs</span>
-                    <strong id="source-weather-count">--</strong>
-                    <small>OpenWeather, Tomorrow.io, WeatherAPI</small>
-                </div>
-                <div class="stat-card card">
-                    <span>Satellite</span>
-                    <strong id="source-satellite-count">--</strong>
-                    <small>NASA GPM, Google Earth Engine</small>
-                </div>
-            </div>
-            <div id="data-sources-list" class="card-meta" style="margin-top: 12px;">
-                Loading source status...
-            </div>
-        </section>
+        </div>
 
-        <!-- Global Map Section -->
-        <section class="dashboard-section card">
-            <div class="section-header compact">
-                <h2 class="card-title">Global Zone Status</h2>
-                <div class="map-controls-mini">
-                    <label><input type="checkbox" id="show-heatmap" checked> Heatmap</label>
-                    <label><input type="checkbox" id="show-clusters" checked> Clusters</label>
-                </div>
+        <div id="tab-content-reports" class="admin-tab-content">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>ID</th><th>User</th><th>Status</th><th>Severity</th><th>Created</th><th>Location</th><th>Actions</th></tr>
+                    </thead>
+                    <tbody id="all-reports-table-body">
+                        <tr><td colspan="7"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
             </div>
-            <div id="admin-map" class="map-container large" style="height: 600px;"></div>
-        </section>
+        </div>
 
-        <!-- Zone Status Table -->
-        <section class="dashboard-section">
-            <div class="card">
-                <div class="table-responsive">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Zone</th>
-                                <th>Risk Score</th>
-                                <th>Threshold</th>
-                                <th>Status</th>
-                                <th>Override</th>
-                                <th>Last Reading</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="zones-table-body">
-                            <tr><td colspan="7"><span class="skeleton skeleton-line"></span></td></tr>
-                        </tbody>
-                    </table>
-                </div>
+        <div id="tab-content-users" class="admin-tab-content">
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Username</th><th>Email</th><th>Role</th><th>Joined</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="users-table-body">
+                        <tr><td colspan="5"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
             </div>
-        </section>
-
-        <!-- Recent Alerts Feed -->
-        <section class="dashboard-section card">
-            <div class="section-header compact">
-                <h2 class="card-title">Recent Alerts</h2>
-                <a href="#" class="btn btn-sm">View All</a>
-            </div>
-            <div class="alerts-feed" id="alerts-feed">
-                <div class="skeleton skeleton-line"></div>
-            </div>
-        </section>
+        </div>
     </div>
 </section>
 
@@ -186,5 +185,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/admin.js' %}"></script>
+<script src="{% static 'js/admin.js' %}?v={{ STATIC_VERSION }}"></script>
 {% endblock %}

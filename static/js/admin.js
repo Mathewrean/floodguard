@@ -108,6 +108,7 @@ function initLocationServices() {
 // Initialize admin dashboard
 document.addEventListener('DOMContentLoaded', function() {
     initSidebarToggle();
+    initAdminTabs();
     initAdminMap();
     initLocationServices();
     fetchZones();
@@ -129,6 +130,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Store intervals for cleanup if needed
     window._adminIntervals = [zonesInterval, statsInterval, dataInterval];
 });
+
+function initAdminTabs() {
+    const tabs = document.querySelectorAll('.admin-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            tabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            
+            const view = this.dataset.view;
+            document.querySelectorAll('.admin-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            const target = document.getElementById(`tab-content-${view}`);
+            if (target) target.classList.add('active');
+        });
+    });
+}
 
 function initAdminMap() {
     const mapEl = document.getElementById('admin-map');
@@ -436,10 +454,6 @@ function initAlertsFeed() {
 function triggerOverride(zoneId) {
     document.getElementById('override-zone-id').value = zoneId;
     document.getElementById('override-modal').style.display = 'block';
-}
-
-function closeOverrideModal() {
-    document.getElementById('override-modal').style.display = 'none';
 }
 
 function closeOverrideModal() {

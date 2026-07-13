@@ -1189,7 +1189,7 @@ def alert_history(request):
 def map_view(request):
     """Redirect old map page to GIS dashboard"""
     from django.shortcuts import redirect
-    return redirect('gis_dashboard')
+    return redirect('gis_dashboard', permanent=True)
 
 
 def map_selection_view(request):

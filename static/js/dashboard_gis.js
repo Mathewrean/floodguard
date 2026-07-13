@@ -76,17 +76,13 @@ function bindGisControls() {
     const searchBtn = document.getElementById('gis-search-btn');
     const locationBtn = document.getElementById('gis-location-btn');
     const routeBtn = document.getElementById('gis-safe-route-btn');
-    const closePanel = document.getElementById('gis-close-panel');
-    const closeRoute = document.getElementById('gis-close-route');
-    const routeBtnInPanel = document.getElementById('gis-route-btn');
+    const toggleBtn = document.getElementById('gis-panel-toggle');
 
     if (searchBtn) searchBtn.addEventListener('click', doLocationSearch);
     if (searchInput) searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLocationSearch(); });
     if (locationBtn) locationBtn.addEventListener('click', useMyLocation);
     if (routeBtn) routeBtn.addEventListener('click', openRouteMode);
-    if (closePanel) closePanel.addEventListener('click', closeInfoPanel);
-    if (closeRoute) closeRoute.addEventListener('click', closeRoutePanel);
-    if (routeBtnInPanel) routeBtnInPanel.addEventListener('click', openRouteMode);
+    if (toggleBtn) toggleBtn.addEventListener('click', togglePanel);
 
     // Layer toggles
     const floodToggle = document.getElementById('layer-flood');
@@ -100,6 +96,11 @@ function bindGisControls() {
     if (satelliteToggle) satelliteToggle.addEventListener('change', e => {
         layerVisibility.satellite = e.target.checked;
     });
+}
+
+function togglePanel() {
+    const panel = document.getElementById('gis-panel');
+    if (panel) panel.classList.toggle('open');
 }
 
 async function loadH3Cells() {
@@ -302,8 +303,8 @@ function showEmergencyAlert(data) {
 }
 
 function openInfoPanel(data, lat, lon) {
-    const panel = document.getElementById('gis-info-panel');
-    if (!panel) return;
+    const section = document.getElementById('gis-info-section');
+    if (!section) return;
 
     const riskInfo = getRiskInfo(data.risk_score || 0);
 
@@ -312,21 +313,21 @@ function openInfoPanel(data, lat, lon) {
     document.getElementById('info-severity').textContent = data.severity || riskInfo.label;
     document.getElementById('info-updated').textContent = data.data_confidence || 'live';
 
-    panel.classList.add('open');
-}
-
-function openRouteMode() {
-    const panel = document.getElementById('gis-route-panel');
+    const panel = document.getElementById('gis-panel');
     if (panel) panel.classList.add('open');
 }
 
-function closeInfoPanel() {
-    const panel = document.getElementById('gis-info-panel');
-    if (panel) panel.classList.remove('open');
+function openRouteMode() {
+    const panel = document.getElementById('gis-panel');
+    const routeSection = document.getElementById('gis-route-section');
+    if (panel) panel.classList.add('open');
+    if (routeSection) {
+        routeSection.scrollIntoView({ behavior: 'smooth' });
+    }
 }
 
 function closeRoutePanel() {
-    const panel = document.getElementById('gis-route-panel');
+    const panel = document.getElementById('gis-panel');
     if (panel) panel.classList.remove('open');
 }
 
