@@ -19,6 +19,24 @@ const BASEMAPS = [
     }
 ];
 
+// English-only basemaps for consistent UI language
+const ENGLISH_BASEMAPS = [
+    {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        options: {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri'
+        }
+    },
+    {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        options: {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, RapidEye, DigitalGlobe, Earthstar Geographics'
+        }
+    }
+];
+
 // Global state for polling and caching
 let mapInstance = null;
 let zonesCache = null;
@@ -134,13 +152,14 @@ function timeAgo(ts) {
     return `${Math.floor(diff / 3600)}h ago`;
 }
 
-function createBaseMap(elementId, zoom = 12) {
+function createBaseMap(elementId, zoom = 12, useEnglish = false) {
     const element = document.getElementById(elementId);
     if (!element || typeof L === 'undefined') return null;
     if (element._leaflet_id) return null;
 
+    const provider = useEnglish ? ENGLISH_BASEMAPS[0] : BASEMAPS[0];
     const map = L.map(elementId).setView(DEFAULT_LATLNG, zoom);
-    addBasemap(map, 0);
+    addBasemap(map, 0, useEnglish);
     return map;
 }
 
@@ -148,18 +167,19 @@ function defaultLocation() {
     return { ...DEFAULT_LOCATION };
 }
 
-function addBasemap(map, index) {
-    const provider = BASEMAPS[index] || BASEMAPS[0];
+function addBasemap(map, index, useEnglish = false) {
+    const basemaps = useEnglish ? ENGLISH_BASEMAPS : BASEMAPS;
+    const provider = basemaps[index] || basemaps[0];
     const layer = L.tileLayer(provider.url, {
         ...provider.options,
         crossOrigin: true
     }).addTo(map);
 
     layer.on('tileerror', () => {
-        if (index + 1 < BASEMAPS.length && !map._fallbackBasemapLoaded) {
+        if (index + 1 < basemaps.length && !map._fallbackBasemapLoaded) {
             map._fallbackBasemapLoaded = true;
             map.removeLayer(layer);
-            addBasemap(map, index + 1);
+            addBasemap(map, index + 1, useEnglish);
         }
     });
 }
@@ -473,7 +493,7 @@ async function fetchLiveZoneForLocation(lat, lon, map, accuracy = null) {
 }
 
 async function initMapPreview() {
-    const map = createBaseMap('map-preview', 11);
+    const map = createBaseMap('map-preview', 11, true);
     if (!map) return;
     try {
         const data = await apiData('/api/v1/zones/');
@@ -485,7 +505,7 @@ async function initMapPreview() {
 }
 
 async function initFullMap() {
-    const map = createBaseMap('map', 12);
+    const map = createBaseMap('map', 12, true);
     if (!map) return;
     mapInstance = map;
 

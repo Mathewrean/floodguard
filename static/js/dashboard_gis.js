@@ -46,9 +46,9 @@ async function initGisDashboard() {
         maxZoom: 19,
     });
 
-    // Add base layer (OpenStreetMap)
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
+    // Add English-labeled base layer (Esri World Street Map shows English labels globally)
+    const streetLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri',
         maxZoom: 19,
     }).addTo(gisMap);
 
@@ -59,7 +59,7 @@ async function initGisDashboard() {
     });
 
     // Layer control
-    const baseLayers = { 'Street Map': osmLayer, 'Satellite': satelliteLayer };
+    const baseLayers = { 'Street Map': streetLayer, 'Satellite': satelliteLayer };
     L.control.layers(baseLayers, {}, { position: 'topright' }).addTo(gisMap);
 
     // Bind UI events
