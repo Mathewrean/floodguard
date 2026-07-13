@@ -135,10 +135,10 @@ function initAdminTabs() {
     const tabs = document.querySelectorAll('.admin-tab');
     tabs.forEach(tab => {
         tab.addEventListener('click', function() {
-            tabs.forEach(t => t.classList.remove('active'));
-            this.classList.add('active');
-            
             const view = this.dataset.view;
+            tabs.forEach(t => {
+                t.classList.toggle('active', t.dataset.view === view);
+            });
             document.querySelectorAll('.admin-tab-content').forEach(content => {
                 content.classList.remove('active');
             });

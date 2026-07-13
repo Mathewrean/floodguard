@@ -347,6 +347,41 @@ function markActiveNav() {
     });
 }
 
+function initDashboardNavigation() {
+    document.querySelectorAll('.dashboard').forEach(dashboard => {
+        const toggle = dashboard.querySelector('.dashboard-nav-toggle');
+        const sidebar = dashboard.querySelector('.dashboard-sidebar');
+        if (!toggle || !sidebar) return;
+
+        const close = () => {
+            dashboard.classList.remove('dashboard-nav-open');
+            toggle.setAttribute('aria-expanded', 'false');
+        };
+
+        toggle.addEventListener('click', event => {
+            event.stopPropagation();
+            const isOpen = dashboard.classList.toggle('dashboard-nav-open');
+            toggle.setAttribute('aria-expanded', String(isOpen));
+        });
+
+        sidebar.addEventListener('click', event => {
+            if (event.target.closest('a, button')) close();
+        });
+
+        dashboard.querySelectorAll('.dashboard-quick-nav a, .dashboard-quick-nav button').forEach(item => {
+            item.addEventListener('click', close);
+        });
+
+        document.addEventListener('click', event => {
+            if (!dashboard.contains(event.target)) close();
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') close();
+        });
+    });
+}
+
 async function initHeroStats() {
     const zonesEl = document.getElementById('hero-zones-count');
     const alertsEl = document.getElementById('hero-alerts-count');
@@ -368,6 +403,7 @@ async function initHeroStats() {
 
 document.addEventListener('DOMContentLoaded', function() {
     markActiveNav();
+    initDashboardNavigation();
     initThemeToggle();
     initHamburgerMenu();
     initLiveStats();

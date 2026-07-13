@@ -3,7 +3,19 @@
 
 {% block content %}
 <section class="dashboard public-dashboard">
-    <aside class="dashboard-sidebar">
+    <div class="dashboard-controlbar" aria-label="Citizen dashboard navigation">
+        <button class="dashboard-nav-toggle" type="button" aria-controls="citizen-dashboard-nav" aria-expanded="false">
+            <span aria-hidden="true">☰</span>
+            <span>Menu</span>
+        </button>
+        <nav class="dashboard-quick-nav">
+            <a class="active" href="{% url 'citizen_dashboard' %}">Dashboard</a>
+            <a href="{% url 'report_submit' %}">Report</a>
+            <a href="{% url 'gis_dashboard' %}">Map</a>
+            <a href="{% url 'alert_history' %}">Alerts</a>
+        </nav>
+    </div>
+    <aside class="dashboard-sidebar" id="citizen-dashboard-nav">
         <a class="active" href="{% url 'citizen_dashboard' %}">Dashboard</a>
         <a href="{% url 'report_submit' %}">Report</a>
         <a href="{% url 'gis_dashboard' %}">Map</a>

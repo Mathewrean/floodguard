@@ -3,16 +3,29 @@
 
 {% block content %}
 <section class="dashboard admin-dashboard">
+    <div class="dashboard-controlbar" aria-label="Admin dashboard navigation">
+        <button class="dashboard-nav-toggle" type="button" aria-controls="admin-sidebar" aria-expanded="false">
+            <span aria-hidden="true">☰</span>
+            <span>Menu</span>
+        </button>
+        <nav class="dashboard-quick-nav">
+            <button class="admin-tab active" data-view="overview" type="button">Overview</button>
+            <button class="admin-tab" data-view="zones" type="button">Zones</button>
+            <button class="admin-tab" data-view="alerts" type="button">Alerts</button>
+            <button class="admin-tab" data-view="reports" type="button">Reports</button>
+            <button class="admin-tab" data-view="users" type="button">Users</button>
+        </nav>
+    </div>
     <aside class="dashboard-sidebar" id="admin-sidebar">
         <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="true" title="Toggle sidebar">
             ☰
         </button>
         <div class="admin-tabs">
-            <button class="admin-tab active" data-view="overview">Overview</button>
-            <button class="admin-tab" data-view="zones">Zones</button>
-            <button class="admin-tab" data-view="alerts">Alerts</button>
-            <button class="admin-tab" data-view="reports">Reports</button>
-            <button class="admin-tab" data-view="users">Users</button>
+            <button class="admin-tab active" data-view="overview" type="button">Overview</button>
+            <button class="admin-tab" data-view="zones" type="button">Zones</button>
+            <button class="admin-tab" data-view="alerts" type="button">Alerts</button>
+            <button class="admin-tab" data-view="reports" type="button">Reports</button>
+            <button class="admin-tab" data-view="users" type="button">Users</button>
         </div>
     </aside>
     <div class="container dashboard-content">

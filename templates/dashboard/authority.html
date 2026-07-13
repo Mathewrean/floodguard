@@ -3,7 +3,19 @@
 
 {% block content %}
 <section class="dashboard authority-dashboard">
-    <aside class="dashboard-sidebar">
+    <div class="dashboard-controlbar" aria-label="Authority dashboard navigation">
+        <button class="dashboard-nav-toggle" type="button" aria-controls="authority-dashboard-nav" aria-expanded="false">
+            <span aria-hidden="true">☰</span>
+            <span>Menu</span>
+        </button>
+        <nav class="dashboard-quick-nav">
+            <a class="active" href="{% url 'authority_dashboard' %}">Review</a>
+            <a href="{% url 'gis_dashboard' %}">Map</a>
+            <a href="{% url 'alert_history' %}">Alerts</a>
+            <a href="{% url 'report_list' %}">Reports</a>
+        </nav>
+    </div>
+    <aside class="dashboard-sidebar" id="authority-dashboard-nav">
         <a class="active" href="{% url 'authority_dashboard' %}">Review</a>
         <a href="{% url 'gis_dashboard' %}">Map</a>
         <a href="{% url 'alert_history' %}">Alerts</a>
