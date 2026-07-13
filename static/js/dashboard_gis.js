@@ -27,6 +27,7 @@ let gisMap = null;
 let h3Layer = null;
 let userMarker = null;
 let selectedCell = null;
+let routeState = { origin: null, destination: null, profile: 'balanced' };
 let layerVisibility = {
     flood: true,
     satellite: false,
@@ -64,11 +65,183 @@ async function initGisDashboard() {
     // Bind UI events
     bindGisControls();
 
-    // Load initial H3 cells
-    await loadH3Cells();
+    // Load zones and readings
+    await Promise.all([loadZones(), loadReadings()]);
+    
+    // Connect WebSocket for live updates
+    connectFloodMapSocket();
+}
 
-    // Start viewport-based loading
-    gisMap.on('moveend', debounceLoadH3Cells);
+function createZonePopup(zone) {
+    const score = Number(zone.risk_score || 0);
+    const band = getRiskBand(score);
+    
+    return `
+        <div style="min-width:200px;font-family:-apple-system,Arial,sans-serif">
+            <div style="background:${band.colour};padding:8px 12px;border-radius:6px 6px 0 0">
+                <strong style="color:white;font-size:14px">${escapeHTML(zone.name)}</strong>
+            </div>
+            <div style="padding:10px 12px;background:white">
+                <div style="font-size:13px;margin-bottom:6px">
+                    <span style="color:${band.colour};font-weight:700">${band.label}</span>
+                    <span style="margin-left:8px">${(score * 100).toFixed(0)}% risk</span>
+                </div>
+                <div style="font-size:12px;color:#6B7A8D">
+                    <div>Threshold: ${(zone.risk_threshold || 0.7) * 100}%</div>
+                    <div>Updated: ${timeAgo(zone.updated || zone.created)}</div>
+                </div>
+                <div style="margin-top:8px">
+                    <button onclick="findSafeRouteFromZone(${zone.id})" class="btn btn-sm btn-primary" style="width:100%">Find Safe Route</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function loadZones() {
+    if (!gisMap) return;
+
+    try {
+        const zones = normaliseList(await fetchJSON('/api/v1/zones/'));
+        if (!zones.length) {
+            const panel = document.querySelector('.gis-info-section');
+            if (panel) {
+                panel.innerHTML = '<div style="padding:12px;color:#666">No zones loaded yet. Add flood zones to see risk data.</div>';
+            }
+            return;
+        }
+
+        // Render zone polygons
+        if (h3Layer) h3Layer.remove();
+        h3Layer = L.layerGroup().addTo(gisMap);
+
+        zones.forEach(zone => {
+            const score = Number(zone.risk_score || 0);
+            const band = getRiskBand(score);
+
+            // Create GeoJSON from zone polygon
+            if (zone.polygon && zone.polygon.coordinates) {
+                try {
+                    const geojson = {
+                        type: 'Feature',
+                        geometry: zone.polygon,
+                        properties: {
+                            id: zone.id,
+                            name: zone.name,
+                            risk_score: score,
+                            severity: band.label,
+                            risk_threshold: zone.risk_threshold || 0.7,
+                            updated: zone.updated || zone.created
+                        }
+                    };
+
+                    const polygon = L.geoJSON(geojson, {
+                        style: {
+                            fillColor: band.colour,
+                            fillOpacity: score >= 0.7 ? 0.45 : score >= 0.4 ? 0.35 : 0.25,
+                            color: band.colour,
+                            weight: 1,
+                            opacity: 0.6
+                        }
+                    }).bindPopup(createZonePopup(zone)).addTo(h3Layer);
+                } catch (e) {
+                    console.warn('Failed to render zone:', zone.name, e);
+                }
+            }
+        });
+
+        // Fit to zones if we have them
+        if (zones.length > 0) {
+            const bounds = L.latLngBounds();
+            zones.forEach(zone => {
+                if (zone.centroid) {
+                    bounds.extend([zone.centroid.y, zone.centroid.x]);
+                }
+            });
+            if (bounds.isValid()) {
+                gisMap.fitBounds(bounds, { padding: [20, 20] });
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to load zones:', e);
+    }
+}
+
+async function loadReadings() {
+    if (!gisMap) return;
+    
+    try {
+        const readings = normaliseList(await fetchJSON('/api/v1/readings/?limit=50'));
+        if (!readings.length) return;
+        
+        const readingsLayer = L.layerGroup();
+        readings.forEach(reading => {
+            if (!reading.location || !reading.location.coordinates) return;
+            const [lon, lat] = reading.location.coordinates;
+            const score = Number(reading.risk_score || 0);
+            const band = getRiskBand(score);
+            
+            L.circleMarker([lat, lon], {
+                radius: 7,
+                color: '#fff',
+                weight: 2,
+                fillColor: band.colour,
+                fillOpacity: 0.9
+            }).bindPopup(`
+                <strong>Flood Reading</strong><br>
+                Water level: ${reading.water_level_metres || 'N/A'}m<br>
+                Risk Score: ${(score * 100).toFixed(0)}%<br>
+                <small>${timeAgo(reading.timestamp || reading.created_at)}</small>
+            `).addTo(readingsLayer);
+        });
+        readingsLayer.addTo(gisMap);
+    } catch (e) {
+        console.warn('Failed to load readings:', e);
+    }
+}
+
+async function connectFloodMapSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let reconnectDelay = 2000;
+    
+    function startSocket() {
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws/alerts/`);
+        
+        socket.onopen = () => {
+            const status = document.getElementById('ws-status');
+            if (status) status.textContent = 'Live';
+            reconnectDelay = 2000;
+        };
+        
+        socket.onerror = () => {
+            const status = document.getElementById('ws-status');
+            if (status) status.textContent = 'Reconnecting...';
+        };
+        
+        socket.onclose = () => {
+            if (reconnectDelay < 30000) {
+                reconnectDelay *= 2;
+            }
+            setTimeout(startSocket, reconnectDelay);
+        };
+        
+        socket.onmessage = event => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'flood.update') {
+                loadZones();
+                if (data.alert) {
+                    const ticker = document.querySelector('.ticker-track');
+                    if (ticker && data.alert.message) {
+                        const msg = document.createElement('span');
+                        msg.textContent = data.alert.message;
+                        ticker.appendChild(msg);
+                    }
+                }
+            }
+        };
+    }
+    
+    startSocket();
 }
 
 function bindGisControls() {
@@ -101,70 +274,6 @@ function bindGisControls() {
 function togglePanel() {
     const panel = document.getElementById('gis-panel');
     if (panel) panel.classList.toggle('open');
-}
-
-async function loadH3Cells() {
-    if (!gisMap) return;
-
-    const bounds = gisMap.getBounds();
-    const bbox = `${bounds.getSouthWest().lat},${bounds.getSouthWest().lng},${bounds.getNorthEast().lat},${bounds.getNorthEast().lng}`;
-    const resolution = gisMap.getZoom() >= 12 ? 7 : 5;
-
-    try {
-        const data = await cachedFetch(`/api/v1/h3-cells/?min_lat=${bounds.getSouthWest().lat}&min_lon=${bounds.getSouthWest().lng}&max_lat=${bounds.getNorthEast().lat}&max_lon=${bounds.getNorthEast().lng}&resolution=${resolution}`);
-
-        if (h3Layer) h3Layer.remove();
-        h3Layer = L.layerGroup();
-
-        const features = data.cells || [];
-        for (const cell of features) {
-            const risk = Number(cell.properties?.risk_score || 0);
-            const riskInfo = getRiskInfo(risk);
-
-            const polygon = L.geoJSON(cell, {
-                style: {
-                    fillColor: riskInfo.color,
-                    fillOpacity: riskInfo.level === 'high' ? 0.45 : riskInfo.level === 'medium' ? 0.35 : 0.25,
-                    color: riskInfo.color,
-                    weight: 1,
-                    opacity: 0.6,
-                }
-            }).bindPopup(createH3Popup(cell));
-
-            polygon.addTo(h3Layer);
-        }
-
-        h3Layer.addTo(gisMap);
-    } catch (e) {
-        console.warn('Failed to load H3 cells:', e);
-    }
-}
-
-function createH3Popup(cell) {
-    const props = cell.properties || {};
-    const risk = Number(props.risk_score || 0);
-    const riskInfo = getRiskInfo(risk);
-
-    return `
-        <div style="min-width:200px;font-family:-apple-system,Arial,sans-serif">
-            <div style="background:${riskInfo.color};padding:8px 12px;border-radius:6px 6px 0 0">
-                <strong style="color:white;font-size:14px">Flood Risk Cell</strong>
-            </div>
-            <div style="padding:10px 12px;background:white">
-                <div style="font-size:13px;margin-bottom:6px">
-                    <span style="color:${riskInfo.color};font-weight:700">${riskInfo.label}</span>
-                    <span style="margin-left:8px">${(risk * 100).toFixed(0)}% risk</span>
-                </div>
-                <div style="font-size:12px;color:#6B7A8D">
-                    <div>H3: ${props.h3_index || 'N/A'}</div>
-                    <div>Cells update independently based on live data</div>
-                </div>
-                <div style="margin-top:8px">
-                    <button onclick="findSafeRouteFromCell('${props.h3_index}')" class="btn btn-sm btn-primary" style="width:100%">Find Safe Route</button>
-                </div>
-            </div>
-        </div>
-    `;
 }
 
 async function doLocationSearch() {
@@ -389,8 +498,19 @@ async function findSafestRoute() {
     if (originInput) originInput.value = `${userPos.lat.toFixed(6)}, ${userPos.lng.toFixed(6)}`;
 }
 
-function findSafeRouteFromCell(h3Index) {
-    openRouteMode();
+async function findSafeRouteFromZone(zoneId) {
+    try {
+        const zone = normaliseList(await fetchJSON('/api/v1/zones/')).find(z => z.id === zoneId);
+        if (zone && zone.centroid) {
+            openRouteMode();
+            const latLng = Array.isArray(zone.centroid) ? { lat: zone.centroid[1], lng: zone.centroid[0] } : { lat: zone.centroid.lat, lng: zone.centroid.lng };
+            routeState.destination = latLng;
+            const destInput = document.getElementById('destination-input');
+            if (destInput) destInput.value = `${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`;
+        }
+    } catch (e) {
+        console.warn('Failed to set route from zone:', e);
+    }
 }
 
 function showSafeZones() {
@@ -435,9 +555,7 @@ function debounce(fn, delay = 300) {
     };
 }
 
-const debounceLoadH3Cells = debounce(() => loadH3Cells(), 500);
-
 // Expose for template
 window.initGisDashboard = initGisDashboard;
 window.getRiskInfo = getRiskInfo;
-window.loadH3Cells = loadH3Cells;
+window.loadZones = loadZones;

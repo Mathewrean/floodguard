@@ -14,15 +14,15 @@
         </div>
         <div class="hero-stats">
             <div class="hero-stat">
-                <strong class="stat-value" data-stat="zones_count">{{ zones_count }}</strong>
+                <strong id="hero-zones-count">...</strong>
                 <span>Active Zones Monitored</span>
             </div>
             <div class="hero-stat">
-                <strong class="stat-value" data-stat="alerts_today">0</strong>
+                <strong id="hero-alerts-count">...</strong>
                 <span>Alerts Sent Today</span>
             </div>
             <div class="hero-stat">
-                <strong class="stat-value" data-stat="reports_this_week">0</strong>
+                <strong id="hero-reports-count">...</strong>
                 <span>Reports This Week</span>
             </div>
         </div>
@@ -100,5 +100,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/map.js' %}"></script>
+<script src="{% static 'js/map.js' %}?v={{ STATIC_VERSION }}"></script>
 {% endblock %}

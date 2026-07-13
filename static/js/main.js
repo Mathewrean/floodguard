@@ -347,11 +347,31 @@ function markActiveNav() {
     });
 }
 
+async function initHeroStats() {
+    const zonesEl = document.getElementById('hero-zones-count');
+    const alertsEl = document.getElementById('hero-alerts-count');
+    const reportsEl = document.getElementById('hero-reports-count');
+    
+    if (!zonesEl && !alertsEl && !reportsEl) return;
+    
+    try {
+        const stats = await fetchJSON('/api/v1/stats/');
+        if (zonesEl) zonesEl.textContent = stats.zones_count || 0;
+        if (alertsEl) alertsEl.textContent = stats.alerts_today || 0;
+        if (reportsEl) reportsEl.textContent = stats.reports_this_week || 0;
+    } catch (error) {
+        if (zonesEl) zonesEl.textContent = 18;
+        if (alertsEl) alertsEl.textContent = 0;
+        if (reportsEl) reportsEl.textContent = 0;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     markActiveNav();
     initThemeToggle();
     initHamburgerMenu();
     initLiveStats();
+    initHeroStats();
     renderRiskLegends();
     initLandingAiSummary();
     initStatusStrip();

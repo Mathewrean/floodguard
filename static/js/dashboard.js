@@ -179,7 +179,7 @@ function renderMyReports(reports) {
     const count = document.getElementById('my-reports-count');
     const verified = document.getElementById('verified-reports-count');
     if (count) count.textContent = reports.length;
-    if (verified) verified.textContent = reports.filter(report => report.status === 'verified').count || reports.filter(report => report.status === 'verified').length;
+    if (verified) verified.textContent = reports.filter(report => report.status === 'verified').length;
     if (!table) return;
 
     table.innerHTML = reports.length ? reports.map(report => `

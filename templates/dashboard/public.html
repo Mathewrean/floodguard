@@ -42,8 +42,23 @@
         <section class="dashboard-section card">
             <div class="section-header compact">
                 <h2 class="card-title">Current Flood Intelligence</h2>
+                <span class="card-meta">Powered by Groq</span>
             </div>
             <div id="ai-summary" class="ai-content">Loading...</div>
+        </section>
+
+        <section class="dashboard-section card">
+            <div class="section-header compact">
+                <h2 class="card-title">My Reports</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead><tr><th>Status</th><th>Severity</th><th>Date</th><th>Description</th></tr></thead>
+                    <tbody id="my-reports-table">
+                        <tr><td colspan="4"><span class="skeleton skeleton-line"></span></td></tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section class="dashboard-section card">

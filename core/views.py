@@ -1094,6 +1094,7 @@ def gis_dashboard(request):
     }
     return render(request, 'dashboard/gis.html', context)
 
+
 def report_submit(request):
     """Handle citizen report submission"""
     if request.method == 'POST':
