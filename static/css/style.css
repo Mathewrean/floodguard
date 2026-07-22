@@ -793,7 +793,7 @@ input[type="range"] { accent-color: var(--warning); padding-inline: 0; }
   color: #fff;
   font-size: 13px;
 }
-.ticker-track {
+#ticker-track {
   display: inline-block;
   flex: 1 1 auto;
   min-width: 100%;
@@ -803,6 +803,47 @@ input[type="range"] { accent-color: var(--warning); padding-inline: 0; }
 }
 .alerts-ticker:hover .ticker-track { animation-play-state: paused; }
 .ticker-critical { color: #FF6B6B; font-weight: 800; }
+
+#fg-offline-banner {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: #DC2626;
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 9998;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.stale-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #D97706;
+  background: #FEF3C7;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+#fg-location-status {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: none;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+}
 
 footer {
   padding: 48px 24px 24px;

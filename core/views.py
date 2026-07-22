@@ -15,6 +15,7 @@ from datetime import timedelta
 import logging
 from django.utils import timezone
 from django.conf import settings
+from django.db.models import Sum as models_Sum
 
 try:
     from groq import Groq
@@ -387,6 +388,79 @@ def stats_view(request):
         'high_risk_zones': AlertZone.objects.filter(risk_score__gte=0.7, risk_score__lt=0.85).count(),
         'critical_zones': AlertZone.objects.filter(risk_score__gte=0.85).count(),
     })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def impact_stats(request):
+    """Public impact statistics for /impact/ page."""
+    from .models import Milestone, BeneficiaryGroup
+    first_reading = FloodReading.objects.order_by('timestamp').first()
+    days_running = (
+        (timezone.now().date() - first_reading.timestamp.date()).days
+        if first_reading else 0
+    )
+
+    return Response({
+        'zones_monitored': AlertZone.objects.count(),
+        'alerts_dispatched': AlertLog.objects.count(),
+        'citizens_reached': UserProfile.objects.count(),
+        'reports_verified': IncidentReport.objects.filter(status='verified').count(),
+        'reports_total': IncidentReport.objects.count(),
+        'days_running': days_running,
+        'high_risk_now': AlertZone.objects.filter(risk_score__gte=0.70).count(),
+        'critical_now': AlertZone.objects.filter(risk_score__gte=0.85).count(),
+        'milestones_achieved': Milestone.objects.filter(is_public=True).count(),
+        'beneficiaries': BeneficiaryGroup.objects.aggregate(
+            total=models_Sum('member_count')
+        )['total'] or 0,
+        'groups_enrolled': BeneficiaryGroup.objects.count(),
+        'groups_trained': BeneficiaryGroup.objects.filter(trained=True).count(),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def milestones_list(request):
+    """Public list of project milestones."""
+    from .models import Milestone
+    milestones = Milestone.objects.filter(is_public=True)
+    data = [{
+        'title': m.title,
+        'description': m.description,
+        'date': m.achieved_date.isoformat(),
+        'category': m.category,
+    } for m in milestones]
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def beneficiaries_list(request):
+    """Admin/beneficiary group list for impact reporting."""
+    if not (request.user.is_superuser or request.user.groups.filter(name='EmergencyTeam').exists()):
+        return Response({'error': 'Not authorised'}, status=status.HTTP_403_FORBIDDEN)
+    from .models import BeneficiaryGroup
+    groups = BeneficiaryGroup.objects.all()
+    data = [{
+        'name': g.name,
+        'type': g.group_type,
+        'members': g.member_count,
+        'location': g.location,
+        'enrolled': g.enrolled_date.isoformat(),
+        'trained': g.trained,
+    } for g in groups]
+    return Response(data)
+
+
+def impact_page(request):
+    """Render the public impact page."""
+    return render(request, 'impact.html')
+
+
+def viability_page(request):
+    """Render the viability/business model page."""
+    return render(request, 'viability.html')
 
 
 @api_view(['GET'])

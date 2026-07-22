@@ -8,7 +8,7 @@
 ![ Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![ License](https://img.shields.io/badge/license-MIT-green)
 
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-23
 
 A comprehensive flood monitoring and alert system leveraging geospatial analytics, machine learning, and real-time data processing to provide early warnings for potential flooding events.
 
@@ -53,7 +53,7 @@ FloodGuard follows a modern, scalable architecture:
             - **scikit-learn ML Model** - Flood risk prediction engine
             - **Alert Consumer** - Real-time notification system
 
-**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction, AlertZoneActivity
+**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction, AlertZoneActivity, Milestone, BeneficiaryGroup, MonthlyReport
 
 **API:** RESTful endpoints powered by Django REST Framework with token authentication.
 

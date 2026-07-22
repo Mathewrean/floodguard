@@ -316,30 +316,15 @@ function clearSearchMarkers() {
 }
 
 async function useMyLocation() {
-    if (!navigator.geolocation) {
-        showError('Geolocation not supported.');
-        return;
-    }
-
     const btn = document.getElementById('gis-location-btn');
     if (btn) {
         btn.disabled = true;
         btn.textContent = 'Locating...';
     }
 
-    try {
-        const pos = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 60000,
-            });
-        });
-
-        const { latitude, longitude, accuracy } = pos.coords;
-        const latlng = [latitude, longitude];
-
-        // Add pulsing user marker
+    FloodLocation.on((loc, isReal) => {
+        if (!gisMap) return;
+        const latlng = [loc.lat, loc.lon];
         if (userMarker) userMarker.remove();
         userMarker = L.marker(latlng, {
             icon: L.divIcon({
@@ -349,22 +334,22 @@ async function useMyLocation() {
                 iconAnchor: [10, 10],
             }),
         }).addTo(gisMap);
-
-        gisMap.setView(latlng, accuracy < 500 ? 15 : 13);
-
-        // Check risk at user location
-        checkLocationRisk(latitude, longitude);
-
-        // Show nearby emergency services
-        showNearbyEmergencyServices(latitude, longitude);
-    } catch (e) {
-        showError('Unable to get location: ' + e.message);
-    } finally {
+        gisMap.setView(latlng, loc.accuracy < 500 ? 15 : 13);
+        checkLocationRisk(loc.lat, loc.lon);
+        showNearbyEmergencyServices(loc.lat, loc.lon);
         if (btn) {
             btn.disabled = false;
             btn.textContent = 'My Location';
         }
-    }
+    });
+    FloodLocation.detect('auto');
+
+    setTimeout(() => {
+        if (btn && btn.disabled) {
+            btn.disabled = false;
+            btn.textContent = 'My Location';
+        }
+    }, 12000);
 }
 
 async function checkLocationRisk(lat, lon) {

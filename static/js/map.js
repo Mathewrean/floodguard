@@ -1,5 +1,4 @@
-const DEFAULT_LOCATION = { lat: 20.0, lng: 0.0 };
-const DEFAULT_LATLNG = [DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng];
+const DEFAULT_LATLNG = [0, 0];
 
 const BASEMAPS = [
     {
@@ -19,7 +18,6 @@ const BASEMAPS = [
     }
 ];
 
-// English-only basemaps for consistent UI language
 const ENGLISH_BASEMAPS = [
     {
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
@@ -32,18 +30,18 @@ const ENGLISH_BASEMAPS = [
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         options: {
             maxZoom: 19,
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, RapidEye, DigitalGlobe, Earthstar Geographics'
+            attribution: 'Tiles &copy; Esri'
         }
     }
 ];
 
-// Global state for polling and caching
 let mapInstance = null;
 let zonesCache = null;
 let readingsCache = null;
 let statsCache = null;
 let currentZonesLayer = null;
 let currentReadingsLayer = null;
+let userMarker = null;
 
 // Updates the metrics bar from cached data when all required caches are populated
 function updateMetricsBarIfReady() {
@@ -509,15 +507,23 @@ async function initFullMap() {
     if (!map) return;
     mapInstance = map;
 
-    const userLocation = await locateUser(map);
-    // Initial data load and populate caches
-    await Promise.all([
-        fetchZones({ fitBounds: !userLocation }),
-        fetchReadings()
-    ]);
+    FloodLocation.on((loc, isReal) => {
+        map.setView([loc.lat, loc.lon], loc.zoom || 12);
+        if (userMarker) map.removeLayer(userMarker);
+        userMarker = L.circleMarker([loc.lat, loc.lon], {
+            radius: 10,
+            fillColor: isReal ? '#2E75B6' : '#94A3B8',
+            color: '#fff',
+            weight: 3,
+            fillOpacity: 0.9,
+            zIndexOffset: 1000
+        }).bindPopup(isReal ? `Your Location<br><small>Accuracy: +/-${Math.round(loc.accuracy || 0)}m</small>` : '📍 Default Location').addTo(map);
+    });
+    FloodLocation.detect('auto');
+
+    await Promise.all([fetchZones(), fetchReadings()]);
     await fetchStats();
 
-    // Start polling: Zones (60s), Readings (60s), Stats (30s)
     setInterval(fetchZones, 60000);
     setInterval(fetchReadings, 60000);
     setInterval(fetchStats, 30000);
@@ -553,6 +559,4 @@ window.initFullMap = initFullMap;
 window.createBaseMap = createBaseMap;
 window.renderZones = renderZones;
 window.renderReadings = renderReadings;
-window.locateUser = locateUser;
-window.defaultLocation = defaultLocation;
 window.zoneColour = zoneColour;

@@ -1,5 +1,3 @@
-const REPORT_DEFAULT_LOCATION = { lat: -1.2921, lng: 36.8219 };
-
 function initReportForm() {
     const form = document.getElementById('report-form');
     if (!form) return;
@@ -11,7 +9,7 @@ function initReportForm() {
     const photoPreview = document.getElementById('photo-preview');
     const gpsButton = document.getElementById('use-current-location');
 
-    setReportLocation(REPORT_DEFAULT_LOCATION.lat, REPORT_DEFAULT_LOCATION.lng);
+    setReportLocation(-1.2921, 36.8219);
     updateLocationStatus('Default location set to Nairobi.', true);
 
     function syncSeverity() {
@@ -32,7 +30,15 @@ function initReportForm() {
         photoPreview.hidden = false;
     });
 
-    gpsButton.addEventListener('click', getCurrentLocation);
+    gpsButton.addEventListener('click', () => {
+        const loc = FloodLocation.current;
+        if (loc) {
+            setReportLocation(loc.lat, loc.lon);
+        } else {
+            FloodLocation.on((l) => setReportLocation(l.lat, l.lon));
+            FloodLocation.detect('auto');
+        }
+    });
 
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
@@ -41,8 +47,11 @@ function initReportForm() {
         submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
 
         const formData = new FormData(this);
-        if (window._reportLat) formData.set('latitude', window._reportLat);
-        if (window._reportLon) formData.set('longitude', window._reportLon);
+        const loc = FloodLocation.current;
+        if (loc) {
+            formData.set('latitude', loc.lat);
+            formData.set('longitude', loc.lon);
+        }
 
         try {
             const res = await fetch('/api/v1/reports/', {
@@ -59,9 +68,16 @@ function initReportForm() {
                 submitBtn.textContent = 'Submit Report';
             }
         } catch (err) {
-            showFormErrors({ non_field_errors: ['Network error. Please try again.'] });
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Submit Report';
+            if (!navigator.onLine) {
+                const data = {};
+                formData.forEach((v, k) => data[k] = v);
+                await OfflineStore.savePendingReport(data);
+                showSuccessState('Report saved offline — will sync when connected');
+            } else {
+                showFormErrors({ non_field_errors: ['Network error. Please try again.'] });
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Report';
+            }
         }
     });
 }
@@ -73,44 +89,6 @@ function setReportLocation(latitude, longitude) {
     const lonInput = document.getElementById('longitude');
     if (latInput) latInput.value = Number(latitude).toFixed(6);
     if (lonInput) lonInput.value = Number(longitude).toFixed(6);
-}
-
-function getCurrentLocation() {
-    const button = document.getElementById('use-current-location');
-    if (!button) return;
-    const label = button.querySelector('.gps-label') || button;
-    const resetButton = () => {
-        button.disabled = false;
-        label.textContent = 'Use Current Location';
-    };
-
-    if (!navigator.geolocation) {
-        updateLocationStatus('Geolocation is not supported by this browser.', false);
-        resetButton();
-        return;
-    }
-
-    button.disabled = true;
-    label.textContent = 'Locating...';
-    navigator.geolocation.getCurrentPosition(pos => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        setReportLocation(latitude, longitude);
-        updateLocationStatus(`Location set within ${Math.round(accuracy)} metres.`, true);
-        label.textContent = 'Refresh Current Location';
-        button.disabled = false;
-    }, (error) => {
-        const messages = {
-            1: 'Location permission denied. Enter coordinates manually.',
-            2: 'Location unavailable. Enter coordinates manually.',
-            3: 'Location request timed out. Try again or enter coordinates manually.'
-        };
-        updateLocationStatus(messages[error && error.code] || 'Location unavailable. Enter coordinates manually.', false);
-        resetButton();
-    }, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-    });
 }
 
 function updateLocationStatus(message, isSuccess) {
@@ -133,17 +111,17 @@ function showFormErrors(errors) {
     box.textContent = messages.join(' ');
 }
 
-function showSuccessState() {
+function showSuccessState(message) {
     const form = document.getElementById('report-form');
+    const msg = message || 'Your report has been submitted.';
     form.outerHTML = `
         <div class="report-form card success-state">
             <div class="success-check">✓</div>
             <h2 class="section-title">Thank you</h2>
-            <p class="section-subtitle">Your report has been submitted.</p>
+            <p class="section-subtitle">${message || 'Your report has been submitted.'}</p>
             <a class="btn btn-primary" href="/reports/">View Reports</a>
         </div>
     `;
 }
 
 window.initReportForm = initReportForm;
-window.getCurrentLocation = getCurrentLocation;

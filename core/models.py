@@ -398,3 +398,87 @@ class AlertZoneActivity(models.Model):
 
     def __str__(self):
         return f"Activity: {self.zone.name} at {self.created_at}"
+
+
+class Milestone(models.Model):
+    """Project milestones for impact tracking and transparency."""
+    CATEGORIES = [
+        ('technical', 'Technical'),
+        ('community', 'Community'),
+        ('business', 'Business'),
+        ('partnership', 'Partnership'),
+    ]
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    achieved_date = models.DateField()
+    category = models.CharField(max_length=20, choices=CATEGORIES)
+    evidence_url = models.URLField(blank=True)
+    is_public = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-achieved_date']
+        indexes = [
+            models.Index(fields=['category']),
+            models.Index(fields=['is_public']),
+            models.Index(fields=['-achieved_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.achieved_date})"
+
+
+class BeneficiaryGroup(models.Model):
+    """Groups trained/enrolled in flood preparedness programs."""
+    TYPES = [
+        ('community', 'Community Group'),
+        ('school', 'School'),
+        ('ngo', 'NGO'),
+        ('government', 'Government'),
+        ('business', 'Business'),
+    ]
+    name = models.CharField(max_length=200)
+    group_type = models.CharField(max_length=20, choices=TYPES)
+    member_count = models.IntegerField()
+    location = models.CharField(max_length=200)
+    enrolled_date = models.DateField()
+    trained = models.BooleanField(default=False)
+    training_date = models.DateField(null=True, blank=True)
+    contact = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-enrolled_date']
+        indexes = [
+            models.Index(fields=['group_type']),
+            models.Index(fields=['trained']),
+            models.Index(fields=['-enrolled_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.member_count} members)"
+
+
+class MonthlyReport(models.Model):
+    """Monthly operational reports for impact tracking."""
+    period_start = models.DateField()
+    period_end = models.DateField()
+    alerts_sent = models.IntegerField(default=0)
+    reports_received = models.IntegerField(default=0)
+    reports_verified = models.IntegerField(default=0)
+    high_risk_events = models.IntegerField(default=0)
+    new_users = models.IntegerField(default=0)
+    zones_monitored = models.IntegerField(default=0)
+    uptime_pct = models.FloatField(default=100.0)
+    generated_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-period_start']
+        indexes = [
+            models.Index(fields=['-period_start']),
+            models.Index(fields=['-generated_at']),
+        ]
+
+    def __str__(self):
+        return f"Monthly Report: {self.period_start} to {self.period_end}"

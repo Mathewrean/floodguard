@@ -4,15 +4,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="theme-color" content="#0A2540">
     <title>FloodGuard - Real-Time Flood Intelligence</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://basemaps.cartocdn.com">
     <link rel="icon" href="{% static 'favicon.ico' %}" type="image/x-icon">
     <link rel="shortcut icon" href="{% static 'favicon.ico' %}">
     <link rel="stylesheet" href="{% static 'css/style.css' %}?v={{ STATIC_VERSION }}">
+    <link rel="manifest" href="/manifest.json">
     {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body data-authenticated="{% if user.is_authenticated %}true{% else %}false{% endif %}">
     <header>
         <nav class="navbar">
             <div class="nav-shell">
@@ -27,7 +32,7 @@
                     <li><a href="{% url 'landing_index' %}">Home</a></li>
                     <li><a href="{% url 'gis_dashboard' %}">GIS Dashboard</a></li>
                     <li><a href="{% url 'safe_route' %}">Safe Route</a></li>
-                    <li><a href="{% url 'about' %}">About</a></li>
+                    <li><a href="{% url 'impact' %}">Impact</a></li>
                     {% if user.is_authenticated %}
                         <li><a href="{% url 'dashboard_redirect' %}">Dashboard</a></li>
                         <li class="user-menu">
@@ -87,6 +92,7 @@
                 <a href="{% url 'gis_dashboard' %}">GIS Dashboard</a>
                 <a href="{% url 'safe_route' %}">Safe Route</a>
                 <a href="{% url 'report_submit' %}">Report Flood</a>
+                <a href="{% url 'impact' %}">Impact</a>
             </div>
             <div>
                 <h4>Emergency Contacts</h4>
@@ -102,13 +108,11 @@
         <div class="ticker-track">Loading latest alerts...</div>
     </div>
 
+    <script src="{% static 'js/location.js' %}?v={{ STATIC_VERSION }}" defer></script>
+    <script src="{% static 'js/offline_store.js' %}?v={{ STATIC_VERSION }}" defer></script>
     <script src="{% static 'js/main.js' %}?v={{ STATIC_VERSION }}" defer></script>
     <script src="{% static 'js/alerts.js' %}?v={{ STATIC_VERSION }}" defer></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/service-worker.js?v={{ STATIC_VERSION }}').catch(function(e){console.warn(e);});
-        }
-    </script>
+    <script src="{% static 'js/offline.js' %}?v={{ STATIC_VERSION }}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

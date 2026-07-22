@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<section class="section">
+    <div class="container">
+        <div class="section-header narrow">
+            <h1 class="section-title">FloodGuard Impact</h1>
+            <p class="section-subtitle">Real achievements and impact metrics from our live platform</p>
+        </div>
+        <div class="stats-grid" style="margin-top: 24px;">
+            <div class="card stat-card">
+                <span>Zones Monitored</span>
+                <strong id="zones-count" class="stat-number">—</strong>
+            </div>
+            <div class="card stat-card">
+                <span>Alerts Dispatched</span>
+                <strong id="alerts-count" class="stat-number">—</strong>
+            </div>
+            <div class="card stat-card">
+                <span>Citizens Reached</span>
+                <strong id="users-count" class="stat-number">—</strong>
+            </div>
+            <div class="card stat-card">
+                <span>Days Running</span>
+                <strong id="days-count" class="stat-number">—</strong>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section" style="background: var(--surface-soft);">
+    <div class="container">
+        <div class="section-header">
+            <h2 class="section-title">Milestone Timeline</h2>
+            <p class="section-subtitle">Key achievements in FloodGuard development</p>
+        </div>
+        <div id="milestones-list" style="margin-top: 24px;">
+            <div class="skeleton skeleton-card" style="height: 120px; margin-bottom: 16px;"></div>
+            <div class="skeleton skeleton-card" style="height: 120px; margin-bottom: 16px;"></div>
+            <div class="skeleton skeleton-card" style="height: 120px;"></div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="section-header">
+            <h2 class="section-title">Beneficiary Groups</h2>
+            <p class="section-subtitle">Community groups enrolled in flood preparedness programs</p>
+        </div>
+        <div id="beneficiaries-summary" style="margin-top: 24px;">
+            <p>Loading beneficiary data...</p>
+        </div>
+    </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    const impactData = await fetch('/api/v1/impact/').then(r => r.json()).catch(() => ({}));
+    document.getElementById('zones-count').textContent = impactData.zones_monitored ?? '—';
+    document.getElementById('alerts-count').textContent = impactData.alerts_dispatched ?? '—';
+    document.getElementById('users-count').textContent = impactData.citizens_reached ?? '—';
+    document.getElementById('days-count').textContent = impactData.days_running ?? '—';
+
+    const milestones = await fetch('/api/v1/milestones/').then(r => r.json()).catch(() => []);
+    const milestonesList = document.getElementById('milestones-list');
+    if (milestones.length) {
+        milestonesList.innerHTML = milestones.map(m => `
+            <div class="card" style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="font-weight: 700;">${m.title}</span>
+                    <span class="badge ${m.category}" style="background: var(--primary);">${m.category}</span>
+                </div>
+                <p style="margin: 8px 0; color: var(--text-muted);">${m.description}</p>
+                <small style="color: var(--text-muted);">${new Date(m.date).toLocaleDateString()}</small>
+            </div>
+        `).join('');
+    } else {
+        milestonesList.innerHTML = '<p style="color: var(--text-muted);">No milestones recorded yet.</p>';
+    }
+
+    document.getElementById('beneficiaries-summary').innerHTML = `
+        <div class="card" style="padding: 24px;">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: center;">
+                <div><strong style="font-size: 32px;">${impactData.groups_enrolled ?? 0}</strong><br><span>Groups Enrolled</span></div>
+                <div><strong style="font-size: 32px;">${impactData.beneficiaries ?? 0}</strong><br><span>Total Members</span></div>
+                <div><strong style="font-size: 32px;">${impactData.groups_trained ?? 0}</strong><br><span>Trained Groups</span></div>
+            </div>
+        </div>
+    `;
+});
+</script>
+{% endblock %}

@@ -1,4 +1,5 @@
 from django.urls import include, path
+from django.views.generic import TemplateView
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.routers import DefaultRouter
 from . import views
@@ -15,6 +16,8 @@ urlpatterns = [
     # Landing page and user interface routes
     path('', views.landing_index, name='landing_index'),
     path('about/', views.about, name='about'),
+    path('impact/', views.impact_page, name='impact'),
+    path('viability/', views.viability_page, name='viability'),
     path('login/', views.login_view, name='login'),
     path('register/', views.register_view, name='register'),
     path('logout/', views.logout_view, name='logout'),
@@ -32,10 +35,14 @@ urlpatterns = [
     path('health/', views.health_view, name='health'),
     path('favicon.ico', views.favicon_view, name='favicon'),
     path('service-worker.js', views.service_worker_view, name='service-worker'),
+    path('manifest.json', TemplateView.as_view(template_name='manifest.json', content_type='application/json')),
     
     # API routes (versioned)
     path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
     path('api/v1/stats/', views.stats_view, name='stats'),
+    path('api/v1/impact/', views.impact_stats, name='api-impact'),
+    path('api/v1/milestones/', views.milestones_list, name='api-milestones'),
+    path('api/v1/beneficiaries/', views.beneficiaries_list, name='api-beneficiaries'),
     path('api/v1/data-sources/', views.data_sources_view, name='data-sources'),
     path('api/v1/ai-analysis/', views.ai_flood_analysis, name='ai-analysis'),
     path('api/v1/safe-route/', views.safe_route_view, name='safe-route'),
