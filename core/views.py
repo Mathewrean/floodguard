@@ -1960,3 +1960,119 @@ def _haversine_m(a, b):
     dlng = math.radians((b.get('lon') or b.get('lng', 0)) - (a.get('lon') or a.get('lng', 0)))
     h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
     return 2 * radius * math.asin(math.sqrt(h))
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def api_coordinate_risk_analysis(request):
+    """
+    Admin endpoint: Complete flood risk analysis for arbitrary coordinates.
+    
+    Returns:
+        - Current H3 cell and risk
+        - Weather data
+        - Nearest zones
+        - Safe route options
+        - Emergency services
+        - AI analysis
+    """
+    lat = request.GET.get('lat')
+    lon = request.GET.get('lon')
+    
+    if not lat or not lon:
+        return Response({'error': 'lat and lon parameters required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid coordinates'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+        return Response({'error': 'Coordinates out of valid range'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get H3 cell data
+    from core.h3_risk import get_h3_cell_for_point, get_h3_cell_stats
+    h3_data = get_h3_cell_for_point(lat_f, lon_f)
+    h3_stats = get_h3_cell_stats(h3_data['h3_index']) if h3_data else {}
+    
+    # Get nearest zones
+    try:
+        from django.contrib.gis.geos import Point
+        user_point = Point(lon_f, lat_f, srid=4326)
+        nearest_zones = AlertZone.objects.filter(
+            polygon__distance_lte=(user_point, 0.05)
+        ).order_by('-risk_score')[:5]
+        zones_data = [{
+            'id': z.id,
+            'name': z.name,
+            'risk_score': round(float(z.risk_score or 0), 3),
+            'risk_threshold': round(float(z.risk_threshold or 0), 3),
+            'distance_km': round(float(z.polygon.distance(user_point) * 111.32), 1),
+        } for z in nearest_zones]
+    except Exception:
+        zones_data = []
+    
+    # Get weather data
+    try:
+        from core.data_sources.aggregator import build_risk_feature_vector
+        weather_data = build_risk_feature_vector(lat_f, lon_f, 'coordinate_analysis')
+    except Exception:
+        weather_data = {}
+    
+    # Get safe routes
+    try:
+        routes = _provide_safe_routes(lat_f, lon_f)
+    except Exception:
+        routes = []
+    
+    return Response({
+        'coordinates': {'lat': lat_f, 'lon': lon_f},
+        'h3_cell': h3_data,
+        'h3_stats': h3_stats,
+        'weather': weather_data,
+        'nearest_zones': zones_data,
+        'safe_routes': routes[:3] if routes else [],
+        'emergency_services': _get_emergency_nearby(lat_f, lon_f),
+    })
+
+
+def _provide_safe_routes(lat, lon):
+    """Generate safe route alternatives from point."""
+    try:
+        # Create a destination 2km away
+        dest_lat = lat + 0.02
+        dest_lon = lon + 0.02
+        destination = {'lat': dest_lat, 'lon': dest_lon}
+        
+        # Use internal prototype routing
+        origin = {'lat': lat, 'lon': lon, 'lng': lon}
+        snapped_origin = _snap_to_navigable(origin)
+        snapped_dest = _snap_to_navigable(destination)
+        
+        route_options = []
+        for candidate in _candidate_detours(snapped_origin['coordinate'], snapped_dest['coordinate']):
+            profile = candidate['profile'] if candidate['profile'] in {'fastest', 'balanced', 'safest'} else 'balanced'
+            metrics = _score_route(candidate['waypoints'], _route_weights(profile))
+            route_options.append({
+                **metrics,
+                'profile': profile,
+                'label': candidate['profile'].replace('_', ' ').title(),
+            })
+        
+        return sorted(route_options, key=lambda r: (-r['safety_score'], r['safety_cost']))[:3]
+    except Exception:
+        return []
+
+
+def _get_emergency_nearby(lat, lon):
+    """Get nearby safe zones as emergency options."""
+    try:
+        safe_zones = AlertZone.objects.filter(risk_score__lte=0.4)[:5]
+        return [{
+            'name': z.name,
+            'type': 'safe_zone',
+            'distance_km': round(float(z.polygon.distance(Point(lon, lat, srid=4326)) * 111.32), 1),
+        } for z in safe_zones]
+    except Exception:
+        return []

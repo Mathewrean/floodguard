@@ -22,9 +22,13 @@ def _get_h3_resolution(lat, lon):
     """
     Choose H3 resolution based on location density.
     Urban areas get finer resolution.
+    Uses configured bounds or population density heuristics.
     """
+    # Check if configured resolution overrides heuristic
+    if hasattr(settings, 'H3_RESOLUTION') and settings.H3_RESOLUTION:
+        return settings.H3_RESOLUTION
+    
     # Simple heuristic: use finer resolution for known dense areas
-    # In production, this could use population density data
     urban_centers = [
         (-1.2921, 36.8219),   # Nairobi
         (39.9042, 116.4074),  # Beijing
@@ -77,7 +81,7 @@ def get_h3_cell_for_point(lat, lon, resolution=None):
 
     try:
         cell = h3.latlng_to_cell(float(lat), float(lon), resolution)
-        risk = get_risk_for_h3_cell(cell)
+        risk, cell_data = _get_h3_cell_data(cell, resolution)
         return {
             'h3_index': cell,
             'lat': lat,
@@ -85,10 +89,48 @@ def get_h3_cell_for_point(lat, lon, resolution=None):
             'risk_score': round(risk, 3),
             'risk_level': _get_risk_level_label(risk),
             'resolution': resolution,
+            **cell_data,
         }
     except Exception as e:
         logger.warning(f"Failed to get H3 cell for point {lat},{lon}: {e}")
         return None
+
+
+def _get_h3_cell_data(h3_index, resolution):
+    """
+    Get enriched H3 cell data including risk and metadata.
+    Returns (risk_score, additional_data_dict).
+    """
+    try:
+        import h3
+        risk = get_risk_for_h3_cell(h3_index)
+        
+        # Get GeoJSON boundary
+        geo = h3.cells_to_geo([h3_index])
+        if not geo or 'coordinates' not in geo:
+            return risk, {'boundary': None}
+        
+        # Find intersecting zones for additional data (without polygon for JSON)
+        coords = geo['coordinates'][0]
+        if len(coords) < 3:
+            return risk, {'boundary': None}
+        
+        coords_closed = list(coords) + [coords[0]]
+        from django.contrib.gis.geos import Polygon
+        cell_polygon = Polygon(coords_closed, srid=4326)
+        
+        # Only get serializable fields
+        zones = AlertZone.objects.filter(polygon__intersects=cell_polygon).values(
+            'name', 'risk_score'
+        )[:5]
+        
+        return risk, {
+            'boundary': geo,
+            'intersecting_zones': list(zones),
+        }
+    except Exception as e:
+        logger.warning(f"Failed to get H3 cell data for {h3_index}: {e}")
+        return 0.0, {}
 
 
 def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
@@ -256,3 +298,63 @@ def h3_index_to_geojson(h3_index):
     except Exception:
         pass
     return None
+
+
+def get_neighboring_cells(h3_index, k=1):
+    """
+    Get neighboring H3 cells for flood propagation analysis.
+    Returns cells within k-ring of the given cell.
+    """
+    try:
+        import h3
+        neighbors = h3.grid_disk(h3_index, k)
+        return [n for n in neighbors if n != h3_index]
+    except Exception as e:
+        logger.warning(f"Failed to get neighboring cells for {h3_index}: {e}")
+        return []
+
+
+def get_flood_propagation_cells(h3_index, max_distance_km=5):
+    """
+    Get cells that could be affected by flood from a source cell.
+    Uses H3 grid distance for propagation modeling.
+    """
+    try:
+        import h3
+        # Use k-ring approximation (each cell is ~1-12km depending on resolution)
+        k = max(1, int(max_distance_km / 1.5))  # Rough approximation
+        return get_neighboring_cells(h3_index, k)
+    except Exception as e:
+        logger.warning(f"Failed flood propagation for {h3_index}: {e}")
+        return []
+
+
+def get_h3_cell_stats(h3_index, resolution=None):
+    """
+    Get comprehensive statistics for an H3 cell.
+    Includes risk, neighboring cells, and flood propagation data.
+    """
+    try:
+        import h3
+    except ImportError:
+        return None
+    
+    if resolution is None:
+        # Infer resolution from cell
+        resolution = h3.get_resolution(h3_index)
+    
+    # Get base cell data
+    cell_data = {
+        'h3_index': h3_index,
+        'resolution': resolution,
+        'neighbors': get_neighboring_cells(h3_index, k=2),
+        'risk_score': get_risk_for_h3_cell(h3_index),
+        'risk_level': _get_risk_level_label(get_risk_for_h3_cell(h3_index)),
+    }
+    
+    # Get boundary
+    geo = h3.cells_to_geo([h3_index])
+    if geo and 'coordinates' in geo:
+        cell_data['boundary'] = geo
+    
+    return cell_data
