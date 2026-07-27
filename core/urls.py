@@ -35,7 +35,7 @@ urlpatterns = [
     path('health/', views.health_view, name='health'),
     path('favicon.ico', views.favicon_view, name='favicon'),
     path('service-worker.js', views.service_worker_view, name='service-worker'),
-    path('manifest.json', TemplateView.as_view(template_name='manifest.json', content_type='application/json')),
+    path('manifest.json', views.manifest_view, name='manifest'),
     
     # API routes (versioned)
     path('api-token-auth/', obtain_auth_token, name='api_token_auth'),

@@ -650,6 +650,20 @@ def health_view(request):
 
 
 @require_http_methods(["GET"])
+def manifest_view(request):
+    """Serve PWA manifest.json from static."""
+    manifest_path = settings.BASE_DIR / 'static' / 'manifest.json'
+    try:
+        with open(manifest_path, 'r') as f:
+            content = f.read()
+        response = JsonResponse(json.loads(content), safe=False)
+        response['Content-Type'] = 'application/json'
+        return response
+    except Exception:
+        return JsonResponse({'error': 'Manifest not found'}, status=404)
+
+
+@require_http_methods(["GET"])
 def service_worker_view(request):
     response = render(request, 'service_worker.js', content_type='application/javascript')
     response['Service-Worker-Allowed'] = '/'
@@ -1934,6 +1948,6 @@ def _haversine_m(a, b):
     lat1 = math.radians(a['lat'])
     lat2 = math.radians(b['lat'])
     dlat = math.radians(b['lat'] - a['lat'])
-    dlng = math.radians(b['lon'] - a['lon'])
+    dlng = math.radians((b.get('lon') or b.get('lng', 0)) - (a.get('lon') or a.get('lng', 0)))
     h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
     return 2 * radius * math.asin(math.sqrt(h))
