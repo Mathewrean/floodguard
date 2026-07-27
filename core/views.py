@@ -636,8 +636,17 @@ Based on these multi-source weather, hydrology, and satellite intelligence input
 def health_view(request):
     redis_status = 'unknown'
     try:
-        from core.tasks import redis_client
-        redis_status = 'ok' if redis_client.ping() else 'down'
+        import django
+        django.setup()
+    except Exception:
+        pass
+    try:
+        from core.tasks import get_redis_client
+        client = get_redis_client()
+        if client:
+            redis_status = 'ok' if client.ping() else 'down'
+        else:
+            redis_status = 'down'
     except Exception:
         redis_status = 'down'
 
