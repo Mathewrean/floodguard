@@ -584,7 +584,7 @@ def update_h3_risk_scores():
     This enables fast flood-risk lookups for route planning.
     """
     from django.core.cache import cache
-    from core.h3_risk import get_risk_for_h3_cell, _get_h3_resolution
+    from core.h3_risk import _get_h3_resolution
     
     zones = AlertZone.objects.filter(is_active=True)
     total_cells = 0
@@ -598,23 +598,20 @@ def update_h3_risk_scores():
             
             # Get H3 cells covering this zone
             import h3
-            boundary = zone.polygon.coords[0] if hasattr(zone.polygon, 'coords') else []
-            if not boundary:
+            # Get boundary coordinates from polygon
+            coords = list(zone.polygon.coords[0]) if hasattr(zone.polygon, 'coords') and zone.polygon.coords else []
+            if not coords:
                 continue
             
-            # Convert polygon boundary to H3 cells
-            h3_cells = set()
-            for coord in boundary:
-                try:
-                    h3_cell = h3.geo_to_h3(coord[1], coord[0], resolution)
-                    h3_cells.add(h3_cell)
-                except (ValueError, TypeError):
-                    continue
+            # Build GeoJSON for polygon_to_cells
+            geojson = {'type': 'Polygon', 'coordinates': [coords]}
+            h3shape = h3.geo_to_h3shape(geojson)
+            h3_cells = set(h3.h3shape_to_cells(h3shape, resolution))
             
             # Also fill interior with k-ring
             for cell in list(h3_cells):
                 try:
-                    ring = h3.k_ring(cell, 2)
+                    ring = h3.grid_disk(cell, 2)
                     h3_cells.update(ring)
                 except Exception:
                     continue
