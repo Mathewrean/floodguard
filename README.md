@@ -245,7 +245,7 @@ Privacy and security notes:
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1537 test files.
+FloodGuard has comprehensive test coverage with 1538 test files.
 
 ### Running Tests
 
