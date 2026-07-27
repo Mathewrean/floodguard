@@ -76,7 +76,7 @@ def get_h3_cell_for_point(lat, lon, resolution=None):
         resolution = _get_h3_resolution(lat, lon)
 
     try:
-        cell = h3.geo_to_h3(float(lat), float(lon), resolution)
+        cell = h3.latlng_to_cell(float(lat), float(lon), resolution)
         risk = get_risk_for_h3_cell(cell)
         return {
             'h3_index': cell,
@@ -105,23 +105,19 @@ def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
         if resolution is None:
             resolution = H3_RESOLUTION_URBAN
 
-        # Get cells covering the polygon area
-        from django.contrib.gis.geos import Polygon
-        bbox_polygon = Polygon.from_bbox((min_lon, min_lat, max_lon, max_lat))
-
-        cells = h3.polyfill_geojson(
-            {
-                "type": "Polygon",
-                "coordinates": [[
-                    [min_lon, min_lat],
-                    [max_lon, min_lat],
-                    [max_lon, max_lat],
-                    [min_lon, max_lat],
-                    [min_lon, min_lat],
-                ]]
-            },
-            resolution
-        )
+        # Get cells covering the polygon area using h3 API
+        geojson = {
+            'type': 'Polygon',
+            'coordinates': [[
+                [min_lon, min_lat],
+                [max_lon, min_lat],
+                [max_lon, max_lat],
+                [min_lon, max_lat],
+                [min_lon, min_lat],
+            ]]
+        }
+        shape = h3.geo_to_h3shape(geojson)
+        cells = h3.h3shape_to_cells(shape, resolution)
 
         cell_data = []
         for cell in cells:
@@ -145,13 +141,22 @@ def _calculate_h3_risk(h3_index):
     """
     try:
         import h3
-        # Get the boundary polygon of the H3 cell
-        boundary = h3.h3_to_geo_boundary(h3_index, geo_json=True)
-        if not boundary or len(boundary) < 3:
+        # Get the boundary polygon of the H3 cell using cells_to_geo
+        geo = h3.cells_to_geo([h3_index])
+        if not geo or 'coordinates' not in geo:
             return 0.0
         
+        # Extract coordinates from the GeoJSON
+        # cells_to_geo returns {'type': 'Polygon', 'coordinates': ((...),)}
+        coords = geo['coordinates'][0]
+        if len(coords) < 3:
+            return 0.0
+        
+        # Close the ring for Django Polygon
+        coords = list(coords) + [coords[0]]
+        
         from django.contrib.gis.geos import Polygon
-        cell_polygon = Polygon(boundary, srid=4326)
+        cell_polygon = Polygon(coords, srid=4326)
         
         # Find all zones that intersect this cell
         intersecting_zones = AlertZone.objects.filter(polygon__intersects=cell_polygon)
@@ -177,7 +182,7 @@ def get_risk_for_route(route_geometry, resolution=None):
     Calculate average flood risk for a route.
     
     Args:
-        route_geometry: List of [lon, lat] coordinates
+        route_geometry: List of [lon, lat] coordinates or dicts
         resolution: H3 resolution (auto-detected if None)
     
     Returns:
@@ -190,7 +195,7 @@ def get_risk_for_route(route_geometry, resolution=None):
         import h3
     except ImportError:
         return {'avg_risk': 0.0, 'max_risk': 0.0, 'cell_count': 0, 'error': 'h3 not installed'}
-    
+
     # Sample points along the route and get H3 cells
     h3_cells = set()
     for point in route_geometry:
@@ -210,7 +215,7 @@ def get_risk_for_route(route_geometry, resolution=None):
             lon_f = float(lon)
             if resolution is None:
                 resolution = _get_h3_resolution(lat_f, lon_f)
-            h3_cell = h3.geo_to_h3(lat_f, lon_f, resolution)
+            h3_cell = h3.latlng_to_cell(lat_f, lon_f, resolution)
             h3_cells.add(h3_cell)
         except (ValueError, TypeError):
             continue
@@ -245,12 +250,9 @@ def h3_index_to_geojson(h3_index):
     """Convert H3 index to GeoJSON polygon for map display."""
     try:
         import h3
-        boundary = h3.h3_to_geo_boundary(h3_index, geo_json=True)
-        if boundary:
-            return {
-                'type': 'Polygon',
-                'coordinates': [boundary + [boundary[0]]]  # Close the ring
-            }
+        geo = h3.cells_to_geo([h3_index])
+        if geo and 'coordinates' in geo:
+            return geo
     except Exception:
         pass
     return None
