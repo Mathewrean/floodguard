@@ -1376,7 +1376,10 @@ def api_global_search(request):
 
     results = []
     if query:
-        results = AlertZone.objects.filter(name__icontains=query).order_by('-risk_score')[:20]
+        try:
+            results = AlertZone.objects.filter(name__icontains=query).order_by('-risk_score')[:20]
+        except Exception:
+            results = []
     elif lat and lon:
         try:
             lat_f = float(lat)
@@ -1422,9 +1425,12 @@ def api_nearby_zones(request):
         return JsonResponse({'zones': [], 'count': 0})
 
     user_point = Point(lon_f, lat_f, srid=4326)
-    zones = AlertZone.objects.filter(
-        polygon__distance_lte=(user_point, 0.05)
-    ).order_by('-risk_score')[:limit]
+    try:
+        zones = AlertZone.objects.filter(
+            polygon__distance_lte=(user_point, 0.05)
+        ).order_by('-risk_score')[:limit]
+    except Exception:
+        zones = []
 
     data = []
     for zone in zones:
@@ -2051,6 +2057,229 @@ def api_coordinate_risk_analysis(request):
         'safe_routes': routes[:3] if routes else [],
         'emergency_services': _get_emergency_nearby(lat_f, lon_f),
     })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+def api_current_location_analysis(request):
+    """
+    Current location analysis endpoint.
+    Supports:
+    - Authenticated users with GPS location
+    - lat/lon query parameters
+    - Automatic reverse geocoding
+    - Dynamic zone detection
+    - H3 cell analysis
+    - Weather and risk assessment
+    - Safe routes
+    - Decision support
+    - Nearby emergency services
+    """
+    lat = request.GET.get('lat')
+    lon = request.GET.get('lon')
+    
+    # Try to get location from request
+    if not lat or not lon:
+        # For authenticated users, could use profile location (placeholder)
+        if request.user.is_authenticated:
+            return Response({
+                'error': 'Location required',
+                'message': 'Provide lat and lon parameters or enable GPS in the frontend',
+            }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({
+                'error': 'Location required',
+                'message': 'Provide lat and lon query parameters',
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid coordinates'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not (-90 <= lat_f <= 90 and -180 <= lon_f <= 180):
+        return Response({'error': 'Coordinates out of valid range'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user_point = Point(lon_f, lat_f, srid=4326)
+    
+    # 1. Location and reverse geocoding
+    location_data = _get_location_data(lat_f, lon_f)
+    
+    # 2. H3 cell analysis
+    try:
+        from core.h3_risk import get_h3_cell_for_point, get_h3_cell_stats
+        h3_data = get_h3_cell_for_point(lat_f, lon_f)
+        h3_stats = get_h3_cell_stats(h3_data['h3_index']) if h3_data else {}
+    except Exception:
+        h3_data = None
+        h3_stats = {}
+    
+    # 3. Dynamic zone detection
+    try:
+        dynamic_zones = DynamicZone.objects.filter(
+            geometry__contains=user_point,
+            state__in=['active', 'escalated', 'monitoring']
+        ).order_by('-risk_score')[:3]
+        dynamic_zone_data = [{
+            'id': z.id,
+            'name': z.name,
+            'state': z.state,
+            'risk_score': round(float(z.risk_score or 0), 3),
+            'confidence': round(float(z.confidence or 0), 3),
+            'cause': z.cause,
+            'creation_source': z.creation_source,
+        } for z in dynamic_zones]
+    except Exception:
+        dynamic_zone_data = []
+    
+    # 4. Weather data
+    try:
+        from core.data_sources.aggregator import build_risk_feature_vector
+        weather_data = build_risk_feature_vector(lat_f, lon_f, 'current_location')
+    except Exception:
+        weather_data = {}
+    
+    # 5. Risk assessment
+    try:
+        from core.analytics.scoring import calculate_feature_risk
+        risk_score = calculate_feature_risk(weather_data) if weather_data else 0.0
+        risk_data = {
+            'risk_score': round(float(risk_score), 3),
+            'risk_level': _get_risk_level_label(risk_score),
+            'confidence': weather_data.get('data_confidence', 'low') if weather_data else 'low',
+        }
+    except Exception:
+        risk_data = {'risk_score': 0.0, 'risk_level': 'LOW', 'confidence': 'low'}
+    
+    # 6. Safe routes
+    try:
+        routes = _provide_safe_routes(lat_f, lon_f)
+        route_data = routes[:3] if routes else []
+    except Exception:
+        route_data = []
+    
+    # 7. Decision support
+    try:
+        from core.zoning.search_engine import _generate_decision_support
+        decision_support = _generate_decision_support(lat_f, lon_f, {
+            'flood_risk': risk_data,
+            'weather': weather_data,
+            'nearby_shelters': [],
+            'population_exposure': {},
+            'infrastructure_exposure': {},
+        })
+    except Exception:
+        decision_support = {}
+    
+    # 8. Nearby services
+    try:
+        emergency_services = _get_emergency_nearby(lat_f, lon_f)
+    except Exception:
+        emergency_services = {}
+    
+    # 9. AI analysis
+    try:
+        ai_analysis = _get_ai_analysis_for_location(lat_f, lon_f, location_data, risk_data, weather_data)
+    except Exception:
+        ai_analysis = {}
+    
+    return Response({
+        'location': location_data,
+        'weather': weather_data,
+        'risk': risk_data,
+        'dynamic_zone': dynamic_zone_data[0] if dynamic_zone_data else None,
+        'h3': h3_data,
+        'h3_stats': h3_stats,
+        'safe_route': route_data[0] if route_data else None,
+        'decision_support': decision_support,
+        'nearby_services': emergency_services,
+        'ai_analysis': ai_analysis,
+    })
+
+
+def _get_location_data(lat, lon):
+    """Get location data with reverse geocoding."""
+    try:
+        import requests
+        resp = requests.get(
+            'https://nominatim.openstreetmap.org/reverse',
+            params={'lat': lat, 'lon': lon, 'format': 'json'},
+            headers={'User-Agent': 'FloodGuard/1.0'},
+            timeout=5,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            address = data.get('address', {})
+            return {
+                'lat': lat,
+                'lon': lon,
+                'display_name': data.get('display_name', ''),
+                'country': address.get('country', ''),
+                'county': address.get('county', address.get('state', '')),
+                'ward': address.get('suburb', address.get('neighbourhood', '')),
+                'city': address.get('city', address.get('town', address.get('village', ''))),
+                'type': data.get('type', ''),
+            }
+    except Exception:
+        pass
+    return {'lat': lat, 'lon': lon, 'display_name': f'{lat:.4f}, {lon:.4f}'}
+
+
+def _get_risk_level_label(risk_score):
+    """Convert risk score to level."""
+    if risk_score >= 0.85:
+        return 'CRITICAL'
+    elif risk_score >= 0.7:
+        return 'HIGH'
+    elif risk_score >= 0.4:
+        return 'MODERATE'
+    elif risk_score >= 0.2:
+        return 'LOW'
+    return 'MINIMAL'
+
+
+def _get_ai_analysis_for_location(lat, lon, location_data, risk_data, weather_data):
+    """Get AI analysis for location."""
+    try:
+        from core.data_sources.aggregator import build_risk_feature_vector
+        features = build_risk_feature_vector(lat, lon, 'current_location')
+        
+        return {
+            'summary': f"Location at {lat:.4f}, {lon:.4f} has {risk_data.get('risk_level', 'LOW')} flood risk.",
+            'risk_drivers': _identify_risk_drivers(weather_data),
+            'recommendation': _get_recommendation(risk_data.get('risk_score', 0)),
+            'confidence': risk_data.get('confidence', 'low'),
+        }
+    except Exception:
+        return {}
+
+
+def _identify_risk_drivers(weather_data):
+    """Identify risk drivers from weather data."""
+    drivers = []
+    if not weather_data:
+        return drivers
+    if weather_data.get('rainfall_1h_mm', 0) > 10:
+        drivers.append("Heavy rainfall")
+    if weather_data.get('river_discharge', 0) > 20:
+        drivers.append("High river discharge")
+    if weather_data.get('humidity', 0) > 80:
+        drivers.append("Saturated ground conditions")
+    return drivers if drivers else ["No significant risk drivers"]
+
+
+def _get_recommendation(risk_score):
+    """Get recommendation based on risk score."""
+    if risk_score > 0.85:
+        return "IMMEDIATE ACTION: Evacuate if in affected area. Emergency services deployed."
+    elif risk_score > 0.7:
+        return "HIGH RISK: Prepare for evacuation. Monitor conditions closely."
+    elif risk_score > 0.4:
+        return "MODERATE RISK: Increase monitoring. Alert local authorities."
+    elif risk_score > 0.2:
+        return "LOW RISK: Continue routine monitoring."
+    return "No immediate action required."
 
 
 def _provide_safe_routes(lat, lon):

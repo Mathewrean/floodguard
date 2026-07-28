@@ -57,5 +57,6 @@ urlpatterns = [
     path('api/v1/geocode/', views.api_geocode_nominatim, name='api-geocode'),
     path('api/v1/emergency-services/', views.api_emergency_services, name='api-emergency-services'),
     path('api/v1/coordinate-analysis/', views.api_coordinate_risk_analysis, name='api-coordinate-analysis'),
+    path('api/v1/current-location-analysis/', views.api_current_location_analysis, name='api-current-location-analysis'),
     path('api/v1/', include(router.urls)),
 ]
