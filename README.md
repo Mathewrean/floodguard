@@ -245,7 +245,7 @@ Privacy and security notes:
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1546 test files.
+FloodGuard has comprehensive test coverage with 1550 test files.
 
 ### Running Tests
 
@@ -281,8 +281,11 @@ Current test files:
   - `tests/integration/test_celery.py`
   - `tests/unit/test_audit_fixes.py`
   - `tests/unit/test_data_sources.py`
+  - `tests/unit/test_dynamic_zoning_engine.py`
   - `tests/unit/test_emergency_acknowledgment.py`
   - `tests/unit/test_geographic_clustering.py`
+  - `tests/unit/test_hydrology.py`
+  - `tests/unit/test_location_search.py`
   - `tests/unit/test_manual_override.py`
   - `tests/unit/test_models.py`
   - `tests/unit/test_permissions.py`
@@ -292,6 +295,7 @@ Current test files:
   - `tests/unit/test_zone_boundary_validation.py`
   - `tests/validation/test_500_zone_validation.py`
   - `tests/validation/test_ai_dss_validation.py`
+  - `tests/validation/test_global_nairobi_validation.py`
   - `tests/validation/test_notification_offline_validation.py`
   - `tests/validation/test_rbac_validation.py`
   - `tests/validation/test_safe_route_validation.py`

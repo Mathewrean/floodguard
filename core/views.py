@@ -784,6 +784,18 @@ def _score_route(points, weights):
             if zone.name not in crossed_zones:
                 crossed_zones.append(zone.name)
 
+    try:
+        from core.h3_risk import get_risk_for_route
+        h3_risk = get_risk_for_route([[point['lat'], point['lng']] for point in points])
+        h3_avg_risk = h3_risk.get('avg_risk', 0.0)
+        h3_max_risk = h3_risk.get('max_risk', 0.0)
+        risk_exposure = max(risk_exposure, h3_avg_risk * len(points))
+        if h3_max_risk > 0.7 and not any('H3' in z for z in crossed_zones):
+            crossed_zones.append('H3 High Risk Cells')
+    except Exception:
+        h3_avg_risk = 0.0
+        h3_max_risk = 0.0
+
     low_light_penalty = 0.18 if distance_m > 1800 else 0.08
     isolation_penalty = 0.10 if len(points) <= 2 else 0.04
     confidence_penalty = 0.06 if not crossed_zones else 0.12
@@ -803,6 +815,10 @@ def _score_route(points, weights):
         'safety_cost': round(safety_cost, 2),
         'safety_score': round(safety_score, 1),
         'crossed_zones': crossed_zones,
+        'h3_risk': {
+            'avg_risk': round(h3_avg_risk, 3),
+            'max_risk': round(h3_max_risk, 3),
+        }
     }
 
 

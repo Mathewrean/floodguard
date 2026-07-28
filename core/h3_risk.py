@@ -11,31 +11,39 @@ from django.core.cache import cache
 from django.contrib.gis.geos import Point
 from core.models import AlertZone, FloodReading
 
+try:
+    from core.zoning.h3_intelligence import (
+        get_or_create_h3_cell,
+        get_neighboring_cells,
+        get_cell_risk,
+        update_cell_risk,
+        _get_h3_resolution as _h3_intel_resolution,
+    )
+    ZONING_ENGINE_AVAILABLE = True
+except Exception:
+    ZONING_ENGINE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
-H3_CACHE_TIMEOUT = 15 * 60  # 15 minutes
-H3_RESOLUTION_URBAN = 7     # ~1km² cells for cities
-H3_RESOLUTION_RURAL = 5     # ~12km² cells for rural areas
+H3_CACHE_TIMEOUT = 15 * 60
+H3_RESOLUTION_URBAN = 7
+H3_RESOLUTION_RURAL = 5
 
 
 def _get_h3_resolution(lat, lon):
-    """
-    Choose H3 resolution based on location density.
-    Urban areas get finer resolution.
-    Uses configured bounds or population density heuristics.
-    """
-    # Check if configured resolution overrides heuristic
+    if ZONING_ENGINE_AVAILABLE:
+        try:
+            return _h3_intel_resolution(float(lat), float(lon))
+        except Exception:
+            pass
     if hasattr(settings, 'H3_RESOLUTION') and settings.H3_RESOLUTION:
         return settings.H3_RESOLUTION
-    
-    # Simple heuristic: use finer resolution for known dense areas
     urban_centers = [
-        (-1.2921, 36.8219),   # Nairobi
-        (39.9042, 116.4074),  # Beijing
-        (31.2304, 121.4737),  # Shanghai
-        (19.0760, 72.8777),   # Mumbai
+        (-1.2921, 36.8219),
+        (39.9042, 116.4074),
+        (31.2304, 121.4737),
+        (19.0760, 72.8777),
     ]
-    
     for urban_lat, urban_lon in urban_centers:
         if abs(lat - urban_lat) < 0.5 and abs(lon - urban_lon) < 0.5:
             return H3_RESOLUTION_URBAN
@@ -45,12 +53,21 @@ def _get_h3_resolution(lat, lon):
 def get_risk_for_h3_cell(h3_index):
     """
     Get flood risk score for an H3 cell.
-    Checks cache first, then calculates from AlertZones.
+    Checks cache first, then calculates from AlertZones or DynamicZones.
     """
     cache_key = f"h3:{h3_index}:risk_score"
     cached = cache.get(cache_key)
     if cached is not None:
         return float(cached)
+
+    if ZONING_ENGINE_AVAILABLE:
+        try:
+            risk = get_cell_risk(h3_index)
+            if risk > 0:
+                cache.set(cache_key, risk, H3_CACHE_TIMEOUT)
+                return float(risk)
+        except Exception:
+            pass
 
     risk = _calculate_h3_risk(h3_index)
     cache.set(cache_key, risk, H3_CACHE_TIMEOUT)
@@ -138,6 +155,21 @@ def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
     Get all H3 cells within a bounding box for map visualization.
     Returns list of H3 indices and their risk scores.
     """
+    if ZONING_ENGINE_AVAILABLE:
+        try:
+            from core.zoning.h3_intelligence import get_h3_cells_for_bbox as _get_h3_cells_for_bbox
+            cells = _get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution)
+            return [
+                {
+                    'h3_index': cell.h3_index,
+                    'risk_score': round(float(cell.current_risk_score or 0), 3),
+                    'risk_level': _get_risk_level_label(cell.current_risk_score or 0),
+                }
+                for cell in cells
+            ]
+        except Exception:
+            pass
+
     try:
         import h3
     except ImportError:
@@ -147,7 +179,6 @@ def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
         if resolution is None:
             resolution = H3_RESOLUTION_URBAN
 
-        # Get cells covering the polygon area using h3 API
         geojson = {
             'type': 'Polygon',
             'coordinates': [[
