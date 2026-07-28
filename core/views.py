@@ -1377,7 +1377,7 @@ def api_global_search(request):
     results = []
     if query:
         try:
-            results = AlertZone.objects.filter(name__icontains=query).order_by('-risk_score')[:20]
+            results = list(AlertZone.objects.filter(name__icontains=query).order_by('-risk_score')[:20])
         except Exception:
             results = []
     elif lat and lon:
@@ -1386,9 +1386,9 @@ def api_global_search(request):
             lon_f = float(lon)
             if -90 <= lat_f <= 90 and -180 <= lon_f <= 180:
                 user_point = Point(lon_f, lat_f, srid=4326)
-                results = AlertZone.objects.filter(
+                results = list(AlertZone.objects.filter(
                     polygon__distance_lte=(user_point, 0.01)
-                ).order_by('-risk_score')[:20]
+                ).order_by('-risk_score')[:20])
         except (ValueError, TypeError):
             pass
 
@@ -1426,9 +1426,9 @@ def api_nearby_zones(request):
 
     user_point = Point(lon_f, lat_f, srid=4326)
     try:
-        zones = AlertZone.objects.filter(
+        zones = list(AlertZone.objects.filter(
             polygon__distance_lte=(user_point, 0.05)
-        ).order_by('-risk_score')[:limit]
+        ).order_by('-risk_score')[:limit])
     except Exception:
         zones = []
 
