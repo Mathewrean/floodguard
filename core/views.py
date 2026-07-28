@@ -1389,7 +1389,7 @@ def api_global_search(request):
                 results = list(AlertZone.objects.filter(
                     polygon__distance_lte=(user_point, 0.01)
                 ).order_by('-risk_score')[:20])
-        except (ValueError, TypeError):
+        except Exception:
             pass
 
     data = []
