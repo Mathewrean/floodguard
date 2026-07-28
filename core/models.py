@@ -290,14 +290,19 @@ class AlertLog(models.Model):
 
 class UserProfile(models.Model):
     ROLE_CHOICES = [
-        ('citizen', 'Citizen'),
-        ('authority', 'Authority'),
-        ('admin', 'Admin'),
+        ('super_admin', 'Super Admin'),
+        ('govt_national', 'Government Official (National)'),
+        ('govt_county', 'Government Official (County)'),
+        ('emergency_responder', 'Emergency Responder'),
+        ('meteo_officer', 'Meteorological Officer'),
+        ('ngo_humanitarian', 'NGO/Humanitarian Worker'),
+        ('citizen', 'Citizen/Public User'),
+        ('researcher', 'Researcher/Analyst'),
     ]
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     role = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=ROLE_CHOICES,
         default='citizen',
         help_text="User role in the system"
@@ -482,3 +487,208 @@ class MonthlyReport(models.Model):
 
     def __str__(self):
         return f"Monthly Report: {self.period_start} to {self.period_end}"
+
+
+# ============================================================
+# Layer 1 - Administrative Boundaries
+# ============================================================
+
+class AdministrativeBoundary(models.Model):
+    BOUNDARY_TYPES = [
+        ('country', 'Country'),
+        ('county', 'County'),
+        ('constituency', 'Constituency'),
+        ('ward', 'Ward'),
+        ('village', 'Village'),
+        ('river', 'River'),
+        ('protected_area', 'Protected Area'),
+    ]
+
+    name = models.CharField(max_length=200)
+    boundary_type = models.CharField(max_length=30, choices=BOUNDARY_TYPES)
+    geometry = models.GeometryField(srid=4326)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children')
+    metadata = models.JSONField(default=dict, blank=True)
+    source = models.CharField(max_length=100, default='natural_earth')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['boundary_type']),
+            models.Index(fields=['parent']),
+            models.Index(fields=['name']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_boundary_type_display()})"
+
+
+# ============================================================
+# Layer 2 - H3 Spatial Grid Intelligence
+# ============================================================
+
+class H3Cell(models.Model):
+    h3_index = models.CharField(max_length=50, unique=True, db_index=True)
+    resolution = models.IntegerField()
+    centroid_lat = models.FloatField()
+    centroid_lon = models.FloatField()
+    population_density = models.FloatField(null=True, blank=True)
+    road_density = models.FloatField(null=True, blank=True)
+    building_density = models.FloatField(null=True, blank=True)
+    terrain_complexity = models.FloatField(null=True, blank=True)
+    historical_flood_frequency = models.FloatField(default=0.0)
+    current_risk_score = models.FloatField(default=0.0)
+    confidence = models.FloatField(default=0.0)
+    last_updated = models.DateTimeField(auto_now=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['resolution']),
+            models.Index(fields=['-current_risk_score']),
+            models.Index(fields=['-last_updated']),
+        ]
+
+    def __str__(self):
+        return f"H3 {self.h3_index} (res {self.resolution})"
+
+
+class H3CellRelationship(models.Model):
+    RELATIONSHIP_TYPES = [
+        ('parent', 'Parent'),
+        ('child', 'Child'),
+        ('neighbor', 'Neighbor'),
+        ('k_ring', 'K-Ring'),
+    ]
+
+    source_cell = models.ForeignKey(H3Cell, on_delete=models.CASCADE, related_name='outgoing_relationships')
+    target_cell = models.ForeignKey(H3Cell, on_delete=models.CASCADE, related_name='incoming_relationships')
+    relationship_type = models.CharField(max_length=20, choices=RELATIONSHIP_TYPES)
+    distance_km = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['source_cell', 'target_cell', 'relationship_type']
+        indexes = [
+            models.Index(fields=['source_cell', 'relationship_type']),
+            models.Index(fields=['target_cell', 'relationship_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.source_cell.h3_index} -> {self.target_cell.h3_index} ({self.relationship_type})"
+
+
+# ============================================================
+# Layer 3 - Dynamic Flood Zones
+# ============================================================
+
+class DynamicZone(models.Model):
+    ZONE_STATES = [
+        ('new', 'New'),
+        ('monitoring', 'Monitoring'),
+        ('active', 'Active'),
+        ('escalated', 'Escalated'),
+        ('stabilizing', 'Stabilizing'),
+        ('inactive', 'Inactive'),
+        ('archived', 'Archived'),
+    ]
+
+    CREATION_SOURCES = [
+        ('weather', 'Weather Update'),
+        ('community', 'Community Report'),
+        ('river_discharge', 'River Discharge'),
+        ('rainfall', 'Extreme Rainfall'),
+        ('satellite', 'Satellite/Open Data'),
+        ('authority', 'Authority Input'),
+        ('merged', 'Merged from multiple zones'),
+        ('split', 'Split from parent zone'),
+    ]
+
+    name = models.CharField(max_length=200)
+    state = models.CharField(max_length=20, choices=ZONE_STATES, default='new')
+    creation_source = models.CharField(max_length=30, choices=CREATION_SOURCES)
+    h3_cells = models.ManyToManyField(H3Cell, related_name='dynamic_zones')
+    geometry = models.GeometryField(srid=4326)
+    risk_score = models.FloatField(default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
+    confidence = models.FloatField(default=0.0, validators=[MinValueValidator(0.0), MaxValueValidator(1.0)])
+    cause = models.TextField(blank=True)
+    evidence = models.JSONField(default=dict, blank=True)
+    population_exposed = models.IntegerField(null=True, blank=True)
+    buildings_affected = models.IntegerField(null=True, blank=True)
+    roads_affected = models.JSONField(default=list, blank=True)
+    critical_infrastructure = models.JSONField(default=list, blank=True)
+    recommended_actions = models.JSONField(default=list, blank=True)
+    priority = models.IntegerField(default=5, validators=[MinValueValidator(1), MaxValueValidator(10)])
+    resource_requirements = models.JSONField(default=dict, blank=True)
+    evacuation_advice = models.TextField(blank=True)
+    emergency_response_level = models.CharField(max_length=50, blank=True)
+    parent_zone = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_zones')
+    merged_from = models.ManyToManyField('self', symmetrical=False, blank=True, related_name='merged_into')
+    authority_override = models.BooleanField(default=False)
+    override_expires_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['state']),
+            models.Index(fields=['creation_source']),
+            models.Index(fields=['-risk_score']),
+            models.Index(fields=['-updated_at']),
+            models.Index(fields=['priority']),
+        ]
+        ordering = ['-risk_score', '-updated_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.get_state_display()}) - {self.risk_score:.2f}"
+
+
+class FloodPropagation(models.Model):
+    zone = models.ForeignKey(DynamicZone, on_delete=models.CASCADE, related_name='propagations')
+    predicted_cells = models.ManyToManyField(H3Cell, related_name='propagation_predictions')
+    forecast_hours = models.IntegerField()
+    predicted_risk_score = models.FloatField(default=0.0)
+    confidence = models.FloatField(default=0.0)
+    spread_direction = models.CharField(max_length=100, blank=True)
+    estimated_arrival = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['zone', 'forecast_hours']),
+            models.Index(fields=['-created_at']),
+        ]
+
+    def __str__(self):
+        return f"Propagation for {self.zone.name} +{self.forecast_hours}h"
+
+
+class ZoneLifecycleLog(models.Model):
+    zone = models.ForeignKey(DynamicZone, on_delete=models.CASCADE, related_name='lifecycle_logs')
+    from_state = models.CharField(max_length=20, choices=DynamicZone.ZONE_STATES)
+    to_state = models.CharField(max_length=20, choices=DynamicZone.ZONE_STATES)
+    reason = models.TextField(blank=True)
+    triggered_by = models.CharField(max_length=100, default='system')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['zone', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.zone.name}: {self.from_state} -> {self.to_state}"
+
+
+# ============================================================
+# Extended AlertZone for backward compatibility
+# ============================================================
+
+AlertZone.add_to_class('is_active', models.BooleanField(default=True, help_text="Whether the zone is currently active"))
+AlertZone.add_to_class('creation_source', models.CharField(max_length=30, choices=DynamicZone.CREATION_SOURCES, default='authority', help_text="Source of zone creation"))
+AlertZone.add_to_class('confidence', models.FloatField(default=0.0, help_text="Confidence in zone accuracy (0.0-1.0)"))
+AlertZone.add_to_class('expires_at', models.DateTimeField(null=True, blank=True, help_text="When the zone expires (null for permanent)"))
+AlertZone.add_to_class('metadata', models.JSONField(default=dict, blank=True, help_text="Additional zone metadata"))

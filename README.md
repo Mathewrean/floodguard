@@ -53,7 +53,7 @@ FloodGuard follows a modern, scalable architecture:
             - **scikit-learn ML Model** - Flood risk prediction engine
             - **Alert Consumer** - Real-time notification system
 
-**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction, AlertZoneActivity, Milestone, BeneficiaryGroup, MonthlyReport
+**Models:** AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction, AlertZoneActivity, Milestone, BeneficiaryGroup, MonthlyReport, AdministrativeBoundary, H3Cell, H3CellRelationship, DynamicZone, FloodPropagation, ZoneLifecycleLog
 
 **API:** RESTful endpoints powered by Django REST Framework with token authentication.
 
@@ -245,7 +245,7 @@ Privacy and security notes:
 
 ## Testing
 
-FloodGuard has comprehensive test coverage with 1538 test files.
+FloodGuard has comprehensive test coverage with 1546 test files.
 
 ### Running Tests
 
@@ -290,6 +290,12 @@ Current test files:
   - `tests/unit/test_serializers.py`
   - `tests/unit/test_sms_delivery_tracking.py`
   - `tests/unit/test_zone_boundary_validation.py`
+  - `tests/validation/test_500_zone_validation.py`
+  - `tests/validation/test_ai_dss_validation.py`
+  - `tests/validation/test_notification_offline_validation.py`
+  - `tests/validation/test_rbac_validation.py`
+  - `tests/validation/test_safe_route_validation.py`
+  - `tests/validation/test_security_performance_validation.py`
 
 ---
 
