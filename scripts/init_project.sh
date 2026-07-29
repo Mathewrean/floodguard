@@ -468,14 +468,24 @@ start_local_app() {
     start_background_process celery-beat "$VENV_DIR/bin/celery" -A floodguard beat -l info
 
     if [[ "$DETACH" == "1" ]]; then
-        start_background_process django-web "$VENV_DIR/bin/python" manage.py runserver "$HOST:$PORT"
+        if [[ -x "$VENV_DIR/bin/daphne" ]]; then
+            start_background_process django-web "$VENV_DIR/bin/daphne" floodguard.routing:application -b "$HOST:$PORT"
+        else
+            start_background_process django-web "$VENV_DIR/bin/python" manage.py runserver "$HOST:$PORT"
+        fi
         log "Local stack started in background."
         log "Open: http://127.0.0.1:$PORT/"
         log "Logs: $LOG_DIR"
     else
-        log "Starting Django development server in foreground."
-        log "Open: http://127.0.0.1:$PORT/"
-        "$VENV_DIR/bin/python" manage.py runserver "$HOST:$PORT"
+        if [[ -x "$VENV_DIR/bin/daphne" ]]; then
+            log "Starting Daphne ASGI server in foreground (WebSocket enabled)."
+            log "Open: http://127.0.0.1:$PORT/"
+            "$VENV_DIR/bin/daphne" floodguard.routing:application -b "$HOST:$PORT"
+        else
+            log "Starting Django development server in foreground."
+            log "Open: http://127.0.0.1:$PORT/"
+            "$VENV_DIR/bin/python" manage.py runserver "$HOST:$PORT"
+        fi
     fi
 }
 

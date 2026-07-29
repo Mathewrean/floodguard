@@ -211,7 +211,7 @@ async function connectFloodMapSocket() {
     let reconnectDelay = 2000;
     
     function startSocket() {
-        const socket = new WebSocket(`${protocol}//${window.location.host}/ws/alerts/`);
+        const socket = new WebSocket(`${protocol}//${window.location.host}/ws/flood-map/`);
         
         socket.onopen = () => {
             const status = document.getElementById('ws-status');

@@ -1,5 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, wait
 
+from django.core.cache import cache
+
 from .gee import GEESource
 from .nasa_gpm import NASAGPMSource
 from .open_meteo import OpenMeteoSource
@@ -52,6 +54,11 @@ def fetch_all_sources(lat: float, lon: float) -> dict:
 
 
 def build_risk_feature_vector(lat: float, lon: float, zone_name: str = '') -> dict:
+    cache_key = f'risk_vector:{round(lat, 2)}:{round(lon, 2)}:{zone_name}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     all_data = fetch_all_sources(lat, lon)
     open_meteo = all_data.get('open_meteo', {})
     openweather = all_data.get('openweather', {})
@@ -61,7 +68,7 @@ def build_risk_feature_vector(lat: float, lon: float, zone_name: str = '') -> di
     gee = all_data.get('google_earth_engine', {})
     available_count = sum(1 for value in all_data.values() if value.get('available'))
 
-    return {
+    result = {
         'river_discharge': open_meteo.get('river_discharge_today', 0),
         'discharge_24h': open_meteo.get('river_discharge_24h', 0),
         'discharge_7d_max': open_meteo.get('river_discharge_7d_max', 0),
@@ -80,3 +87,6 @@ def build_risk_feature_vector(lat: float, lon: float, zone_name: str = '') -> di
         'zone_name': zone_name,
         'sources': all_data,
     }
+
+    cache.set(cache_key, result, 300)
+    return result

@@ -361,7 +361,7 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AlertLog.objects.all().select_related('alert_zone').order_by('-triggered_at')
     serializer_class = AlertLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     pagination_class = None
     throttle_classes = [MonitoringRateThrottle]
 
@@ -531,7 +531,7 @@ def _selected_analysis_location(request, zones, latest_reading):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 @throttle_classes([AIAnalysisThrottle])
 def ai_flood_analysis(request):
     import json
