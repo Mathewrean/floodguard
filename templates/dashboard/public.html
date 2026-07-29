@@ -22,25 +22,25 @@
         <a href="{% url 'alert_history' %}">Alerts</a>
     </aside>
     <div class="container dashboard-content">
-        <div class="dashboard-header">
+        <div class="dashboard-header" aria-label="Page header" role="region">
             <h1 class="section-title">Citizen Dashboard</h1>
             <p class="section-subtitle">Welcome back, {{ user.username }}. Stay informed about flood risks in your area.</p>
         </div>
 
-        <div class="stats-grid">
+        <div class="stats-grid" role="region" aria-label="Dashboard statistics">
             <div class="stat-card card"><span>Reports</span><strong id="my-reports-count">0</strong><small>Submitted by you</small></div>
             <div class="stat-card card"><span>Nearest Zone</span><strong id="nearest-zone-risk">--</strong><small id="nearest-zone-name">Loading zone</small></div>
             <div class="stat-card card"><span>High Risk</span><strong class="stat-value" data-stat="high_risk_zones">0</strong><small>Currently elevated</small></div>
             <div class="stat-card card"><span>Verified</span><strong id="verified-reports-count">0</strong><small>Your verified reports</small></div>
         </div>
 
-        <section class="dashboard-section card">
+        <section class="dashboard-section card" role="region" aria-label="Global Flood Search">
             <div class="section-header compact">
                 <h2 class="card-title">Global Flood Search</h2>
             </div>
             <div class="search-bar">
-                <input type="text" id="global-search-input" placeholder="Search by city, zone name, or coordinates (lat,lon)..." />
-                <button id="global-search-btn" class="btn btn-primary">Search</button>
+                <input type="text" id="global-search-input" placeholder="Search by city, zone name, or coordinates (lat,lon)..." aria-label="Global flood search" />
+                <button id="global-search-btn" class="btn btn-primary" aria-label="Global flood search">Search</button>
                 <button id="global-location-btn" class="btn btn-secondary">Use My Location</button>
             </div>
             <div id="global-search-results" class="search-results" style="display:none;">
@@ -51,29 +51,34 @@
             </div>
         </section>
 
-        <section class="dashboard-section card">
+        <section class="dashboard-section card" role="region" aria-label="Current Flood Intelligence">
             <div class="section-header compact">
                 <h2 class="card-title">Current Flood Intelligence</h2>
                 <span class="card-meta">Powered by Groq</span>
             </div>
-            <div id="ai-summary" class="ai-content">Loading...</div>
+            <div id="ai-summary" class="ai-content">
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+            </div>
         </section>
 
-        <section class="dashboard-section card">
+        <section class="dashboard-section card" role="region" aria-label="My Reports">
             <div class="section-header compact">
                 <h2 class="card-title">My Reports</h2>
             </div>
             <div class="table-responsive">
                 <table class="data-table">
                     <thead><tr><th>Status</th><th>Severity</th><th>Date</th><th>Description</th></tr></thead>
-                    <tbody id="my-reports-table">
+                    <tbody id="my-reports-table" class="empty-reports">
+                        <tr class="empty-state" style="display:none;"><td colspan="4">No reports yet. Submit a report to get started.</td></tr>
                         <tr><td colspan="4"><span class="skeleton skeleton-line"></span></td></tr>
                     </tbody>
                 </table>
             </div>
         </section>
 
-        <section class="dashboard-section card">
+        <section class="dashboard-section card" role="region" aria-label="Live Reports Map">
             <div class="section-header compact">
                 <h2 class="card-title">Live Reports Map</h2>
             </div>

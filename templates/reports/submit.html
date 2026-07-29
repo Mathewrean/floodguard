@@ -9,29 +9,36 @@
             <p class="section-subtitle">Send location, severity, and field notes to the response team.</p>
         </div>
 
-        <form id="report-form" action="/api/v1/reports/" method="post" enctype="multipart/form-data" class="report-form card">
+        <div class="form-progress" aria-label="Form progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100%"></div>
+            </div>
+            <span class="progress-text">Step 1 of 1</span>
+        </div>
+
+        <form id="report-form" action="/api/v1/reports/" method="post" enctype="multipart/form-data" class="report-form card" role="form" aria-label="Flood incident report form">
             {% csrf_token %}
             <div class="form-group">
                 <label for="description">What are you seeing?</label>
-                <textarea id="description" name="description" rows="4" placeholder="Water depth, affected road, nearby landmark..." required></textarea>
+                <textarea id="description" name="description" rows="4" placeholder="Water depth, affected road, nearby landmark..." required aria-label="Incident description"></textarea>
             </div>
 
             <div class="form-group">
                 <label for="severity">Severity</label>
                 <div class="severity-control">
-                    <input type="range" id="severity" name="severity" min="1" max="5" value="3">
-                    <strong id="severity-value">3</strong>
+                    <input type="range" id="severity" name="severity" min="1" max="5" value="3" aria-label="Severity level" class="severity-slider">
+                    <strong id="severity-value" aria-live="polite">3</strong>
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="water-depth">Estimated water depth (cm)</label>
-                <input type="number" id="water-depth" name="water_depth_cm" min="0" max="500" value="45">
+                <input type="number" id="water-depth" name="water_depth_cm" min="0" max="500" value="45" aria-label="Estimated water depth in centimeters">
             </div>
 
             <div class="form-group">
                 <label>Location</label>
-                <button type="button" id="use-current-location" class="btn btn-primary btn-block">
+                <button type="button" id="use-current-location" class="btn btn-primary btn-block" aria-label="Use current location">
                     <span class="gps-label">Use Current Location</span>
                 </button>
                 <div id="location-status" class="location-status">
@@ -43,18 +50,18 @@
             <div class="location-grid">
                 <div class="form-group">
                     <label for="latitude">Latitude</label>
-                    <input type="number" id="latitude" name="latitude" step="0.000001" required>
+                    <input type="number" id="latitude" name="latitude" step="0.000001" required aria-label="Latitude">
                 </div>
                 <div class="form-group">
                     <label for="longitude">Longitude</label>
-                    <input type="number" id="longitude" name="longitude" step="0.000001" required>
+                    <input type="number" id="longitude" name="longitude" step="0.000001" required aria-label="Longitude">
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="photo">Photo</label>
-                <label class="upload-zone" for="photo">
-                    <input type="file" id="photo" name="photo" accept="image/*">
+                <label class="upload-zone" for="photo" aria-label="Upload photo" id="upload-zone">
+                    <input type="file" id="photo" name="photo" accept="image/*" aria-label="Choose photo file">
                     <span id="photo-label">Drop or choose an image</span>
                     <img id="photo-preview" alt="" hidden>
                 </label>
@@ -62,7 +69,7 @@
 
             <div id="form-errors" class="form-errors" aria-live="polite"></div>
 
-            <button type="submit" id="submit-btn" class="btn btn-accent btn-block">Submit Report</button>
+            <button type="submit" id="submit-btn" class="btn btn-accent btn-block" aria-label="Submit report">Submit Report</button>
         </form>
     </div>
 </section>
@@ -73,6 +80,13 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     initReportForm();
+    var uploadZone = document.getElementById('upload-zone');
+    if (uploadZone) {
+        uploadZone.addEventListener('dragenter', function(e) { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragover', function(e) { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', function(e) { e.preventDefault(); uploadZone.classList.remove('dragover'); });
+        uploadZone.addEventListener('drop', function(e) { e.preventDefault(); uploadZone.classList.remove('dragover'); });
+    }
 });
 </script>
 {% endblock %}

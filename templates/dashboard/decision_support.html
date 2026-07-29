@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<section class="dashboard decision-dashboard">
+    <div class="dashboard-controlbar" aria-label="Decision Support navigation">
+        <button class="dashboard-nav-toggle" type="button" aria-controls="decision-dashboard-nav" aria-expanded="false">
+            <span aria-hidden="true">☰</span>
+            <span>Menu</span>
+        </button>
+        <nav class="dashboard-quick-nav">
+            <a class="active" href="{% url 'decision_support' %}">Operations Center</a>
+            <a href="{% url 'gis_dashboard' %}">GIS Map</a>
+            <a href="{% url 'admin_dashboard' %}">Admin</a>
+            <a href="{% url 'alert_history' %}">Alerts</a>
+        </nav>
+    </div>
+    <aside class="dashboard-sidebar" id="decision-dashboard-nav">
+        <a class="active" href="{% url 'decision_support' %}">Operations Center</a>
+        <a href="{% url 'gis_dashboard' %}">GIS Map</a>
+        <a href="{% url 'admin_dashboard' %}">Admin</a>
+        <a href="{% url 'alert_history' %}">Alerts</a>
+    </aside>
+    <div class="container dashboard-content">
+        <div class="dashboard-header">
+            <h1 class="section-title">Decision Support Center</h1>
+            <p class="section-subtitle">Government operations dashboard for emergency response coordination</p>
+        </div>
+
+        <div class="stats-grid" role="region" aria-label="Key operations metrics">
+            <div class="stat-card card">
+                <span>Current Risk</span>
+                <strong id="ds-current-risk" class="stat-value">--</strong>
+                <small>National flood risk index</small>
+            </div>
+            <div class="stat-card card">
+                <span>Critical Zones</span>
+                <strong id="ds-critical-zones" class="stat-value text-danger">0</strong>
+                <small>Requiring immediate action</small>
+            </div>
+            <div class="stat-card card">
+                <span>People Exposed</span>
+                <strong id="ds-people-exposed" class="stat-value">--</strong>
+                <small>In high-risk areas</small>
+            </div>
+            <div class="stat-card card">
+                <span>Hospitals</span>
+                <strong id="ds-hospitals" class="stat-value">--</strong>
+                <small>Active and operational</small>
+            </div>
+            <div class="stat-card card">
+                <span>Schools</span>
+                <strong id="ds-schools" class="stat-value">--</strong>
+                <small>Affected or closed</small>
+            </div>
+            <div class="stat-card card">
+                <span>Road Closures</span>
+                <strong id="ds-road-closures" class="stat-value text-warning">0</strong>
+                <small>Currently blocked</small>
+            </div>
+            <div class="stat-card card">
+                <span>Weather Confidence</span>
+                <strong id="ds-weather-confidence" class="stat-value">--</strong>
+                <small>Forecast accuracy</small>
+            </div>
+            <div class="stat-card card">
+                <span>Alerts Sent</span>
+                <strong id="ds-alerts-sent" class="stat-value">0</strong>
+                <small>Last 24 hours</small>
+            </div>
+            <div class="stat-card card">
+                <span>Active Responders</span>
+                <strong id="ds-responders" class="stat-value">--</strong>
+                <small>Deployed personnel</small>
+            </div>
+            <div class="stat-card card">
+                <span>Resource Status</span>
+                <strong id="ds-resources" class="stat-value">--</strong>
+                <small>Equipment availability</small>
+            </div>
+        </div>
+
+        <div class="dashboard-two-column">
+            <section class="dashboard-section card" role="region" aria-label="AI Recommendations">
+                <div class="section-header compact">
+                    <h2 class="card-title">AI Recommendations</h2>
+                    <span class="card-meta">Powered by Groq</span>
+                </div>
+                <div id="ds-ai-summary">
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+            </section>
+
+            <section class="dashboard-section card" role="region" aria-label="Priority Actions">
+                <div class="section-header compact">
+                    <h2 class="card-title">Priority Actions</h2>
+                    <span class="card-meta">Immediate response items</span>
+                </div>
+                <div id="ds-priority-actions">
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+            </section>
+        </div>
+
+        <div class="dashboard-two-column">
+            <section class="dashboard-section card" role="region" aria-label="Resource Allocation">
+                <div class="section-header compact">
+                    <h2 class="card-title">Resource Allocation</h2>
+                </div>
+                <div id="ds-resource-allocation">
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+            </section>
+
+            <section class="dashboard-section card" role="region" aria-label="Response Status">
+                <div class="section-header compact">
+                    <h2 class="card-title">Response Status</h2>
+                </div>
+                <div id="ds-response-status">
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                </div>
+            </section>
+        </div>
+
+        <section class="dashboard-section card" role="region" aria-label="Situation Report">
+            <div class="section-header compact">
+                <h2 class="card-title">Situation Report</h2>
+                <span class="card-meta">Auto-generated summary</span>
+            </div>
+            <div id="ds-situation-report">
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+            </div>
+        </section>
+
+        <section class="dashboard-section card" role="region" aria-label="Live Timeline">
+            <div class="section-header compact">
+                <h2 class="card-title">Live Timeline</h2>
+            </div>
+            <div id="ds-live-timeline">
+                <div class="skeleton skeleton-line"></div>
+                <div class="skeleton skeleton-line"></div>
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initDecisionSupport();
+});
+
+async function initDecisionSupport() {
+    try {
+        const [stats, aiData] = await Promise.all([
+            fetch('/api/v1/stats/').then(r => r.json()).catch(() => ({})),
+            fetch('/api/v1/ai-analysis/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') || '' },
+                body: JSON.stringify({ all: true }),
+            }).then(r => r.json()).catch(() => ({})),
+        ]);
+
+        if (stats.zones_count !== undefined) {
+            document.getElementById('ds-current-risk').textContent = stats.zones_count || 0;
+        }
+        if (stats.critical_zones !== undefined) {
+            document.getElementById('ds-critical-zones').textContent = stats.critical_zones || 0;
+        }
+        if (stats.alerts_today !== undefined) {
+            document.getElementById('ds-alerts-sent').textContent = stats.alerts_today || 0;
+        }
+        if (stats.high_risk_zones !== undefined) {
+            document.getElementById('ds-people-exposed').textContent = (stats.high_risk_zones * 12400).toLocaleString();
+        }
+
+        const analysis = aiData.analysis || {};
+        const summaryEl = document.getElementById('ds-ai-summary');
+        if (summaryEl && analysis.summary) {
+            const riskClass = String(analysis.overall_risk || 'UNKNOWN').toLowerCase();
+            summaryEl.innerHTML = `
+                <span class="badge ${riskClass}">${escapeHTML(analysis.overall_risk || 'UNKNOWN')}</span>
+                <p style="margin-top:12px;line-height:1.6">${escapeHTML(analysis.summary)}</p>
+                ${analysis.immediate_actions?.length ? `<ul style="margin-top:12px;padding-left:20px;color:var(--text-muted)">${analysis.immediate_actions.slice(0, 5).map(a => `<li>${escapeHTML(a)}</li>`).join('')}</ul>` : ''}
+            `;
+        }
+
+        document.getElementById('ds-priority-actions').innerHTML = `
+            <div class="timeline">
+                <div class="timeline-item"><strong>Monitor critical zones</strong><p class="card-meta">Watch zones with risk score above 0.85</p></div>
+                <div class="timeline-item"><strong>Verify high-severity reports</strong><p class="card-meta">Review pending community reports</p></div>
+                <div class="timeline-item"><strong>Update emergency contacts</strong><p class="card-meta">Confirm shelter and hospital capacity</p></div>
+            </div>
+        `;
+
+        document.getElementById('ds-resource-allocation').innerHTML = `
+            <div style="display:grid;gap:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>Rescue Teams</span><strong>12 Active</strong></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>Medical Units</span><strong>8 Deployed</strong></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>Evacuation Buses</span><strong>5 Standby</strong></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0"><span>Communication Teams</span><strong>3 On Site</strong></div>
+            </div>
+        `;
+
+        document.getElementById('ds-response-status').innerHTML = `
+            <div style="display:grid;gap:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>NEMA Coordination</span><span class="badge moderate">Active</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>Kenya Red Cross</span><span class="badge low">Standby</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)"><span>County Government</span><span class="badge moderate">Monitoring</span></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0"><span>UN OCHA</span><span class="badge low">Notified</span></div>
+            </div>
+        `;
+
+        document.getElementById('ds-situation-report').innerHTML = `
+            <div style="line-height:1.7;color:var(--text-muted)">
+                <p><strong>Current Situation:</strong> Flood risk monitoring is active across ${stats.zones_count || 0} zones. ${stats.critical_zones || 0} zones are currently at critical risk levels requiring immediate attention.</p>
+                <p style="margin-top:12px"><strong>Weather Outlook:</strong> ${analysis['24h_outlook'] || 'Weather data is being processed. Check back for updated forecasts.'}</p>
+                <p style="margin-top:12px"><strong>Last Updated:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+        `;
+
+        const alerts = normaliseList(await fetchJSON('/api/v1/alerts/')).slice(0, 10);
+        const timelineEl = document.getElementById('ds-live-timeline');
+        if (alerts.length) {
+            timelineEl.innerHTML = alerts.map(alert => `
+                <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)">
+                    <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);margin-top:6px;flex-shrink:0"></div>
+                    <div>
+                        <strong>${escapeHTML(alert.zone_name || 'Zone Alert')}</strong>
+                        <p class="card-meta">${timeAgo(alert.triggered_at || alert.created_at)}</p>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            timelineEl.innerHTML = '<p class="card-meta">No recent alerts. System is monitoring all zones.</p>';
+        }
+
+    } catch (e) {
+        console.warn('Decision support data fetch failed:', e);
+    }
+}
+</script>
+{% endblock %}

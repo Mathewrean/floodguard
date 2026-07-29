@@ -8,7 +8,7 @@
 
 {% block content %}
 <section class="safe-route-page">
-    <div class="safe-route-panel">
+    <div class="safe-route-panel" role="region" aria-label="Safe route panel">
         <div class="safe-route-header">
             <span class="eyebrow">Safe-Route Navigation</span>
             <h1>Choose a safer path before you move.</h1>
@@ -17,31 +17,55 @@
 
         <div class="route-picker-card">
             <div class="route-field-group">
-                <label>Origin</label>
+                <label for="origin-input">Origin</label>
                 <div class="route-field-row">
-                    <input id="origin-input" type="text" placeholder="Use GPS or click the map" readonly>
-                    <button id="use-current-location" class="btn btn-primary btn-sm" type="button">Use GPS</button>
+                    <input id="origin-input" type="text" placeholder="Use GPS or click the map" aria-label="Origin location" required>
+                    <button id="use-current-location" class="btn btn-primary btn-sm" type="button" aria-label="Use current GPS location">Use GPS</button>
                 </div>
                 <small id="origin-snap-status">Waiting for origin.</small>
             </div>
 
             <div class="route-field-group">
-                <label>Destination</label>
-                <input id="destination-input" type="text" placeholder="Click the map to set destination" readonly>
+                <label for="destination-input">Destination</label>
+                <input id="destination-input" type="text" placeholder="Click the map to set destination" aria-label="Destination location" required>
                 <small id="destination-snap-status">Waiting for destination.</small>
             </div>
 
             <div class="route-mode-selector" role="group" aria-label="Route preference">
-                <button type="button" class="mode-chip active" data-profile="balanced">Balanced</button>
-                <button type="button" class="mode-chip" data-profile="safest">Safest</button>
-                <button type="button" class="mode-chip" data-profile="fastest">Fastest</button>
+                <button type="button" class="mode-chip active" data-profile="balanced" aria-label="Balanced route">Balanced</button>
+                <button type="button" class="mode-chip" data-profile="safest" aria-label="Safest route">Safest</button>
+                <button type="button" class="mode-chip" data-profile="fastest" aria-label="Fastest route">Fastest</button>
             </div>
 
-            <button id="calculate-route" class="btn btn-accent btn-block" type="button">Calculate Safe Route</button>
+            <button id="calculate-route" class="btn btn-accent btn-block" type="button" aria-label="Calculate safe route">Calculate Safe Route</button>
             <div id="route-status" class="route-status" aria-live="polite">Tip: first click sets origin, second click sets destination.</div>
         </div>
 
-        <div id="route-results" class="route-results"></div>
+        <div id="route-results" class="route-results" role="region" aria-label="Route results">
+        <div class="route-result-card">
+            <div class="route-result-header">
+                <h3>Route Result</h3>
+                <span class="route-profile-badge">Balanced</span>
+            </div>
+            <div class="route-result-details">
+                <div class="route-stat">
+                    <span class="route-stat-label">Distance</span>
+                    <span class="route-stat-value">-- km</span>
+                </div>
+                <div class="route-stat">
+                    <span class="route-stat-label">ETA</span>
+                    <span class="route-stat-value">-- min</span>
+                </div>
+                <div class="route-stat">
+                    <span class="route-stat-label">Risk Level</span>
+                    <span class="route-stat-value">--</span>
+                </div>
+            </div>
+            <div class="route-result-map" aria-label="Route map preview">
+                <div class="route-map-placeholder">Map preview</div>
+            </div>
+        </div>
+    </div>
     </div>
 
     <div class="safe-route-map-shell">

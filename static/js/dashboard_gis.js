@@ -62,6 +62,12 @@ async function initGisDashboard() {
     const baseLayers = { 'Street Map': streetLayer, 'Satellite': satelliteLayer };
     L.control.layers(baseLayers, {}, { position: 'topright' }).addTo(gisMap);
 
+    // Add scale control
+    L.control.scale({ position: 'bottomright', metric: true, imperial: false }).addTo(gisMap);
+
+    // Add compass control
+    addCompassControl();
+
     // Bind UI events
     bindGisControls();
 
@@ -250,12 +256,17 @@ function bindGisControls() {
     const locationBtn = document.getElementById('gis-location-btn');
     const routeBtn = document.getElementById('gis-safe-route-btn');
     const toggleBtn = document.getElementById('gis-panel-toggle');
+    const closeBtn = document.getElementById('gis-panel-close');
 
     if (searchBtn) searchBtn.addEventListener('click', doLocationSearch);
     if (searchInput) searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLocationSearch(); });
     if (locationBtn) locationBtn.addEventListener('click', useMyLocation);
     if (routeBtn) routeBtn.addEventListener('click', openRouteMode);
     if (toggleBtn) toggleBtn.addEventListener('click', togglePanel);
+    if (closeBtn) closeBtn.addEventListener('click', () => {
+        const panel = document.getElementById('gis-panel');
+        if (panel) panel.classList.remove('open');
+    });
 
     // Layer toggles
     const floodToggle = document.getElementById('layer-flood');
@@ -284,23 +295,35 @@ async function doLocationSearch() {
     if (!query) return;
 
     try {
-        const data = await cachedFetch(`/api/v1/geocode/?q=${encodeURIComponent(query)}`);
-        const results = data.results || [];
+        let results = [];
+        let latlng = null;
+
+        // Check if query is coordinates (lat,lon format)
+        const coordMatch = query.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+        if (coordMatch) {
+            const lat = parseFloat(coordMatch[1]);
+            const lon = parseFloat(coordMatch[2]);
+            if (lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+                latlng = [lat, lon];
+                results = [{ lat, lon, display_name: `${lat.toFixed(6)}, ${lon.toFixed(6)}` }];
+            }
+        }
+
+        if (!latlng) {
+            const data = await cachedFetch(`/api/v1/geocode/?q=${encodeURIComponent(query)}`);
+            results = data.results || [];
+        }
 
         if (results.length) {
             clearSearchMarkers();
             const result = results[0];
-            const latlng = [result.lat, result.lon];
+            latlng = [result.lat, result.lon];
 
-            // Add marker
             const marker = L.marker(latlng).addTo(gisMap);
-            marker.bindPopup(`<strong>${result.display_name}</strong>`).openPopup();
+            marker.bindPopup(`<strong>${result.display_name || query}</strong>`).openPopup();
             searchMarkers.push(marker);
 
-            // Pan to location
             gisMap.setView(latlng, 13);
-
-            // Load nearby emergency services
             showNearbyEmergencyServices(result.lat, result.lon);
         } else {
             showError('Location not found. Try a city name, address, or coordinates (lat,lon).');
@@ -371,25 +394,35 @@ async function checkLocationRisk(lat, lon) {
 }
 
 function showEmergencyAlert(data) {
+    const existing = document.getElementById('emergency-banner');
+    if (existing) existing.remove();
+
     const banner = document.createElement('div');
     banner.id = 'emergency-banner';
+    banner.setAttribute('role', 'alert');
+    banner.setAttribute('aria-live', 'assertive');
     banner.style.cssText = `
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(220, 38, 38, 0.95); color: white;
-        display: flex; align-items: center; justify-content: center;
-        z-index: 2000; flex-direction: column; text-align: center;
-        padding: 20px;
+        position: fixed; top: 64px; left: 0; right: 0; z-index: 2000;
+        background: linear-gradient(90deg, #dc2626, #b91c1c); color: white;
+        padding: 16px 24px; box-shadow: 0 8px 24px rgba(220,38,38,0.35);
+        animation: slideDown 0.3s ease-out;
     `;
 
     banner.innerHTML = `
-        <div style="font-size:48px;margin-bottom:20px">⚠️</div>
-        <h2 style="font-size:24px;margin-bottom:10px">You are in a HIGH FLOOD RISK Area</h2>
-        <p style="font-size:16px;margin-bottom:20px">Risk level: ${data.risk_score.toFixed(2)}</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
-            <button onclick="findSafestRoute()" class="btn btn-primary">Find Safe Route</button>
-            <button onclick="showSafeZones()" class="btn btn-secondary">Find Safe Zone</button>
-            <button onclick="showEmergencyContacts()" class="btn btn-secondary">Emergency Contacts</button>
-            <button onclick="closeEmergencyBanner()" class="btn btn-danger">Dismiss</button>
+        <div style="max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 24px;" aria-hidden="true">⚠️</span>
+                <div>
+                    <strong style="font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">High Flood Risk</strong>
+                    <span style="font-size: 13px; opacity: 0.9; margin-left: 8px;">${data.zone_name || 'Current Location'} — ${(data.risk_score * 100).toFixed(0)}% risk</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button onclick="findSafestRoute()" class="btn btn-sm" style="background: #fff; color: #dc2626;">Find Safe Route</button>
+                <button onclick="showSafeZones()" class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3);">Find Safe Zone</button>
+                <button onclick="showEmergencyContacts()" class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3);">Contacts</button>
+                <button onclick="closeEmergencyBanner()" class="btn btn-sm" style="background: rgba(0,0,0,0.3); color: #fff;" aria-label="Dismiss emergency alert">✕</button>
+            </div>
         </div>
     `;
 
@@ -538,6 +571,30 @@ function debounce(fn, delay = 300) {
         clearTimeout(timer);
         timer = setTimeout(() => fn.apply(this, args), delay);
     };
+}
+
+function addCompassControl() {
+    if (!gisMap) return;
+    const compass = L.control({ position: 'topright' });
+    compass.onAdd = function() {
+        const div = L.DomUtil.create('div', 'gis-compass');
+        div.innerHTML = '🧭';
+        div.title = 'Reset north orientation';
+        div.setAttribute('role', 'button');
+        div.setAttribute('aria-label', 'Reset map orientation to north');
+        div.tabIndex = 0;
+        div.addEventListener('click', () => {
+            gisMap.setView(gisMap.getCenter(), gisMap.getZoom());
+        });
+        div.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                gisMap.setView(gisMap.getCenter(), gisMap.getZoom());
+            }
+        });
+        return div;
+    };
+    compass.addTo(gisMap);
 }
 
 // Expose for template

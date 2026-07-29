@@ -22,8 +22,8 @@
         <a href="{% url 'report_list' %}">Reports</a>
     </aside>
     <div class="container dashboard-content">
-        <div class="dashboard-header">
-            <h1 class="section-title">Authority Dashboard</h1>
+        <div class="dashboard-header" aria-label="Page header" role="region">
+            <h1 class="section-title">Authority Dashboard <span class="live-badge" aria-label="Live indicator">Live</span></h1>
             <p class="section-subtitle">Emergency review queue and live zone overview.</p>
         </div>
 
@@ -35,7 +35,7 @@
         </div>
 
         <div class="dashboard-two-column">
-            <section class="dashboard-section card">
+            <section class="dashboard-section card" role="region" aria-label="Reports Requiring Review">
                 <div class="section-header compact">
                     <h2 class="card-title">Reports Requiring Review</h2>
                     <span class="card-meta">Verify or reject without reloading.</span>
@@ -45,19 +45,20 @@
                         <thead>
                             <tr><th>ID</th><th>Status</th><th>Severity</th><th>Created</th><th>Description</th><th>Actions</th></tr>
                         </thead>
-                        <tbody id="pending-reports-table">
+                        <tbody id="pending-reports-table" class="empty-reports">
+                            <tr class="empty-state" style="display:none;"><td colspan="6">No pending reports.</td></tr>
                             <tr><td colspan="6"><span class="skeleton skeleton-line"></span></td></tr>
                         </tbody>
                     </table>
                 </div>
             </section>
 
-            <section class="dashboard-section card">
+            <section class="dashboard-section card" role="region" aria-label="Flood Zones">
                 <div class="section-header compact">
                     <h2 class="card-title">Flood Zones</h2>
-                    <a href="/admin/core/alertzone/" class="btn btn-sm btn-outline">Manage Zones</a>
+                    <a href="/admin/core/alertzone/" class="btn btn-sm btn-outline" aria-label="Manage flood zones">Manage Zones</a>
                 </div>
-                <div id="zones-list" class="zone-overview-grid"></div>
+                <div id="zones-list" class="zone-overview-grid"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div>
             </section>
         </div>
     </div>

@@ -8,24 +8,24 @@
             <span aria-hidden="true">☰</span>
             <span>Menu</span>
         </button>
-        <nav class="dashboard-quick-nav">
-            <button class="admin-tab active" data-view="overview" type="button">Overview</button>
-            <button class="admin-tab" data-view="zones" type="button">Zones</button>
-            <button class="admin-tab" data-view="alerts" type="button">Alerts</button>
-            <button class="admin-tab" data-view="reports" type="button">Reports</button>
-            <button class="admin-tab" data-view="users" type="button">Users</button>
+        <nav class="dashboard-quick-nav" role="tablist" aria-label="Admin dashboard tabs">
+            <button class="admin-tab active" role="tab" id="tab-overview" aria-selected="true" aria-controls="tab-content-overview" data-view="overview" type="button">Overview</button>
+            <button class="admin-tab" role="tab" id="tab-zones" aria-selected="false" aria-controls="tab-content-zones" data-view="zones" type="button">Zones</button>
+            <button class="admin-tab" role="tab" id="tab-alerts" aria-selected="false" aria-controls="tab-content-alerts" data-view="alerts" type="button">Alerts</button>
+            <button class="admin-tab" role="tab" id="tab-reports" aria-selected="false" aria-controls="tab-content-reports" data-view="reports" type="button">Reports</button>
+            <button class="admin-tab" role="tab" id="tab-users" aria-selected="false" aria-controls="tab-content-users" data-view="users" type="button">Users</button>
         </nav>
     </div>
     <aside class="dashboard-sidebar" id="admin-sidebar">
         <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="true" title="Toggle sidebar">
             ☰
         </button>
-        <div class="admin-tabs">
-            <button class="admin-tab active" data-view="overview" type="button">Overview</button>
-            <button class="admin-tab" data-view="zones" type="button">Zones</button>
-            <button class="admin-tab" data-view="alerts" type="button">Alerts</button>
-            <button class="admin-tab" data-view="reports" type="button">Reports</button>
-            <button class="admin-tab" data-view="users" type="button">Users</button>
+        <div class="admin-tabs" role="tablist" aria-label="Admin dashboard tabs">
+            <button class="admin-tab active" role="tab" id="sidebar-tab-overview" aria-selected="true" aria-controls="tab-content-overview" data-view="overview" type="button">Overview</button>
+            <button class="admin-tab" role="tab" id="sidebar-tab-zones" aria-selected="false" aria-controls="tab-content-zones" data-view="zones" type="button">Zones</button>
+            <button class="admin-tab" role="tab" id="sidebar-tab-alerts" aria-selected="false" aria-controls="tab-content-alerts" data-view="alerts" type="button">Alerts</button>
+            <button class="admin-tab" role="tab" id="sidebar-tab-reports" aria-selected="false" aria-controls="tab-content-reports" data-view="reports" type="button">Reports</button>
+            <button class="admin-tab" role="tab" id="sidebar-tab-users" aria-selected="false" aria-controls="tab-content-users" data-view="users" type="button">Users</button>
         </div>
     </aside>
     <div class="container dashboard-content">
@@ -34,7 +34,7 @@
             <p class="section-subtitle">System-wide flood monitoring and emergency oversight</p>
         </div>
 
-        <div id="tab-content-overview" class="admin-tab-content active">
+        <div id="tab-content-overview" class="admin-tab-content active" role="tabpanel" aria-labelledby="tab-overview">
             <div class="stats-grid">
                 <div class="stat-card card"><span>Active Zones</span><strong id="total-zones">--</strong><small>Monitored areas</small></div>
                 <div class="stat-card card"><span>High Risk Zones</span><strong id="high-risk-zones" class="text-warning">0</strong><small>Elevated but not critical</small></div>
@@ -55,7 +55,9 @@
                     <div class="stat-card card"><span>Satellite</span><strong id="source-satellite-count">--</strong><small>NASA GPM, Google Earth Engine</small></div>
                 </div>
                 <div id="data-sources-list" class="card-meta" style="margin-top: 12px;">
-                    Loading source status...
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
+                    <div class="skeleton skeleton-line"></div>
                 </div>
             </section>
 
@@ -73,7 +75,7 @@
             <section class="dashboard-section card">
                 <div class="section-header compact">
                     <h2 class="card-title">Recent Alerts</h2>
-                    <a href="#" class="btn btn-sm">View All</a>
+                    <a href="#" class="btn btn-sm" aria-label="View all alerts">View All</a>
                 </div>
                 <div class="alerts-feed" id="alerts-feed">
                     <div class="skeleton skeleton-line"></div>
@@ -81,7 +83,7 @@
             </section>
         </div>
 
-        <div id="tab-content-zones" class="admin-tab-content">
+        <div id="tab-content-zones" class="admin-tab-content" role="tabpanel" aria-labelledby="tab-zones">
             <div class="table-responsive">
                 <table class="data-table">
                     <thead>
@@ -96,45 +98,49 @@
                         </tr>
                     </thead>
                     <tbody id="zones-table-body">
+                        <tr class="empty-state" style="display:none;"><td colspan="7">No zones found.</td></tr>
                         <tr><td colspan="7"><span class="skeleton skeleton-line"></span></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div id="tab-content-alerts" class="admin-tab-content">
+        <div id="tab-content-alerts" class="admin-tab-content" role="tabpanel" aria-labelledby="tab-alerts">
             <div class="table-responsive">
                 <table class="data-table">
                     <thead>
                         <tr><th>ID</th><th>Zone</th><th>Risk</th><th>Sent</th><th>Status</th></tr>
                     </thead>
                     <tbody id="alerts-table-body">
+                        <tr class="empty-state" style="display:none;"><td colspan="5">No alerts found.</td></tr>
                         <tr><td colspan="5"><span class="skeleton skeleton-line"></span></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div id="tab-content-reports" class="admin-tab-content">
+        <div id="tab-content-reports" class="admin-tab-content" role="tabpanel" aria-labelledby="tab-reports">
             <div class="table-responsive">
                 <table class="data-table">
                     <thead>
                         <tr><th>ID</th><th>User</th><th>Status</th><th>Severity</th><th>Created</th><th>Location</th><th>Actions</th></tr>
                     </thead>
                     <tbody id="all-reports-table-body">
+                        <tr class="empty-state" style="display:none;"><td colspan="7">No reports found.</td></tr>
                         <tr><td colspan="7"><span class="skeleton skeleton-line"></span></td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div id="tab-content-users" class="admin-tab-content">
+        <div id="tab-content-users" class="admin-tab-content" role="tabpanel" aria-labelledby="tab-users">
             <div class="table-responsive">
                 <table class="data-table">
                     <thead>
                         <tr><th>Username</th><th>Email</th><th>Role</th><th>Joined</th><th>Status</th></tr>
                     </thead>
                     <tbody id="users-table-body">
+                        <tr class="empty-state" style="display:none;"><td colspan="5">No users found.</td></tr>
                         <tr><td colspan="5"><span class="skeleton skeleton-line"></span></td></tr>
                     </tbody>
                 </table>
@@ -144,9 +150,9 @@
 </section>
 
 <!-- Manual Alert Dispatch Modal -->
-<div id="dispatch-modal" class="modal" style="display:none;">
-    <div class="modal-content">
-        <h3>Send Manual Alert</h3>
+<div id="dispatch-modal" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="dispatch-modal-title">
+    <div class="modal-content" tabindex="-1">
+        <h3 id="dispatch-modal-title">Send Manual Alert</h3>
         <form id="dispatch-form">
             <input type="hidden" id="dispatch-zone-id">
             <div class="form-group">
@@ -178,9 +184,9 @@
 </div>
 
 <!-- Authority Quick Actions Modal (for override) -->
-<div id="override-modal" class="modal" style="display:none;">
-    <div class="modal-content">
-        <h3>Manual Override</h3>
+<div id="override-modal" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="override-modal-title">
+    <div class="modal-content" tabindex="-1">
+        <h3 id="override-modal-title">Manual Override</h3>
         <form id="override-form">
             <input type="hidden" id="override-zone-id">
             <div class="form-group">

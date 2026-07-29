@@ -2,27 +2,59 @@
 {% load static %}
 
 {% block content %}
-<section class="about-page">
+<section class="section">
     <div class="container">
-        <h1>About FloodGuard</h1>
-        <div class="about-content">
-            <p>FloodGuard is a comprehensive flood monitoring and early warning system designed to protect communities from flood disasters. Our platform integrates real-time data from multiple sources including satellite imagery, weather stations, ground sensors, and citizen reports to provide accurate flood risk assessments.</p>
-            
-            <h2>Our Mission</h2>
-            <p>To save lives and reduce property damage by providing timely, accurate flood warnings and empowering communities to take proactive measures.</p>
-            
-            <h2>Key Features</h2>
-            <ul class="feature-list">
-                <li>Real-time flood monitoring using AI-powered risk prediction</li>
-                <li>Multi-channel alert system (SMS, email, app notifications)</li>
-                <li>Citizen reporting with photo and location tagging</li>
-                <li>Interactive flood zone maps with risk visualization</li>
-                <li>Role-based dashboards for citizens, authorities, and administrators</li>
-                <li>Geographic clustering of incident reports for better situational awareness</li>
-            </ul>
-            
-            <h2>Technology Stack</h2>
-            <p>FloodGuard is built with modern web technologies including Django (Python), PostGIS for spatial data, Leaflet for mapping, and incorporates machine learning models for flood risk prediction.</p>
+        <div class="section-header narrow">
+            <h1 class="section-title">About FloodGuard</h1>
+            <p class="section-subtitle">Real-time flood monitoring and early warning for communities worldwide</p>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="card" style="padding: 32px; margin-bottom: 32px;">
+            <h2 style="margin-top: 0; color: var(--primary);">Our Mission</h2>
+            <p style="font-size: 16px; line-height: 1.7;">To save lives and reduce property damage by providing timely, accurate flood warnings and empowering communities to take proactive measures.</p>
+        </div>
+
+        <h2 class="section-title" style="margin-bottom: 24px;">Key Features</h2>
+        <div class="stats-grid" style="margin-bottom: 48px;">
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; margin-bottom: 12px;" aria-hidden="true">🤖</div>
+                <h4 style="margin-bottom: 8px;">AI-Powered Prediction</h4>
+                <p class="card-meta">Real-time flood risk prediction using machine learning models</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; margin-bottom: 12px;" aria-hidden="true">📡</div>
+                <h4 style="margin-bottom: 8px;">Multi-Channel Alerts</h4>
+                <p class="card-meta">SMS, email, and in-app notifications for instant awareness</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; margin-bottom: 12px;" aria-hidden="true">📍</div>
+                <h4 style="margin-bottom: 8px;">Citizen Reporting</h4>
+                <p class="card-meta">Photo and location-tagged reports from the community</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; margin-bottom: 12px;" aria-hidden="true">🗺️</div>
+                <h4 style="margin-bottom: 8px;">Interactive Maps</h4>
+                <p class="card-meta">Live flood zone visualization with risk heatmaps</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; margin-bottom: 12px;" aria-hidden="true">🛡️</div>
+                <h4 style="margin-bottom: 8px;">Role-Based Dashboards</h4>
+                <p class="card-meta">Tailored views for citizens, authorities, and administrators</p>
+            </div>
+            <div class="card" style="text-align: center;">
+                <div style="font-size: 32px; margin-bottom: 12px;" aria-hidden="true">🔗</div>
+                <h4 style="margin-bottom: 8px;">Geographic Clustering</h4>
+                <p class="card-meta">Incident clustering for better situational awareness</p>
+            </div>
+        </div>
+
+        <div class="card" style="padding: 32px;">
+            <h2 style="margin-top: 0; color: var(--primary);">Technology Stack</h2>
+            <p style="font-size: 16px; line-height: 1.7;">FloodGuard is built with modern web technologies including Django (Python), PostGIS for spatial data, Leaflet for mapping, and incorporates machine learning models for flood risk prediction. The platform uses Celery for async task processing, Django Channels for real-time WebSocket updates, and Redis for caching and message brokering.</p>
         </div>
     </div>
 </section>

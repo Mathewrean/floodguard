@@ -2,19 +2,20 @@
 {% load static %}
 
 {% block content %}
-<section class="alerts-history">
+<section class="alerts-history" role="region" aria-label="Alert history">
     <div class="container">
         <h1>Alert History</h1>
         <p>Historical flood alerts and notifications.</p>
         
         <div class="table-responsive">
-            <table>
+            <table aria-label="Alert history table">
                 <thead>
                     <tr>
                         <th>Time</th>
                         <th>Zone</th>
                         <th>Message</th>
                         <th>Channel</th>
+                        <th>Severity</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -25,11 +26,20 @@
                         <td>{{ alert.alert_zone.name }}</td>
                         <td>{{ alert.message|truncatewords:20 }}</td>
                         <td>{{ alert.channel }}</td>
+                        <td>
+                            <span class="severity-badge severity-{{ alert.severity|lower }}">{{ alert.get_severity_display }}</span>
+                        </td>
                         <td>{{ alert.get_delivery_status_display }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5">No alerts have been sent yet.</td>
+                        <td colspan="6">
+                            <div class="empty-state">
+                                <p class="empty-state-icon">🔔</p>
+                                <p class="empty-state-title">No alerts yet</p>
+                                <p class="empty-state-desc">There are no flood alerts to display at this time.</p>
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

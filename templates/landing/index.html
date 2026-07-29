@@ -14,15 +14,15 @@
         </div>
         <div class="hero-stats">
             <div class="hero-stat">
-                <strong id="hero-zones-count">...</strong>
+                <strong id="hero-zones-count"><span class="skeleton skeleton-pill" style="width:40px;height:28px;display:inline-block;vertical-align:middle"></span></strong>
                 <span>Active Zones Monitored</span>
             </div>
             <div class="hero-stat">
-                <strong id="hero-alerts-count">...</strong>
+                <strong id="hero-alerts-count"><span class="skeleton skeleton-pill" style="width:40px;height:28px;display:inline-block;vertical-align:middle"></span></strong>
                 <span>Alerts Sent Today</span>
             </div>
             <div class="hero-stat">
-                <strong id="hero-reports-count">...</strong>
+                <strong id="hero-reports-count"><span class="skeleton skeleton-pill" style="width:40px;height:28px;display:inline-block;vertical-align:middle"></span></strong>
                 <span>Reports This Week</span>
             </div>
         </div>
@@ -36,7 +36,7 @@
                 <h2 class="card-title">Current Flood Intelligence</h2>
                 <span class="card-meta">Public summary refreshed every 5 minutes</span>
             </div>
-            <div id="landing-ai-summary">Loading current flood intelligence...</div>
+            <div id="landing-ai-summary"><span class="skeleton skeleton-line" style="width:60%"></span><span class="skeleton skeleton-line" style="width:90%;margin-top:8px"></span></div>
         </div>
     </div>
 </section>
@@ -50,19 +50,19 @@
         <div class="steps-grid">
             <article class="card step-card">
                 <div class="step-number">1</div>
-                <div class="step-icon">Rainfall</div>
+                <div class="step-icon" aria-hidden="true">🌧️</div>
                 <h3 class="card-title">Monitor Conditions</h3>
                 <p class="card-meta">Weather, water-level readings, and flood-zone boundaries are evaluated continuously.</p>
             </article>
             <article class="card step-card">
                 <div class="step-number">2</div>
-                <div class="step-icon">Risk</div>
+                <div class="step-icon" aria-hidden="true">📊</div>
                 <h3 class="card-title">Score Risk</h3>
                 <p class="card-meta">Zones are classified as safe, moderate, or high risk using live data and verified reports.</p>
             </article>
             <article class="card step-card">
                 <div class="step-number">3</div>
-                <div class="step-icon">Alert</div>
+                <div class="step-icon" aria-hidden="true">📢</div>
                 <h3 class="card-title">Coordinate Response</h3>
                 <p class="card-meta">Authorities verify reports, trigger alerts, and keep communities informed in real time.</p>
             </article>
@@ -77,13 +77,12 @@
             <p class="section-subtitle">Current flood zones rendered directly from the API.</p>
         </div>
         <div class="map-shell">
-            <div id="map-preview" class="map-container"></div>
+            <div id="map-preview" class="map-container" aria-label="Live flood map preview"></div>
             <div class="map-controls-panel">
                 <strong>Legend</strong>
                     <div class="risk-legend" data-risk-legend></div>
             </div>
         </div>
-                    <p class="card-meta">Zones are classified as safe, moderate, high risk, or critical using live data and verified reports.</p>
         <a href="{% url 'gis_dashboard' %}" class="btn btn-primary">Open Full Map</a>
     </div>
 </section>

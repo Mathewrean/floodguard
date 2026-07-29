@@ -75,6 +75,11 @@
     .gis-panel-toggle { display: block; }
     .gis-left-panel { transform: translateX(-320px); }
     .gis-left-panel.open { transform: translateX(0); }
+    #gis-panel-close { display: none !important; }
+}
+@media (min-width: 769px) {
+    .gis-panel-toggle { display: none; }
+    #gis-panel-close { display: inline-flex !important; }
 }
 </style>
 {% endblock %}
@@ -89,7 +94,10 @@
 
   <div id="gis-panel" class="gis-left-panel">
     <header class="gis-panel-header">
-      <h2>Flood Intelligence</h2>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h2 style="margin: 0;">Flood Intelligence</h2>
+        <button id="gis-panel-close" class="btn btn-sm btn-secondary" aria-label="Collapse panel" style="display: none;">✕</button>
+      </div>
       <div class="gis-panel-search">
         <input id="gis-search-input" placeholder="Search city, place, or coordinates (lat,lon)..." />
         <button id="gis-search-btn" class="btn btn-primary">Search</button>

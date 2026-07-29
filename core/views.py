@@ -1200,6 +1200,17 @@ def admin_dashboard(request):
     return render(request, 'dashboard/admin_panel.html', context)
 
 
+def decision_support(request):
+    """Decision Support Dashboard - government operations center"""
+    if not request.user.is_authenticated:
+        return redirect('login')
+    
+    context = {
+        'user': request.user,
+    }
+    return render(request, 'dashboard/decision_support.html', context)
+
+
 def gis_dashboard(request):
     """H3-based GIS flood intelligence dashboard."""
     context = {

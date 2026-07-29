@@ -45,18 +45,49 @@ async function initGlobalSearch() {
     const tableBody = document.getElementById('global-search-table');
     if (!input || !btn || !resultsDiv || !tableBody) return;
 
-    async function doSearch() {
+    let debounceTimer;
+    const recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+
+    function saveRecentSearch(query) {
+        if (!query) return;
+        const updated = [query, ...recentSearches.filter(s => s !== query)].slice(0, 5);
+        localStorage.setItem('recentSearches', JSON.stringify(updated));
+    }
+
+    input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
         const q = input.value.trim();
-        let url = '/api/v1/global-search/';
-        if (q) {
-            url += `?q=${encodeURIComponent(q)}`;
-        } else {
+        if (!q) {
             resultsDiv.style.display = 'none';
             return;
         }
+        debounceTimer = setTimeout(() => doSearch(q), 300);
+    });
 
+    btn.addEventListener('click', () => {
+        const q = input.value.trim();
+        if (q) { saveRecentSearch(q); doSearch(q); }
+    });
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const q = input.value.trim();
+            if (q) { saveRecentSearch(q); doSearch(q); }
+        }
+    });
+
+    // Keyboard shortcut: Ctrl+K or / to focus search
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && document.activeElement === document.body)) {
+            e.preventDefault();
+            input.focus();
+            input.select();
+        }
+    });
+
+    async function doSearch(q) {
         try {
-            const data = await fetchJSON(url);
+            const data = await fetchJSON(`/api/v1/global-search/?q=${encodeURIComponent(q)}`);
             tableBody.innerHTML = data.results.length ? data.results.map(zone => {
                 const band = getRiskBand(zone.risk_score);
                 return `<tr>
@@ -72,9 +103,6 @@ async function initGlobalSearch() {
             resultsDiv.style.display = 'block';
         }
     }
-
-    btn.addEventListener('click', doSearch);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
 }
 
 async function initLocationButton() {

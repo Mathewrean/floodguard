@@ -2,13 +2,15 @@
 {% load static %}
 
 {% block content %}
-<section class="reports-list">
+<section class="reports-list" role="region" aria-label="Incident reports">
     <div class="container">
-        <h1>Incident Reports</h1>
-        <p>Browse all flood incident reports submitted by the community.</p>
-        
+        <div class="section-header">
+            <h1>Incident Reports</h1>
+            <p>Browse all flood incident reports submitted by the community.</p>
+        </div>
+        <button type="button" class="btn btn-secondary" aria-label="Export reports" id="export-reports-btn">Export</button>
         <div class="table-responsive">
-            <table>
+            <table aria-label="Incident reports table">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -39,7 +41,13 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7">No reports submitted yet.</td>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <p class="empty-state-icon">📋</p>
+                                <p class="empty-state-title">No reports yet</p>
+                                <p class="empty-state-desc">There are no flood incident reports submitted. Be the first to report.</p>
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

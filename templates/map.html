@@ -15,25 +15,35 @@
         </div>
     </div>
     <!-- Top metrics header -->
-    <div class="map-metrics-bar" id="map-metrics-bar">
+    <div class="map-metrics-bar" id="map-metrics-bar" role="region" aria-label="Flood metrics">
         <div class="metric-card">
             <span class="metric-label">Water Level (m)</span>
-            <strong class="metric-value" id="metric-levels">--</strong>
+            <div class="metric-skeleton" id="skeleton-levels">
+                <strong class="metric-value" id="metric-levels">--</strong>
+            </div>
             <small class="metric-desc">Average of latest readings</small>
         </div>
         <div class="metric-card">
             <span class="metric-label">Alert Rate</span>
-            <strong class="metric-value" id="metric-rate">--</strong>
+            <div class="metric-skeleton" id="skeleton-rate">
+                <strong class="metric-value" id="metric-rate">--</strong>
+            </div>
             <small class="metric-desc">Alerts sent in past 24h</small>
         </div>
         <div class="metric-card">
             <span class="metric-label">Max Risk Score</span>
-            <strong class="metric-value" id="metric-risk">--</strong>
+            <div class="metric-skeleton" id="skeleton-risk">
+                <strong class="metric-value" id="metric-risk">--</strong>
+            </div>
             <small class="metric-desc">Across all monitored zones</small>
         </div>
     </div>
+    <div class="map-search-bar">
+        <input type="text" id="map-search" class="map-search-input" placeholder="Search location..." aria-label="Search map location" autocomplete="off">
+        <button type="button" id="map-search-btn" class="btn btn-primary btn-sm" aria-label="Search map">Search</button>
+    </div>
     <div class="map-shell full-screen-map">
-        <div id="map" class="map-container full-map"></div>
+        <div id="map" class="map-container full-map" aria-label="Flood map showing live zones and readings"></div>
         <div id="location-status" style="
             display:none; position:absolute; bottom:24px; left:50%;
             transform:translateX(-50%); z-index:1000;
@@ -42,10 +52,13 @@
             white-space:nowrap; pointer-events:none;
             backdrop-filter:blur(4px)">
         </div>
-        <div class="map-controls-panel">
+        <div class="map-controls-panel" role="region" aria-label="Map controls">
             <strong>Layers</strong>
             <label><input type="checkbox" id="toggle-zones" checked> Zones</label>
             <label><input type="checkbox" id="toggle-readings" checked> Readings</label>
+            <strong>Emergency Services</strong>
+            <label><input type="checkbox" id="toggle-hospitals"> Hospitals</label>
+            <label><input type="checkbox" id="toggle-shelters"> Shelters</label>
             <strong>Legend</strong>
             <div class="risk-legend" data-risk-legend></div>
         </div>
