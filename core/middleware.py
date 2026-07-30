@@ -27,7 +27,7 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline' https://unpkg.com",
             "style-src 'self' 'unsafe-inline' https://unpkg.com",
-            "img-src 'self' data: https://*.tile.openstreetmap.org https://*.cartocdn.com",
+            "img-src 'self' data: https://*.tile.openstreetmap.org https://*.cartocdn.com https://*.arcgisonline.com",
             "font-src 'self' data:",
             "connect-src 'self' ws: wss: https://api.open-meteo.com https://api.africastalking.com",
             "frame-ancestors 'none'",

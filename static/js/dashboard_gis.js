@@ -268,6 +268,17 @@ function bindGisControls() {
         if (panel) panel.classList.remove('open');
     });
 
+    gisMap.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        if (userMarker) userMarker.remove();
+        userMarker = L.marker([lat, lng]).addTo(gisMap);
+        checkLocationRisk(lat, lng);
+        showNearbyEmergencyServices(lat, lng);
+        if (typeof FloodLocation !== 'undefined') {
+            FloodLocation.setManual(lat, lng, 5);
+        }
+    });
+
     // Layer toggles
     const floodToggle = document.getElementById('layer-flood');
     const satelliteToggle = document.getElementById('layer-satellite');
@@ -324,7 +335,12 @@ async function doLocationSearch() {
             searchMarkers.push(marker);
 
             gisMap.setView(latlng, 13);
+            checkLocationRisk(result.lat, result.lon);
             showNearbyEmergencyServices(result.lat, result.lon);
+
+            if (typeof FloodLocation !== 'undefined') {
+                FloodLocation.setManual(result.lat, result.lon, 10);
+            }
         } else {
             showError('Location not found. Try a city name, address, or coordinates (lat,lon).');
         }
@@ -346,7 +362,7 @@ async function useMyLocation() {
     }
 
     FloodLocation.on((loc, isReal) => {
-        if (!gisMap) return;
+        if (!gisMap || !loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) return;
         const latlng = [loc.lat, loc.lon];
         if (userMarker) userMarker.remove();
         userMarker = L.marker(latlng, {
@@ -357,22 +373,32 @@ async function useMyLocation() {
                 iconAnchor: [10, 10],
             }),
         }).addTo(gisMap);
-        gisMap.setView(latlng, loc.accuracy < 500 ? 15 : 13);
+
+        if (loc.accuracy && loc.accuracy < 2000) {
+            L.circle(latlng, {
+                radius: loc.accuracy,
+                color: '#2E75B6',
+                fillOpacity: 0.05,
+                weight: 1
+            }).addTo(gisMap);
+        }
+
+        gisMap.setView(latlng, (loc.accuracy || 500) < 500 ? 15 : 13);
         checkLocationRisk(loc.lat, loc.lon);
         showNearbyEmergencyServices(loc.lat, loc.lon);
+
+        const qualityEl = document.getElementById('gis-location-quality');
+        if (qualityEl && typeof FloodLocation !== 'undefined') {
+            qualityEl.textContent = `Accuracy: ±${Math.round(loc.accuracy || 0)}m | Quality: ${FloodLocation.qualityLabel} (${FloodLocation.quality}%) | Source: ${loc.source || 'GPS'}`;
+        }
+
         if (btn) {
             btn.disabled = false;
             btn.textContent = 'My Location';
         }
     });
-    FloodLocation.detect('auto');
 
-    setTimeout(() => {
-        if (btn && btn.disabled) {
-            btn.disabled = false;
-            btn.textContent = 'My Location';
-        }
-    }, 12000);
+    FloodLocation.detect('auto');
 }
 
 async function checkLocationRisk(lat, lon) {

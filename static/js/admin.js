@@ -52,57 +52,47 @@ function initSidebarToggle() {
 }
 
 function initLocationServices() {
-    if (!('geolocation' in navigator)) {
-        console.warn('Geolocation not supported');
+    if (typeof FloodLocation === 'undefined') {
+        console.warn('FloodLocation not loaded');
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            const { latitude, longitude, accuracy } = pos.coords;
-
-            if (!latitude || !longitude || latitude === 0 || longitude === 0) {
-                console.warn('Invalid coordinates received');
-                return;
-            }
-
-            userLatLng = [latitude, longitude];
-
-            if (adminMap) {
-                adminMap.setView(userLatLng, 15);
-
-                L.circleMarker(userLatLng, {
-                    radius: 10,
-                    fillColor: '#2E75B6',
-                    color: '#fff',
-                    weight: 3,
-                    fillOpacity: 0.9,
-                    zIndexOffset: 1000
-                })
-                    .bindPopup(`Your Location<br><small>Accuracy: +/-${Math.round(accuracy)}m</small>`)
-                    .addTo(adminMap);
-
-                if (accuracy < 2000) {
-                    L.circle(userLatLng, {
-                        radius: accuracy,
-                        color: '#2E75B6',
-                        fillOpacity: 0.05,
-                        weight: 1
-                    }).addTo(adminMap);
-                }
-            }
-
-            console.info(`User location: ${latitude}, ${longitude}`);
-        },
-        (err) => {
-            console.warn('Geolocation failed:', err.message);
-        },
-        {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000
+    FloodLocation.on((loc, isReal) => {
+        if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) {
+            console.warn('Invalid location received');
+            return;
         }
-    );
+
+        const userLatLng = [loc.lat, loc.lon];
+
+        if (adminMap) {
+            adminMap.setView(userLatLng, 15);
+
+            L.circleMarker(userLatLng, {
+                radius: 10,
+                fillColor: '#2E75B6',
+                color: '#fff',
+                weight: 3,
+                fillOpacity: 0.9,
+                zIndexOffset: 1000
+            })
+                .bindPopup(`Your Location<br><small>Accuracy: +/-${Math.round(loc.accuracy || 0)}m</small>`)
+                .addTo(adminMap);
+
+            if (loc.accuracy && loc.accuracy < 2000) {
+                L.circle(userLatLng, {
+                    radius: loc.accuracy,
+                    color: '#2E75B6',
+                    fillOpacity: 0.05,
+                    weight: 1
+                }).addTo(adminMap);
+            }
+        }
+
+        console.info(`User location: ${loc.lat}, ${loc.lon} (accuracy: ±${Math.round(loc.accuracy || 0)}m, quality: ${FloodLocation.qualityLabel})`);
+    });
+
+    FloodLocation.detect('auto');
 }
 
 // Initialize admin dashboard

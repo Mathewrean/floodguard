@@ -469,7 +469,7 @@ start_local_app() {
 
     if [[ "$DETACH" == "1" ]]; then
         if [[ -x "$VENV_DIR/bin/daphne" ]]; then
-            start_background_process django-web "$VENV_DIR/bin/daphne" floodguard.routing:application -b "$HOST:$PORT"
+            start_background_process django-web "$VENV_DIR/bin/daphne" floodguard.routing:application -b "$HOST" -p "$PORT"
         else
             start_background_process django-web "$VENV_DIR/bin/python" manage.py runserver "$HOST:$PORT"
         fi
@@ -480,7 +480,7 @@ start_local_app() {
         if [[ -x "$VENV_DIR/bin/daphne" ]]; then
             log "Starting Daphne ASGI server in foreground (WebSocket enabled)."
             log "Open: http://127.0.0.1:$PORT/"
-            "$VENV_DIR/bin/daphne" floodguard.routing:application -b "$HOST:$PORT"
+            "$VENV_DIR/bin/daphne" floodguard.routing:application -b "$HOST" -p "$PORT"
         else
             log "Starting Django development server in foreground."
             log "Open: http://127.0.0.1:$PORT/"

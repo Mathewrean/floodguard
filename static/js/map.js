@@ -1,4 +1,5 @@
 const DEFAULT_LATLNG = [0, 0];
+const DEFAULT_LOCATION = { lat: -1.2921, lon: 36.8219 };
 
 const BASEMAPS = [
     {
@@ -356,63 +357,53 @@ function locateUser(map) {
             resolve({ ...DEFAULT_LOCATION, source: 'default' });
         };
 
-        if (!('geolocation' in navigator)) {
-            useFallback('API unavailable');
+        if (typeof FloodLocation === 'undefined') {
+            useFallback('FloodLocation not loaded');
             return;
         }
 
-        showStatus('Detecting your location...', null);
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const { latitude, longitude, accuracy } = pos.coords;
-
-                if (!latitude || !longitude || latitude === 0 || longitude === 0) {
-                    useFallback('Invalid coordinates received');
-                    return;
-                }
-
-                const latLng = [latitude, longitude];
-                hideStatus();
-
-                L.circleMarker(latLng, {
-                    radius: 10,
-                    fillColor: '#2E75B6',
-                    color: '#fff',
-                    weight: 3,
-                    fillOpacity: 0.9,
-                    zIndexOffset: 1000
-                })
-                    .bindPopup(`Your Location<br><small>Accuracy: +/-${Math.round(accuracy)}m</small>`)
-                    .addTo(map);
-
-                if (accuracy < 2000) {
-                    L.circle(latLng, {
-                        radius: accuracy,
-                        color: '#2E75B6',
-                        fillOpacity: 0.05,
-                        weight: 1
-                    }).addTo(map);
-                }
-
-                map.setView(latLng, accuracy < 500 ? 15 : 13);
-                fetchLiveZoneForLocation(latitude, longitude, map, accuracy);
-                resolve(latLng);
-            },
-            (err) => {
-                const reasons = {
-                    1: 'Permission denied',
-                    2: 'Position unavailable',
-                    3: 'Timed out'
-                };
-                useFallback(reasons[err.code] || 'Unknown error');
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 8000,
-                maximumAge: 60000
+        FloodLocation.on((loc, isReal) => {
+            if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) {
+                useFallback('Invalid location received');
+                return;
             }
-        );
+
+            const latLng = [loc.lat, loc.lon];
+            hideStatus();
+
+            L.circleMarker(latLng, {
+                radius: 10,
+                fillColor: '#2E75B6',
+                color: '#fff',
+                weight: 3,
+                fillOpacity: 0.9,
+                zIndexOffset: 1000
+            })
+                .bindPopup(`Your Location<br><small>Accuracy: +/-${Math.round(loc.accuracy || 0)}m</small>`)
+                .addTo(map);
+
+            if (loc.accuracy && loc.accuracy < 2000) {
+                L.circle(latLng, {
+                    radius: loc.accuracy,
+                    color: '#2E75B6',
+                    fillOpacity: 0.05,
+                    weight: 1
+                }).addTo(map);
+            }
+
+            map.setView(latLng, (loc.accuracy || 500) < 500 ? 15 : 13);
+            fetchLiveZoneForLocation(loc.lat, loc.lon, map, loc.accuracy);
+            resolve({ lat: loc.lat, lon: loc.lon, accuracy: loc.accuracy, source: loc.source });
+        });
+
+        FloodLocation.detect('auto');
+
+        setTimeout(() => {
+            if (FloodLocation.status === 'requesting' || FloodLocation.status === 'idle') {
+                hideStatus();
+                useFallback('Location timeout');
+            }
+        }, 20000);
     });
 }
 

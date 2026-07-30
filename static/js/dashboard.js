@@ -110,8 +110,8 @@ async function initLocationButton() {
     if (!btn) return;
 
     btn.addEventListener('click', async () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
+        if (typeof FloodLocation === 'undefined') {
+            alert('Geolocation is not available');
             return;
         }
 
@@ -119,17 +119,22 @@ async function initLocationButton() {
         btn.textContent = 'Locating...';
 
         try {
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 300000
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Location timeout')), 30000);
+                FloodLocation.on((loc, isReal) => {
+                    clearTimeout(timeout);
+                    if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon)) {
+                        resolve(loc);
+                    } else {
+                        reject(new Error('Invalid location received'));
+                    }
                 });
+                FloodLocation.detect('auto');
             });
 
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            const accuracy = position.coords.accuracy;
+            const loc = FloodLocation.current;
+            const lat = loc.lat;
+            const lon = loc.lon;
 
             const data = await fetchJSON(`/api/v1/user-zone/?lat=${lat}&lon=${lon}`);
             const tableBody = document.getElementById('global-search-table');
