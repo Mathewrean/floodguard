@@ -429,8 +429,8 @@ function showEmergencyAlert(data) {
     banner.setAttribute('aria-live', 'assertive');
     banner.style.cssText = `
         position: fixed; top: 64px; left: 0; right: 0; z-index: 2000;
-        background: linear-gradient(90deg, #dc2626, #b91c1c); color: white;
-        padding: 16px 24px; box-shadow: 0 8px 24px rgba(220,38,38,0.35);
+        background: linear-gradient(90deg, #000000, #000000); color: white;
+        padding: 16px 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
         animation: slideDown 0.3s ease-out;
     `;
 
@@ -444,7 +444,7 @@ function showEmergencyAlert(data) {
                 </div>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button onclick="findSafestRoute()" class="btn btn-sm" style="background: #fff; color: #dc2626;">Find Safe Route</button>
+                <button onclick="findSafestRoute()" class="btn btn-sm" style="background: #fff; color: #000000;">Find Safe Route</button>
                 <button onclick="showSafeZones()" class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3);">Find Safe Zone</button>
                 <button onclick="showEmergencyContacts()" class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.3);">Contacts</button>
                 <button onclick="closeEmergencyBanner()" class="btn btn-sm" style="background: rgba(0,0,0,0.3); color: #fff;" aria-label="Dismiss emergency alert">✕</button>
@@ -584,7 +584,7 @@ function showError(message) {
     el.textContent = message;
     el.style.cssText = `
         position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
-        background: #dc2626; color: white; padding: 12px 20px; border-radius: 8px;
+        background: #000000; color: white; padding: 12px 20px; border-radius: 8px;
         z-index: 1100; font-size: 14px;
     `;
     document.body.appendChild(el);

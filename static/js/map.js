@@ -258,12 +258,12 @@ function renderZones(map, zones, options = {}) {
                 </div>
                 <div style="padding:12px 14px;background:white;border-radius:0 0 8px 8px">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                        <div style="flex:1;background:#eee;border-radius:3px;height:6px">
+                        <div style="flex:1;background:#f5f5f5;border-radius:3px;height:6px">
                             <div style="background:${colour};width:${pct}%;height:6px;border-radius:3px;transition:width 0.5s"></div>
                         </div>
                         <span style="font-weight:700;color:${colour};font-size:14px">${pct}%</span>
                     </div>
-                    <div style="font-size:12px;color:#6B7A8D;display:flex;justify-content:space-between">
+                    <div style="font-size:12px;color:#666;display:flex;justify-content:space-between">
                         <span>Threshold: ${Math.round(Number(zone.risk_threshold || 0.65) * 100)}%</span>
                         <span>Updated: ${timeAgo(zone.updated_at)}</span>
                     </div>
@@ -373,7 +373,7 @@ function locateUser(map) {
 
             L.circleMarker(latLng, {
                 radius: 10,
-                fillColor: '#2E75B6',
+                fillColor: '#000000',
                 color: '#fff',
                 weight: 3,
                 fillOpacity: 0.9,
@@ -385,7 +385,7 @@ function locateUser(map) {
             if (loc.accuracy && loc.accuracy < 2000) {
                 L.circle(latLng, {
                     radius: loc.accuracy,
-                    color: '#2E75B6',
+                    color: '#000000',
                     fillOpacity: 0.05,
                     weight: 1
                 }).addTo(map);
@@ -442,7 +442,7 @@ async function fetchLiveZoneForLocation(lat, lon, map, accuracy = null) {
                         <div style="margin:6px 0">
                             <span style="font-size:12px;color:${colour};font-weight:700">${band.label} - ${(score * 100).toFixed(0)}%</span>
                         </div>
-                        <small style="color:#6B7A8D">${data.created_zone ? 'Live zone created from your GPS area.' : 'You are inside a mapped flood zone.'}</small>
+                        <small style="color:#666">${data.created_zone ? 'Live zone created from your GPS area.' : 'You are inside a mapped flood zone.'}</small>
                     </div>
                 `)
                 .openOn(map);
@@ -466,12 +466,12 @@ async function fetchLiveZoneForLocation(lat, lon, map, accuracy = null) {
                     <div style="min-width:180px">
                         <strong style="color:${colour}">${safeHTML(data.zone_name)}</strong>
                         <div style="margin:6px 0">
-                            <div style="background:#eee;border-radius:4px;height:6px">
+                            <div style="background:#f5f5f5;border-radius:4px;height:6px">
                                 <div style="background:${colour};width:${pct}%;height:6px;border-radius:4px"></div>
                             </div>
                             <span style="font-size:12px;color:${colour};font-weight:700">${pct}% - ${safeHTML(data.severity || band.label)}</span>
                         </div>
-                        <small style="color:#6B7A8D">Live assessment from FloodGuard sources</small>
+                        <small style="color:#666">Live assessment from FloodGuard sources</small>
                     </div>
                 `)
                 .openOn(map);
@@ -503,7 +503,7 @@ async function initFullMap() {
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.circleMarker([loc.lat, loc.lon], {
             radius: 10,
-            fillColor: isReal ? '#2E75B6' : '#94A3B8',
+            fillColor: isReal ? '#000000' : '#888888',
             color: '#fff',
             weight: 3,
             fillOpacity: 0.9,

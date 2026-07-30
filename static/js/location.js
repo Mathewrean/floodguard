@@ -93,7 +93,7 @@
             document.body.appendChild(el);
         }
         el.textContent = msg;
-        el.style.background = colour || '#0A2540';
+        el.style.background = colour || '#000000';
         el.style.display = 'block';
         el.style.opacity = '1';
         if (autohide) {
@@ -123,7 +123,7 @@
         _locationQuality = cached ? 60 : 0;
         _notify(loc, false);
         const msg = cached ? 'Using last known location' : 'Default location — allow GPS for local data';
-        _showStatus(msg, '#64748B', 4000);
+        _showStatus(msg, '#666666', 4000);
     }
 
     function _acceptReading(pos) {
@@ -142,7 +142,7 @@
         if (accuracy > MAX_ACCURACY && _retryCount < RETRY_LIMIT) {
             _retryCount++;
             console.info(`[FloodLocation] Accuracy ${Math.round(accuracy)}m exceeds ${MAX_ACCURACY}m, retry ${_retryCount}/${RETRY_LIMIT}`);
-            _showStatus(`GPS accuracy low (±${Math.round(accuracy)}m). Retrying...`, '#D97706');
+            _showStatus(`GPS accuracy low (±${Math.round(accuracy)}m). Retrying...`, '#444444');
             _requestGPS();
             return;
         }
@@ -169,7 +169,7 @@
         _save(loc);
         _notify(loc, true);
         const qLabel = _qualityLabel(_locationQuality);
-        _showStatus(`Location detected (±${Math.round(accuracy)}m, ${qLabel})`, '#059669', 3000);
+        _showStatus(`Location detected (±${Math.round(accuracy)}m, ${qLabel})`, '#000000', 3000);
     }
 
     function _requestGPS() {
@@ -180,7 +180,7 @@
 
         _status = 'requesting';
         _source = 'gps';
-        _showStatus('Detecting your location...', '#0A2540');
+        _showStatus('Detecting your location...', '#000000');
 
         navigator.geolocation.getCurrentPosition(
             function(pos) {
@@ -234,7 +234,7 @@
     function _ipFallback() {
         _status = 'fallback';
         _source = 'ip';
-        _showStatus('Locating via IP...', '#D97706');
+        _showStatus('Locating via IP...', '#444444');
 
         fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined })
             .then(r => r.ok ? r.json() : null)
@@ -257,7 +257,7 @@
                     _locationQuality = 25;
                     _save(loc);
                     _notify(loc, true);
-                    _showStatus(`IP location: ${loc.city || 'Unknown'} (±10km)`, '#D97706', 3000);
+                    _showStatus(`IP location: ${loc.city || 'Unknown'} (±10km)`, '#444444', 3000);
                 } else {
                     _useFallback('IP lookup empty');
                 }
@@ -339,7 +339,7 @@
             _locationQuality = _calculateQuality(loc);
             _save(loc);
             _notify(loc, true);
-            _showStatus(`Location set manually (±${Math.round(loc.accuracy)}m)`, '#059669', 3000);
+            _showStatus(`Location set manually (±${Math.round(loc.accuracy)}m)`, '#000000', 3000);
         },
         stop: function() {
             _stopWatch();

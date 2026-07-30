@@ -13,10 +13,10 @@ function timeAgo(dateString) {
 }
 
 function getRiskBand(score) {
-    if (score >= 0.85) return { label: 'CRITICAL', colour: '#dc2626' };
-    if (score >= 0.7) return { label: 'HIGH', colour: '#ea580c' };
-    if (score >= 0.4) return { label: 'MODERATE', colour: '#ca8a04' };
-    return { label: 'LOW', colour: '#16a34a' };
+    if (score >= 0.85) return { label: 'CRITICAL', colour: '#000000' };
+    if (score >= 0.7) return { label: 'HIGH', colour: '#000000' };
+    if (score >= 0.4) return { label: 'MODERATE', colour: '#444444' };
+    return { label: 'LOW', colour: '#000000' };
 }
 
 async function initCitizenDashboard() {
@@ -242,7 +242,7 @@ function initReportsMap(reports) {
         L.circleMarker([lat, lon], {
             radius: 7,
             color: '#fff',
-            fillColor: '#2E75B6',
+            fillColor: '#000000',
             fillOpacity: .9,
             weight: 2
         }).bindPopup(report.description).addTo(map);

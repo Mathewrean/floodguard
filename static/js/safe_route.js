@@ -79,15 +79,15 @@ function clearRoutes() {
 function renderRoutes(routes) {
     clearRoutes();
     const colours = {
-        safest: '#16A34A',
-        balanced: '#D97706',
-        fastest: '#DC2626',
+        safest: '#000000',
+        balanced: '#444444',
+        fastest: '#000000',
     };
     const weights = { safest: 7, balanced: 6, fastest: 5 };
     const bounds = [];
 
     routes.forEach(route => {
-        const colour = colours[route.profile] || '#2B83D3';
+        const colour = colours[route.profile] || '#000000';
         const geometry = Array.isArray(route.geometry) ? route.geometry : [];
         const layer = L.polyline(geometry, {
             color: colour,

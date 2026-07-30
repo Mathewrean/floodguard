@@ -16,10 +16,10 @@ const TIER_TTLS = {
 
 window.getRiskBand = function(score) {
         const value = Number(score) || 0;
-        if (value >= 0.85) return { label: 'CRITICAL', colour: '#7F1D1D', className: 'critical' };
-        if (value >= 0.70) return { label: 'HIGH RISK', colour: '#DC2626', className: 'high' };
-        if (value >= 0.40) return { label: 'MODERATE', colour: '#D97706', className: 'warning' };
-        return { label: 'SAFE', colour: '#059669', className: 'safe' };
+        if (value >= 0.85) return { label: 'CRITICAL', colour: '#000000', className: 'critical' };
+        if (value >= 0.70) return { label: 'HIGH RISK', colour: '#000000', className: 'high' };
+        if (value >= 0.40) return { label: 'MODERATE', colour: '#444444', className: 'warning' };
+        return { label: 'SAFE', colour: '#000000', className: 'safe' };
 };
 
 function showRateLimitWarning(endpoint) {
@@ -31,7 +31,7 @@ function showRateLimitWarning(endpoint) {
     banner.style.cssText = `
       position:fixed; bottom:60px; left:50%;
       transform:translateX(-50%); z-index:9999;
-            background:#D97706; color:white; padding:10px 20px;
+            background:#000000; color:white; padding:10px 20px;
       border-radius:8px; font-size:13px; font-weight:600;
       box-shadow:0 4px 12px rgba(0,0,0,0.2)
     `;
