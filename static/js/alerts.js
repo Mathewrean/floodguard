@@ -25,7 +25,7 @@ function initAlertSocket() {
     alertSocket.onopen = () => {
         reconnectCount = 0;
         console.info('Alert WebSocket connected');
-        setWsStatus('Live', '#059669');
+        setWsStatus('Live', '#000000');
     };
 
     alertSocket.onclose = (e) => {
@@ -33,7 +33,7 @@ function initAlertSocket() {
         const delay = Math.min(2000 * Math.pow(2, reconnectCount), 30000);
         reconnectCount += 1;
         console.info(`Alert WebSocket closed - reconnecting in ${delay}ms`);
-        setWsStatus('Reconnecting...', '#D97706');
+        setWsStatus('Reconnecting...', '#444444');
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(initAlertSocket, delay);
     };

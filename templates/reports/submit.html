@@ -16,7 +16,7 @@
             <span class="progress-text">Step 1 of 1</span>
         </div>
 
-        <form id="report-form" action="/api/v1/reports/" method="post" enctype="multipart/form-data" class="report-form card" role="form" aria-label="Flood incident report form">
+        <form id="report-form" enctype="multipart/form-data" class="report-form card" role="form" aria-label="Flood incident report form">
             {% csrf_token %}
             <div class="form-group">
                 <label for="description">What are you seeing?</label>

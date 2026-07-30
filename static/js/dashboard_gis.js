@@ -2,17 +2,17 @@
 // Implements modern GIS flood intelligence with location search and safe route integration
 
 const RISK_COLORS = {
-    high: { color: '#FF0000', opacity: 0.45 },
-    medium: { color: '#FFA500', opacity: 0.35 },
-    low: { color: '#FFFF00', opacity: 0.25 },
-    safe: { color: '#22c55e', opacity: 0.25 },
+    high: { color: '#000000', opacity: 0.45 },
+    medium: { color: '#444444', opacity: 0.35 },
+    low: { color: '#888888', opacity: 0.25 },
+    safe: { color: '#CCCCCC', opacity: 0.25 },
 };
 
 const RISKS = [
-    { threshold: 0.85, label: 'HIGH', level: 'high', color: '#FF0000' },
-    { threshold: 0.70, label: 'MEDIUM', level: 'medium', color: '#FFA500' },
-    { threshold: 0.40, label: 'LOW', level: 'low', color: '#FFFF00' },
-    { threshold: 0.0, label: 'SAFE', level: 'safe', color: '#22c55e' },
+    { threshold: 0.85, label: 'HIGH', level: 'high', color: '#000000' },
+    { threshold: 0.70, label: 'MEDIUM', level: 'medium', color: '#444444' },
+    { threshold: 0.40, label: 'LOW', level: 'low', color: '#888888' },
+    { threshold: 0.0, label: 'SAFE', level: 'safe', color: '#CCCCCC' },
 ];
 
 function getRiskInfo(score) {
@@ -92,7 +92,7 @@ function createZonePopup(zone) {
                     <span style="color:${band.colour};font-weight:700">${band.label}</span>
                     <span style="margin-left:8px">${(score * 100).toFixed(0)}% risk</span>
                 </div>
-                <div style="font-size:12px;color:#6B7A8D">
+                <div style="font-size:12px;color:#666">
                     <div>Threshold: ${(zone.risk_threshold || 0.7) * 100}%</div>
                     <div>Updated: ${timeAgo(zone.updated || zone.created)}</div>
                 </div>
@@ -377,7 +377,7 @@ async function useMyLocation() {
         if (loc.accuracy && loc.accuracy < 2000) {
             L.circle(latlng, {
                 radius: loc.accuracy,
-                color: '#2E75B6',
+                color: '#000000',
                 fillOpacity: 0.05,
                 weight: 1
             }).addTo(gisMap);

@@ -23,10 +23,10 @@ function getRiskBand(score) {
         return window.getRiskBand(score);
     }
     const value = Number(score) || 0;
-    if (value >= 0.85) return { label: 'CRITICAL', colour: '#7F1D1D', className: 'critical' };
-    if (value >= 0.70) return { label: 'HIGH RISK', colour: '#DC2626', className: 'high' };
-    if (value >= 0.40) return { label: 'MODERATE', colour: '#D97706', className: 'warning' };
-    return { label: 'SAFE', colour: '#059669', className: 'safe' };
+    if (value >= 0.85) return { label: 'CRITICAL', colour: '#000000', className: 'critical' };
+    if (value >= 0.70) return { label: 'HIGH RISK', colour: '#000000', className: 'high' };
+    if (value >= 0.40) return { label: 'MODERATE', colour: '#444444', className: 'warning' };
+    return { label: 'SAFE', colour: '#000000', className: 'safe' };
 }
 
 function initSidebarToggle() {
@@ -70,8 +70,8 @@ function initLocationServices() {
 
             L.circleMarker(userLatLng, {
                 radius: 10,
-                fillColor: '#2E75B6',
-                color: '#fff',
+                fillColor: '#000000',
+                color: '#FFF',
                 weight: 3,
                 fillOpacity: 0.9,
                 zIndexOffset: 1000
@@ -82,7 +82,7 @@ function initLocationServices() {
             if (loc.accuracy && loc.accuracy < 2000) {
                 L.circle(userLatLng, {
                     radius: loc.accuracy,
-                    color: '#2E75B6',
+                    color: '#000000',
                     fillOpacity: 0.05,
                     weight: 1
                 }).addTo(adminMap);
@@ -357,7 +357,7 @@ function fetchDashboardStats() {
             const criticalZones = document.getElementById('critical-zones');
             const pendingReports = document.getElementById('pending-reports');
             const alerts24h = document.getElementById('alerts-24h');
-            if (totalZones) totalZones.textContent = stats.zones_count || 0;
+            if (totalZones) totalZones.textContent = stats.total_zones || 0;
             if (highRiskZones) highRiskZones.textContent = stats.high_risk_zones || 0;
             if (criticalZones) criticalZones.textContent = stats.critical_zones || 0;
             if (pendingReports) pendingReports.textContent = stats.reports_this_week || 0;
@@ -372,7 +372,14 @@ function fetchDataSources() {
         .catch(err => {
             console.error('Failed to fetch data sources:', err);
             const summary = document.getElementById('data-sources-summary');
-            if (summary) summary.textContent = 'Unable to load source status';
+            const activeEl = document.getElementById('data-sources-active');
+            const confidenceEl = document.getElementById('data-confidence');
+            if (summary) summary.textContent = 'Authentication required for source status';
+            if (activeEl) activeEl.textContent = '--/6';
+            if (confidenceEl) {
+                confidenceEl.textContent = 'Confidence: N/A';
+                confidenceEl.className = 'status-badge pending';
+            }
         });
 }
 

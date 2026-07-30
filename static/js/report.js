@@ -9,9 +9,6 @@ function initReportForm() {
     const photoPreview = document.getElementById('photo-preview');
     const gpsButton = document.getElementById('use-current-location');
 
-    setReportLocation(-1.2921, 36.8219);
-    updateLocationStatus('Default location set to Nairobi.', true);
-
     function syncSeverity() {
         const value = Number(severity.value);
         severityValue.textContent = value;
@@ -30,13 +27,36 @@ function initReportForm() {
         photoPreview.hidden = false;
     });
 
-    gpsButton.addEventListener('click', () => {
-        const loc = FloodLocation.current;
-        if (loc) {
-            setReportLocation(loc.lat, loc.lon);
-        } else {
-            FloodLocation.on((l) => setReportLocation(l.lat, l.lon));
-            FloodLocation.detect('auto');
+    gpsButton.addEventListener('click', async () => {
+        if (typeof FloodLocation === 'undefined') {
+            updateLocationStatus('Location service not available', false);
+            return;
+        }
+
+        gpsButton.disabled = true;
+        gpsButton.textContent = 'Locating...';
+
+        try {
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Location timeout')), 30000);
+                FloodLocation.on((loc, isReal) => {
+                    clearTimeout(timeout);
+                    if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon)) {
+                        setReportLocation(loc.lat, loc.lon);
+                        updateLocationStatus(`Location: ±${Math.round(loc.accuracy || 0)}m (${FloodLocation.qualityLabel})`, true);
+                        resolve();
+                    } else {
+                        reject(new Error('Invalid location received'));
+                    }
+                });
+                FloodLocation.detect('auto');
+            });
+        } catch (e) {
+            updateLocationStatus('Location unavailable. Using default.', false);
+            setReportLocation(-1.2921, 36.8219);
+        } finally {
+            gpsButton.disabled = false;
+            gpsButton.textContent = 'Use Current Location';
         }
     });
 
@@ -48,22 +68,25 @@ function initReportForm() {
 
         const formData = new FormData(this);
         const loc = FloodLocation.current;
-        if (loc) {
+        if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon)) {
             formData.set('latitude', loc.lat);
             formData.set('longitude', loc.lon);
+        } else {
+            formData.set('latitude', -1.2921);
+            formData.set('longitude', 36.8219);
         }
 
         try {
-            const res = await fetch('/api/v1/reports/', {
+            const res = await fetch('/api/v1/reports/submit/', {
                 method: 'POST',
                 headers: { 'X-CSRFToken': getCookie('csrftoken') },
                 body: formData
             });
-            if (res.ok) {
+            const data = await res.json();
+            if (res.ok && data.success) {
                 showSuccessState();
             } else {
-                const errors = await res.json();
-                showFormErrors(errors);
+                showFormErrors({ non_field_errors: [data.error || 'Submission failed'] });
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit Report';
             }
