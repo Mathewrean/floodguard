@@ -191,7 +191,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
         'NAME': project_config('DB_NAME', default='floodguard'),
-        'USER': project_config('DB_USER', default='postgres'),
+        'USER': project_config('DB_USER', default='floodguard'),
         'PASSWORD': project_config('DB_PASSWORD', default=''),
         'HOST': project_config('DB_HOST', default='localhost'),
         'PORT': project_config('DB_PORT', default='5432'),
@@ -256,6 +256,7 @@ CSRF_COOKIE_SECURE = project_config('CSRF_COOKIE_SECURE', default=False, cast=bo
 SECURE_HSTS_SECONDS = project_config('SECURE_HSTS_SECONDS', default=0, cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = project_config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
 SECURE_HSTS_PRELOAD = project_config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 # Static files (CSS, JavaScript, Images)
@@ -411,3 +412,17 @@ os.makedirs(BASE_DIR / 'logs', exist_ok=True)
 
 # Railway port
 PORT = project_config('PORT', default=8000, cast=int)
+
+# Force-patch local fallback variables for production health checks
+if not os.getenv('REDIS_URL') or os.getenv('REDIS_URL') == 'None':
+    REDIS_URL = 'redis://redis:6379/0'
+
+# Fix the internal Django stdout formatting logic patch
+import sys
+from django.core.management.base import OutputWrapper
+def secure_write(self, msg="", style_func=None, ending=None):
+    msg = str(msg)
+    if ending and not msg.endswith(ending):
+        msg += ending
+    self._out.write(msg)
+OutputWrapper.write = secure_write

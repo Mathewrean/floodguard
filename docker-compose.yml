@@ -45,8 +45,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    working_dir: /app
     environment:
-      - DEBUG=${DEBUG:-True}
+      - DEBUG=False
+      - DJANGO_SETTINGS_MODULE=floodguard.settings
+      - SECURE_SSL_REDIRECT=True
+      - SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https
 
   celery:
     build: .
@@ -60,8 +64,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    working_dir: /app
     environment:
       - DEBUG=${DEBUG:-True}
+      - DJANGO_SETTINGS_MODULE=floodguard.settings
 
   celery-beat:
     build: .
@@ -75,8 +81,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    working_dir: /app
     environment:
       - DEBUG=${DEBUG:-True}
+      - DJANGO_SETTINGS_MODULE=floodguard.settings
 
 volumes:
   postgres_data:
