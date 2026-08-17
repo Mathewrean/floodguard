@@ -3,7 +3,7 @@ name: Deploy FloodGuard to Contabo VPS
 on:
   push:
     branches:
-      - main  # Triggers automation whenever you push code changes to your main branch
+      - main
 
 jobs:
   deploy:
@@ -15,12 +15,13 @@ jobs:
       - name: SSH into Contabo Server and Execute Pull & Build Commands
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 169.58.166.217
+          host: ${{ secrets.VPS_HOST }}  # Recommended: Store IP in Secrets
           username: root
           key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
           script: |
             cd /app/floodguard
-            git pull --rebase=false origin main
+            git fetch origin main
+            git reset --hard origin/main
             docker compose up -d --build
-            docker compose exec -T web python manage.py migrate
+            docker compose exec -T web python manage.py migrate --noinput
             docker compose exec -T web python manage.py collectstatic --noinput
