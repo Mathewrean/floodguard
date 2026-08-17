@@ -45,7 +45,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    working_dir: /app
+    working_dir: /code
     environment:
       - DEBUG=False
       - DJANGO_SETTINGS_MODULE=floodguard.settings
@@ -64,7 +64,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    working_dir: /app
+    working_dir: /code
     environment:
       - DEBUG=${DEBUG:-True}
       - DJANGO_SETTINGS_MODULE=floodguard.settings
@@ -81,7 +81,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    working_dir: /app
+    working_dir: /code
     environment:
       - DEBUG=${DEBUG:-True}
       - DJANGO_SETTINGS_MODULE=floodguard.settings

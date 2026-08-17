@@ -48,9 +48,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Database connection pooling (pgbouncer optional via environment)
 DATABASES['default']['CONN_MAX_AGE'] = 300  # 5 minutes
-DATABASES['default']['OPTIONS'] = {
-    'connect_timeout': 10,
-}
+DATABASES['default']['OPTIONS']['connect_timeout'] = 10
 
 # Channels and Celery are configured in base settings from REDIS_URL so Railway
 # workers, beat, and web dynos all use the same Redis connection.
