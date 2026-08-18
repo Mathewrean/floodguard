@@ -25,7 +25,7 @@ function initAlertSocket() {
     alertSocket.onopen = () => {
         reconnectCount = 0;
         console.info('Alert WebSocket connected');
-        setWsStatus('Live', '#000000');
+        setWsStatus('Live', '#059669');
     };
 
     alertSocket.onclose = (e) => {

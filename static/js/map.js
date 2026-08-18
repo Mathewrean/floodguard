@@ -373,7 +373,7 @@ function locateUser(map) {
 
             L.circleMarker(latLng, {
                 radius: 10,
-                fillColor: '#000000',
+                fillColor: '#1677C8',
                 color: '#fff',
                 weight: 3,
                 fillOpacity: 0.9,
@@ -385,7 +385,7 @@ function locateUser(map) {
             if (loc.accuracy && loc.accuracy < 2000) {
                 L.circle(latLng, {
                     radius: loc.accuracy,
-                    color: '#000000',
+                    color: '#1677C8',
                     fillOpacity: 0.05,
                     weight: 1
                 }).addTo(map);
@@ -503,7 +503,7 @@ async function initFullMap() {
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.circleMarker([loc.lat, loc.lon], {
             radius: 10,
-            fillColor: isReal ? '#000000' : '#888888',
+            fillColor: isReal ? '#1677C8' : '#4A6B8A',
             color: '#fff',
             weight: 3,
             fillOpacity: 0.9,

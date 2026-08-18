@@ -23,10 +23,10 @@ function getRiskBand(score) {
         return window.getRiskBand(score);
     }
     const value = Number(score) || 0;
-    if (value >= 0.85) return { label: 'CRITICAL', colour: '#000000', className: 'critical' };
-    if (value >= 0.70) return { label: 'HIGH RISK', colour: '#000000', className: 'high' };
-    if (value >= 0.40) return { label: 'MODERATE', colour: '#444444', className: 'warning' };
-    return { label: 'SAFE', colour: '#000000', className: 'safe' };
+    if (value >= 0.85) return { label: 'CRITICAL', colour: '#7F1D1D', className: 'critical' };
+    if (value >= 0.70) return { label: 'HIGH RISK', colour: '#DC2626', className: 'high' };
+    if (value >= 0.40) return { label: 'MODERATE', colour: '#D97706', className: 'warning' };
+    return { label: 'SAFE', colour: '#059669', className: 'safe' };
 }
 
 function initSidebarToggle() {
@@ -70,7 +70,7 @@ function initLocationServices() {
 
             L.circleMarker(userLatLng, {
                 radius: 10,
-                fillColor: '#000000',
+                fillColor: '#1677C8',
                 color: '#FFF',
                 weight: 3,
                 fillOpacity: 0.9,
@@ -82,7 +82,7 @@ function initLocationServices() {
             if (loc.accuracy && loc.accuracy < 2000) {
                 L.circle(userLatLng, {
                     radius: loc.accuracy,
-                    color: '#000000',
+                    color: '#1677C8',
                     fillOpacity: 0.05,
                     weight: 1
                 }).addTo(adminMap);

@@ -93,7 +93,7 @@
             document.body.appendChild(el);
         }
         el.textContent = msg;
-        el.style.background = colour || '#000000';
+        el.style.background = colour || '#1677C8';
         el.style.display = 'block';
         el.style.opacity = '1';
         if (autohide) {
@@ -169,7 +169,7 @@
         _save(loc);
         _notify(loc, true);
         const qLabel = _qualityLabel(_locationQuality);
-        _showStatus(`Location detected (±${Math.round(accuracy)}m, ${qLabel})`, '#000000', 3000);
+        _showStatus(`Location detected (±${Math.round(accuracy)}m, ${qLabel})`, '#1677C8', 3000);
     }
 
     function _requestGPS() {
@@ -180,7 +180,7 @@
 
         _status = 'requesting';
         _source = 'gps';
-        _showStatus('Detecting your location...', '#000000');
+        _showStatus('Detecting your location...', '#1677C8');
 
         navigator.geolocation.getCurrentPosition(
             function(pos) {
@@ -339,7 +339,7 @@
             _locationQuality = _calculateQuality(loc);
             _save(loc);
             _notify(loc, true);
-            _showStatus(`Location set manually (±${Math.round(loc.accuracy)}m)`, '#000000', 3000);
+            _showStatus(`Location set manually (±${Math.round(loc.accuracy)}m)`, '#1677C8', 3000);
         },
         stop: function() {
             _stopWatch();

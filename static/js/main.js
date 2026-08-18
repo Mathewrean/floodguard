@@ -31,7 +31,7 @@ function showRateLimitWarning(endpoint) {
     banner.style.cssText = `
       position:fixed; bottom:60px; left:50%;
       transform:translateX(-50%); z-index:9999;
-            background:#000000; color:white; padding:10px 20px;
+            background:#0B5CAD; color:white; padding:10px 20px;
       border-radius:8px; font-size:13px; font-weight:600;
       box-shadow:0 4px 12px rgba(0,0,0,0.2)
     `;

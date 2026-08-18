@@ -16,7 +16,7 @@ jobs:
       - name: Checkout Code Layers
         uses: actions/checkout@v4
 
-      - name: SSH into Contabo Server and Execute Pull & Build Commands
+      - name: Deploy application, collect static assets, and verify health
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}  # Recommended: Store IP in Secrets
@@ -26,9 +26,13 @@ jobs:
             cd /app/floodguard
             git fetch origin main
             git reset --hard origin/main
-            docker compose up -d --build
-            docker compose exec -T web python manage.py migrate --noinput
-            docker compose exec -T web python manage.py collectstatic --noinput
+            install -d -m 0755 -o 1000 -g 1000 /app/floodguard/staticfiles
+            docker compose build --no-cache web celery celery-beat
+            docker compose up -d db redis
+            docker compose run --rm --no-deps web python manage.py collectstatic --noinput --clear
+            test -f /app/floodguard/staticfiles/staticfiles.json
+            docker compose run --rm --no-deps web python manage.py migrate --noinput
+            docker compose up -d --remove-orphans web celery celery-beat
             docker compose exec -T web python manage.py check --deploy
             docker compose ps
             curl --fail --retry 10 --retry-connrefused -H 'Host: localhost' http://127.0.0.1:8000/health/

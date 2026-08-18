@@ -69,8 +69,10 @@ ENV DEBUG=False \
     DB_HOST=db \
     DB_PORT=5432
 
-# Collect static files (will be overridden by entrypoint if needed)
-RUN python manage.py collectstatic --noinput --clear || true
+# Build a complete manifest into the image. Production deployment repeats this
+# against the bind-mounted host directory so nginx and WhiteNoise use the same
+# content-hashed asset set.
+RUN python manage.py collectstatic --noinput --clear
 
 # Expose port
 EXPOSE 8000
