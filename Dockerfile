@@ -37,7 +37,7 @@ RUN useradd --create-home appuser && \
     chown -R appuser:appuser /app
 
 # Copy Python dependencies from builder
-COPY --from=builder /root/.local /home/appuser/.local
+COPY --chown=appuser:appuser --from=builder /root/.local /home/appuser/.local
 
 # Install runtime system dependencies only
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -76,7 +76,7 @@ RUN python manage.py collectstatic --noinput --clear || true
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=20s --start-period=20s --retries=3 \
     CMD python manage.py health_check || exit 1
 
 # Use gunicorn with gevent for async support

@@ -18,6 +18,10 @@ import time
 import json
 import requests
 
+# This is an executable deployment-verification script, not a pytest module.
+# Its `test_*` helpers must not be collected by the application test suite.
+__test__ = False
+
 # Ensure project root is on path for Django imports
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
@@ -35,10 +39,6 @@ ADMIN_USER = os.environ.get("FG_ADMIN_USER", "admin")
 ADMIN_PASSWORD = os.environ.get("FG_ADMIN_PASSWORD")
 TEST_USER_PREFIX = "authtest"
 SESSION = requests.Session()
-
-if not ADMIN_PASSWORD:
-    raise RuntimeError("Set FG_ADMIN_PASSWORD to run authentication verification; no default password is permitted.")
-
 
 def log(msg, level="INFO"):
     colors = {
@@ -219,6 +219,8 @@ def test_logout():
 
 
 def main():
+    if not ADMIN_PASSWORD:
+        raise RuntimeError("Set FG_ADMIN_PASSWORD to run authentication verification; no default password is permitted.")
     print("=" * 60)
     print("FloodGuard Authentication Flow Verification")
     print(f"Target: {BASE_URL}")

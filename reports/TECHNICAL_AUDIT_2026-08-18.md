@@ -21,8 +21,10 @@ The workflow uses `git reset --hard origin/main`; do not make server-side source
 
 - Python syntax compilation for `core`, `floodguard`, and `tests`: passed.
 - Git whitespace check: passed.
+- Dockerized Django system check and static collection: passed (212 unchanged assets, 515 manifest variants post-processed).
+- Targeted H3, 500-zone, and dashboard regression suite: passed (`114 passed`).
 - Full Django/pytest execution: blocked locally because the supplied WSL virtualenv has neither Django nor pip/ensurepip installed.
-- Docker Compose validation: blocked locally because Docker is not installed on this workstation.
+- Docker Compose diagnosis: completed through WSL. The web service health check was unhealthy because its container inherited host-oriented `localhost` database/Redis settings. Compose now forces service DNS names (`db`, `redis`) and disables an overriding `DATABASE_URL`.
 - Public-site verification: blocked because `.env` only permits local hosts and retains the placeholder `https://yourdomain.com`; no deployable public domain is configured in the workspace.
 
 ## Required operator actions
@@ -32,6 +34,16 @@ The workflow uses `git reset --hard origin/main`; do not make server-side source
 3. Configure `GRAPHOPPER_API_KEY` on the VPS. Without it, safe routing intentionally returns a fallback response rather than claiming GraphHopper is active.
 4. Build the image with the updated requirements, commit and push to `main`, then inspect the GitHub Actions deploy run and `/health/`.
 5. Run `pytest` in a provisioned environment and use a real browser runner (Playwright/Selenium) for full browser/device coverage.
+
+## VPS static-assets correction (required once)
+
+The VPS logs showed `/code/staticfiles` inside the container, while host nginx served `/static/` from `/app/staticfiles`. This made CSS and JavaScript unavailable. The committed `nginx.conf` now uses the actual host checkout path `/app/floodguard/staticfiles/`, and the application generates absolute `/static/...` URLs.
+
+After deploying this commit, apply and validate the nginx configuration on the VPS:
+
+`install -m 644 /app/floodguard/nginx.conf /etc/nginx/sites-available/floodguard && nginx -t && systemctl reload nginx`
+
+Then verify: `curl -I https://floodguard.co.ke/static/css/style.css`. It must return `200` and a CSS content type. Do not remove Leaflet/OpenStreetMap/CARTO attribution; it is required tile-provider licensing text.
 
 ## Access record
 
