@@ -201,17 +201,17 @@ jobs:
         run: |
           # Basic smoke test of endpoints
           python -c "
-import urllib.request
-import json
-import time
+          import urllib.request
+          import json
+          import time
 
-base = 'http://localhost:8000'
-test_urls = ['/health/', '/api/v1/zones/', '/api/v1/stats/']
-for url in test_urls:
-    try:
-        req = urllib.request.Request(f'{base}{url}')
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            print(f'{url}: {resp.status}')
-    except Exception as e:
-        print(f'{url}: ERROR - {e}')
-"
+          base = 'http://localhost:8000'
+          test_urls = ['/health/', '/api/v1/zones/', '/api/v1/stats/']
+          for url in test_urls:
+              try:
+                  req = urllib.request.Request(f'{base}{url}')
+                  with urllib.request.urlopen(req, timeout=5) as resp:
+                      print(f'{url}: {resp.status}')
+              except Exception as e:
+                  print(f'{url}: ERROR - {e}')
+          "
