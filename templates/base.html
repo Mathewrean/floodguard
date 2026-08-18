@@ -139,9 +139,12 @@
 
     <script>
         (function() {
-            const stored = localStorage.getItem('theme');
-            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.setAttribute('data-theme', stored || (prefersDark ? 'dark' : 'light'));
+            // Theme preference v2 intentionally does not reuse the legacy
+            // `theme` key, whose saved dark setting made the public map black.
+            const stored = localStorage.getItem('themePreferenceV2');
+            // FloodGuard intentionally starts in the calm light map theme.
+            // Dark/high-contrast remain explicit user accessibility choices.
+            document.documentElement.setAttribute('data-theme', stored || 'light');
         })();
     </script>
     <script>

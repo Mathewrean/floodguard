@@ -297,9 +297,10 @@ function initThemeToggle() {
     const sunIcon = toggle.querySelector('.sun-icon');
     const moonIcon = toggle.querySelector('.moon-icon');
     
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+    // Do not inherit a legacy dark preference; light is the operational map
+    // default and the user can opt into another accessibility mode explicitly.
+    const savedTheme = localStorage.getItem('themePreferenceV2');
+    const initialTheme = savedTheme || 'light';
     document.documentElement.setAttribute('data-theme', initialTheme);
     updateIcons(initialTheme);
     
@@ -307,7 +308,7 @@ function initThemeToggle() {
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
         const newTheme = { light: 'dark', dark: 'high-contrast', 'high-contrast': 'light' }[currentTheme];
         document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('theme', newTheme);
+        localStorage.setItem('themePreferenceV2', newTheme);
         updateIcons(newTheme);
     });
     
