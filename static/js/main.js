@@ -297,21 +297,22 @@ function initThemeToggle() {
     const sunIcon = toggle.querySelector('.sun-icon');
     const moonIcon = toggle.querySelector('.moon-icon');
     
-    // Check for saved theme preference
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    updateIcons(savedTheme);
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+    document.documentElement.setAttribute('data-theme', initialTheme);
+    updateIcons(initialTheme);
     
     toggle.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = { light: 'dark', dark: 'high-contrast', 'high-contrast': 'light' }[currentTheme];
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('theme', newTheme);
         updateIcons(newTheme);
     });
     
     function updateIcons(theme) {
-        if (theme === 'dark') {
+        if (theme === 'dark' || theme === 'high-contrast') {
             sunIcon.style.display = 'block';
             moonIcon.style.display = 'none';
         } else {

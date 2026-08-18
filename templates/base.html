@@ -76,7 +76,7 @@
                     {% endif %}
                 </ul>
                 <div style="display: flex; align-items: center;">
-                    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+                    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
                         <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
                             <circle cx="12" cy="12" r="5"></circle>
                             <line x1="12" y1="1" x2="12" y2="3"></line>
@@ -90,12 +90,6 @@
                         </svg>
                         <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                        </svg>
-                    </button>
-                    <button id="high-contrast-toggle" class="theme-toggle" type="button" aria-label="Toggle high contrast mode" title="Toggle high contrast">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <path d="M12 2a10 10 0 0 1 0 20z"></path>
                         </svg>
                     </button>
                     <button class="mobile-menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
@@ -144,11 +138,11 @@
     </div>
 
     <script>
-        if (!localStorage.getItem('theme')) {
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                document.documentElement.setAttribute('data-theme', 'dark');
-            }
-        }
+        (function() {
+            const stored = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.documentElement.setAttribute('data-theme', stored || (prefersDark ? 'dark' : 'light'));
+        })();
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -175,24 +169,6 @@
                     nav.classList.toggle('nav-mobile-open');
                     const expanded = nav.classList.contains('nav-mobile-open');
                     mobileToggle.setAttribute('aria-expanded', expanded);
-                });
-            }
-
-            const highContrastToggle = document.getElementById('high-contrast-toggle');
-            if (highContrastToggle) {
-                highContrastToggle.addEventListener('click', function() {
-                    const html = document.documentElement;
-                    const current = html.getAttribute('data-theme');
-                    if (current === 'high-contrast') {
-                        html.setAttribute('data-theme', 'light');
-                        localStorage.setItem('theme', 'light');
-                    } else if (current === 'dark') {
-                        html.setAttribute('data-theme', 'high-contrast');
-                        localStorage.setItem('theme', 'high-contrast');
-                    } else {
-                        html.setAttribute('data-theme', 'dark');
-                        localStorage.setItem('theme', 'dark');
-                    }
                 });
             }
         });
