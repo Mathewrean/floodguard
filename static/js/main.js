@@ -16,10 +16,10 @@ const TIER_TTLS = {
 
 window.getRiskBand = function(score) {
         const value = Number(score) || 0;
-        if (value >= 0.85) return { label: 'CRITICAL', colour: '#000000', className: 'critical' };
-        if (value >= 0.70) return { label: 'HIGH RISK', colour: '#000000', className: 'high' };
-        if (value >= 0.40) return { label: 'MODERATE', colour: '#444444', className: 'warning' };
-        return { label: 'SAFE', colour: '#000000', className: 'safe' };
+        if (value >= 0.85) return { label: 'CRITICAL', colour: '#DC2626', className: 'critical' };
+        if (value >= 0.70) return { label: 'HIGH RISK', colour: '#EA580C', className: 'high' };
+        if (value >= 0.40) return { label: 'MODERATE', colour: '#D97706', className: 'warning' };
+        return { label: 'SAFE', colour: '#059669', className: 'safe' };
 };
 
 function showRateLimitWarning(endpoint) {

@@ -19,14 +19,16 @@
     z-index: var(--panel-z-index); display: flex; flex-direction: column;
     border-right: 1px solid var(--border); box-shadow: var(--shadow-md);
     transition: transform 0.3s ease;
+    transform: translateX(0);
 }
 .gis-left-panel.collapsed { transform: translateX(-320px); }
 
 .gis-panel-header { padding: 16px; border-bottom: 1px solid var(--border); }
 .gis-panel-header h2 { margin: 0 0 12px; font-size: 18px; color: var(--primary); }
-.gis-panel-search { display: flex; gap: 8px; }
+.gis-panel-search { display: flex; gap: 8px; align-items: center; }
 .gis-panel-search input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
 .gis-panel-search button { padding: 8px 12px; border-radius: 6px; }
+.gis-location-quality { flex-shrink: 0; }
 
 .gis-panel-content { flex: 1; overflow-y: auto; padding: 16px; }
 .gis-layer-section, .gis-info-section, .gis-route-section { margin-bottom: 24px; }
@@ -74,11 +76,11 @@
 @media (max-width: 768px) {
     .gis-panel-toggle { display: block; }
     .gis-left-panel { transform: translateX(-320px); }
-    .gis-left-panel.open { transform: translateX(0); }
+    .gis-left-panel:not(.collapsed) { transform: translateX(0); }
     #gis-panel-close { display: none !important; }
 }
 @media (min-width: 769px) {
-    .gis-panel-toggle { display: none; }
+    .gis-panel-toggle { display: inline-flex; }
     #gis-panel-close { display: inline-flex !important; }
 }
 </style>
@@ -102,6 +104,7 @@
         <input id="gis-search-input" placeholder="Search city, place, or coordinates (lat,lon)..." />
         <button id="gis-search-btn" class="btn btn-primary">Search</button>
         <button id="gis-location-btn" class="btn btn-secondary">My Location</button>
+        <div id="gis-location-quality" class="gis-location-quality" style="font-size:12px;color:var(--text-muted);padding:6px 8px;"></div>
       </div>
     </header>
 
@@ -137,11 +140,11 @@
 
   <div class="gis-legend">
     <h4>Flood Risk</h4>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#000000;opacity:0.45"></span> High Risk (≥70%)</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#444444;opacity:0.35"></span> Medium Risk (40-70%)</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#888888;opacity:0.25"></span> Low Risk (<40%)</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#CCCCCC;opacity:0.25"></span> Safe Area</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#000000"></span> You</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#DC2626;opacity:0.45"></span> High Risk (≥70%)</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#EA580C;opacity:0.35"></span> Critical Risk (≥85%)</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#D97706;opacity:0.25"></span> Moderate Risk (40-70%)</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#059669;opacity:0.25"></span> Safe Area</div>
+    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#EA580C"></span> You</div>
   </div>
 </section>
 {% endblock %}

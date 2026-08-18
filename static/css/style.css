@@ -1837,7 +1837,7 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
   top: 12px;
   left: 12px;
   z-index: var(--overlay-z-index);
-  display: none;
+  display: inline-flex;
 }
 
 .gis-left-panel {
@@ -2337,8 +2337,8 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
 
 @media (max-width: 768px) {
   .gis-panel-toggle { display: block; }
-  .gis-left-panel { transform: translateX(-320px); }
-  .gis-left-panel.open { transform: translateX(0); }
+  .gis-left-panel { transform: translateX(-360px); }
+  .gis-left-panel:not(.collapsed) { transform: translateX(0); }
 }
 
 @media (max-width: 900px) {

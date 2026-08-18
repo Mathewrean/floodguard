@@ -2,17 +2,17 @@
 // Implements modern GIS flood intelligence with location search and safe route integration
 
 const RISK_COLORS = {
-    high: { color: '#000000', opacity: 0.45 },
-    medium: { color: '#444444', opacity: 0.35 },
-    low: { color: '#888888', opacity: 0.25 },
-    safe: { color: '#CCCCCC', opacity: 0.25 },
+    high: { color: '#DC2626', opacity: 0.45 },
+    medium: { color: '#D97706', opacity: 0.35 },
+    low: { color: '#16A34A', opacity: 0.25 },
+    safe: { color: '#059669', opacity: 0.25 },
 };
 
 const RISKS = [
-    { threshold: 0.85, label: 'HIGH', level: 'high', color: '#000000' },
-    { threshold: 0.70, label: 'MEDIUM', level: 'medium', color: '#444444' },
-    { threshold: 0.40, label: 'LOW', level: 'low', color: '#888888' },
-    { threshold: 0.0, label: 'SAFE', level: 'safe', color: '#CCCCCC' },
+    { threshold: 0.85, label: 'HIGH', level: 'high', color: '#DC2626' },
+    { threshold: 0.70, label: 'MEDIUM', level: 'medium', color: '#D97706' },
+    { threshold: 0.40, label: 'LOW', level: 'low', color: '#16A34A' },
+    { threshold: 0.0, label: 'SAFE', level: 'safe', color: '#059669' },
 ];
 
 function getRiskInfo(score) {
@@ -265,7 +265,7 @@ function bindGisControls() {
     if (toggleBtn) toggleBtn.addEventListener('click', togglePanel);
     if (closeBtn) closeBtn.addEventListener('click', () => {
         const panel = document.getElementById('gis-panel');
-        if (panel) panel.classList.remove('open');
+        if (panel) panel.classList.add('collapsed');
     });
 
     gisMap.on('click', (e) => {
@@ -295,7 +295,7 @@ function bindGisControls() {
 
 function togglePanel() {
     const panel = document.getElementById('gis-panel');
-    if (panel) panel.classList.toggle('open');
+    if (panel) panel.classList.toggle('collapsed');
 }
 
 async function doLocationSearch() {
@@ -377,7 +377,7 @@ async function useMyLocation() {
         if (loc.accuracy && loc.accuracy < 2000) {
             L.circle(latlng, {
                 radius: loc.accuracy,
-                color: '#000000',
+                color: '#EA580C',
                 fillOpacity: 0.05,
                 weight: 1
             }).addTo(gisMap);
@@ -467,13 +467,13 @@ function openInfoPanel(data, lat, lon) {
     document.getElementById('info-updated').textContent = data.data_confidence || 'live';
 
     const panel = document.getElementById('gis-panel');
-    if (panel) panel.classList.add('open');
+    if (panel) panel.classList.remove('collapsed');
 }
 
 function openRouteMode() {
     const panel = document.getElementById('gis-panel');
     const routeSection = document.getElementById('gis-route-section');
-    if (panel) panel.classList.add('open');
+    if (panel) panel.classList.remove('collapsed');
     if (routeSection) {
         routeSection.scrollIntoView({ behavior: 'smooth' });
     }
@@ -481,7 +481,7 @@ function openRouteMode() {
 
 function closeRoutePanel() {
     const panel = document.getElementById('gis-panel');
-    if (panel) panel.classList.remove('open');
+    if (panel) panel.classList.add('collapsed');
 }
 
 function closeEmergencyBanner() {
