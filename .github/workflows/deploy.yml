@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,3 +29,6 @@ jobs:
             docker compose up -d --build
             docker compose exec -T web python manage.py migrate --noinput
             docker compose exec -T web python manage.py collectstatic --noinput
+            docker compose exec -T web python manage.py check --deploy
+            docker compose ps
+            curl --fail --retry 10 --retry-connrefused http://127.0.0.1:8000/health/

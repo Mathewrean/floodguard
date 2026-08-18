@@ -404,7 +404,12 @@ def create_authority_zone(name, polygon, risk_score, confidence=1.0, expires_hou
     
     h3_indices = _h3_cells_for_polygon(polygon, 7)
     for h3_index in h3_indices:
-        cell = get_or_create_h3_cell(polygon.centroid.y, polygon.centroid.x, resolution=7)
+        try:
+            import h3
+            cell_lat, cell_lon = h3.cell_to_latlng(h3_index)
+        except (ImportError, ValueError):
+            continue
+        cell = get_or_create_h3_cell(cell_lat, cell_lon, resolution=7)
         if cell:
             zone.h3_cells.add(cell)
             update_cell_risk(h3_index, risk_score, confidence)

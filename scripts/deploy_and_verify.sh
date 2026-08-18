@@ -15,7 +15,7 @@ HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
 BASE_URL="http://127.0.0.1:$PORT"
 ADMIN_USER="${ADMIN_USER:-admin}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-admin123}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-}"
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@floodguard.local}"
 
 # Colors
@@ -36,6 +36,8 @@ pass()  { printf '%s[%s]%s %s\n' "$BOLD$GREEN" "$APP_NAME" "$RESET" "$*"; }
 
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+[[ -n "$ADMIN_PASSWORD" ]] || die "Set ADMIN_PASSWORD to run authenticated deployment verification."
 
 wait_tcp() {
     local label="$1" host="$2" port="$3" attempts="${4:-30}" delay="${5:-2}"

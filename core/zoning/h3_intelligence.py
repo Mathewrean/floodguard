@@ -13,6 +13,13 @@ from core.models import H3Cell, H3CellRelationship, AdministrativeBoundary
 logger = logging.getLogger(__name__)
 
 H3_CACHE_TIMEOUT = 15 * 60  # 15 minutes
+
+
+def _cell_centroid(h3_index):
+    """Return an H3 cell centre as latitude/longitude, never GeoJSON order."""
+    import h3
+    lat, lon = h3.cell_to_latlng(h3_index)
+    return float(lat), float(lon)
 DEFAULT_RESOLUTION = 7
 
 
@@ -122,12 +129,21 @@ def get_or_create_h3_cell(lat, lon, resolution=None, **kwargs):
     except Exception:
         return None
     
+    centroid_lat, centroid_lon = _cell_centroid(h3_index)
+    field_names = {
+        'historical_frequency': 'historical_flood_frequency',
+        'population_density': 'population_density',
+        'road_density': 'road_density',
+        'building_density': 'building_density',
+        'terrain_complexity': 'terrain_complexity',
+        'confidence': 'confidence',
+    }
     cell, created = H3Cell.objects.get_or_create(
         h3_index=h3_index,
         defaults={
             'resolution': resolution,
-            'centroid_lat': float(lat),
-            'centroid_lon': float(lon),
+            'centroid_lat': centroid_lat,
+            'centroid_lon': centroid_lon,
             'population_density': kwargs.get('population_density'),
             'road_density': kwargs.get('road_density'),
             'building_density': kwargs.get('building_density'),
@@ -138,10 +154,14 @@ def get_or_create_h3_cell(lat, lon, resolution=None, **kwargs):
     )
     
     if not created:
+        changed_fields = []
         for key, value in kwargs.items():
-            if value is not None and getattr(cell, key, None) != value:
-                setattr(cell, key, value)
-        cell.save(update_fields=list(kwargs.keys()) + ['last_updated'])
+            field_name = field_names.get(key)
+            if field_name and value is not None and getattr(cell, field_name) != value:
+                setattr(cell, field_name, value)
+                changed_fields.append(field_name)
+        if changed_fields:
+            cell.save(update_fields=changed_fields + ['last_updated'])
     
     return cell
 
@@ -177,12 +197,13 @@ def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
     
     cells = []
     for h3_index in h3_indices:
+        centroid_lat, centroid_lon = _cell_centroid(h3_index)
         cell, _ = H3Cell.objects.get_or_create(
             h3_index=h3_index,
             defaults={
                 'resolution': resolution,
-                'centroid_lat': 0.0,
-                'centroid_lon': 0.0,
+                'centroid_lat': centroid_lat,
+                'centroid_lon': centroid_lon,
             }
         )
         cells.append(cell)
@@ -319,9 +340,15 @@ def update_cell_risk(h3_index, risk_score, confidence=None):
     Update risk score for an H3 cell and refresh cache.
     """
     try:
+        centroid_lat, centroid_lon = _cell_centroid(h3_index)
+        import h3
         cell, _ = H3Cell.objects.get_or_create(
             h3_index=h3_index,
-            defaults={'resolution': 7, 'centroid_lat': 0.0, 'centroid_lon': 0.0}
+            defaults={
+                'resolution': h3.get_resolution(h3_index),
+                'centroid_lat': centroid_lat,
+                'centroid_lon': centroid_lon,
+            }
         )
         cell.current_risk_score = float(risk_score)
         if confidence is not None:

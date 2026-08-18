@@ -1,16 +1,27 @@
-# E2E tests would require Selenium and a running server
-# Placeholder for now
-
 import pytest
+from django.contrib.auth.models import User
+from core.models import UserProfile
+
+
+pytestmark = pytest.mark.django_db
 
 
 class TestDashboardE2E:
-    def test_map_loads_zones(self):
-        # TODO: Implement with Selenium
-        pass
+    def test_public_map_and_health_endpoints_load(self, client):
+        assert client.get('/health/').status_code == 200
+        assert client.get('/map/').status_code == 200
+        assert client.get('/gis/').status_code == 200
 
-    def test_citizen_form_submits(self):
-        pass
+    def test_citizen_login_reaches_citizen_dashboard(self, client):
+        user = User.objects.create_user('citizen-e2e', password='test-pass')
+        UserProfile.objects.update_or_create(user=user, defaults={'role': 'citizen'})
+        response = client.post('/login/', {'username': 'citizen-e2e', 'password': 'test-pass'})
+        assert response.status_code == 302
+        assert response.url == '/dashboard/citizen/'
 
-    def test_authority_verify_updates(self):
-        pass
+    def test_admin_role_reaches_admin_dashboard(self, client):
+        user = User.objects.create_user('admin-e2e', password='test-pass')
+        UserProfile.objects.update_or_create(user=user, defaults={'role': 'admin'})
+        response = client.post('/login/', {'username': 'admin-e2e', 'password': 'test-pass'})
+        assert response.status_code == 302
+        assert response.url == '/dashboard/admin/'

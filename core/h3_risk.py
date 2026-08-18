@@ -159,14 +159,15 @@ def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
         try:
             from core.zoning.h3_intelligence import get_h3_cells_for_bbox as _get_h3_cells_for_bbox
             cells = _get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution)
-            return [
-                {
+            result = []
+            for cell in cells:
+                risk = get_risk_for_h3_cell(cell.h3_index)
+                result.append({
                     'h3_index': cell.h3_index,
-                    'risk_score': round(float(cell.current_risk_score or 0), 3),
-                    'risk_level': _get_risk_level_label(cell.current_risk_score or 0),
-                }
-                for cell in cells
-            ]
+                    'risk_score': round(risk, 3),
+                    'risk_level': _get_risk_level_label(risk),
+                })
+            return result
         except Exception:
             pass
 

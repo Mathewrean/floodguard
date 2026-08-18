@@ -1,22 +1,32 @@
 from rest_framework import permissions
 
 
+def has_admin_role(user):
+    """Return whether a user has FloodGuard-wide administrative access."""
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    profile = getattr(user, 'profile', None)
+    return bool(profile and profile.role in {'admin', 'super_admin'})
+
+
 def is_authority_user(user):
     return bool(
         user and user.is_authenticated and (
-            user.groups.filter(name='EmergencyTeam').exists() or user.is_superuser
+            user.groups.filter(name='EmergencyTeam').exists() or has_admin_role(user)
         )
     )
 
 
 def is_admin_user(user):
-    return bool(user and user.is_authenticated and user.is_superuser)
+    return has_admin_role(user)
 
 
 def is_government_user(user):
     return bool(
         user and user.is_authenticated and (
-            user.groups.filter(name__in=['GovernmentTeam', 'EmergencyTeam']).exists() or user.is_superuser
+            user.groups.filter(name__in=['GovernmentTeam', 'EmergencyTeam']).exists() or has_admin_role(user)
         )
     )
 
@@ -24,7 +34,7 @@ def is_government_user(user):
 def is_meteo_user(user):
     return bool(
         user and user.is_authenticated and (
-            user.groups.filter(name='MeteorologicalTeam').exists() or user.is_superuser
+            user.groups.filter(name='MeteorologicalTeam').exists() or has_admin_role(user)
         )
     )
 
@@ -32,7 +42,7 @@ def is_meteo_user(user):
 def is_ngo_user(user):
     return bool(
         user and user.is_authenticated and (
-            user.groups.filter(name='NGOTeam').exists() or user.is_superuser
+            user.groups.filter(name='NGOTeam').exists() or has_admin_role(user)
         )
     )
 
@@ -40,7 +50,7 @@ def is_ngo_user(user):
 def is_researcher_user(user):
     return bool(
         user and user.is_authenticated and (
-            user.groups.filter(name='ResearchTeam').exists() or user.is_superuser
+            user.groups.filter(name='ResearchTeam').exists() or has_admin_role(user)
         )
     )
 

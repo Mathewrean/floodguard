@@ -8,6 +8,7 @@ from django.contrib.auth.models import Group, User
 from django.contrib.gis.geos import Polygon, Point
 from core.models import AlertZone, IncidentReport, UserProfile
 from django.utils import timezone
+import os
 
 
 class Command(BaseCommand):
@@ -18,6 +19,10 @@ class Command(BaseCommand):
             '--force',
             action='store_true',
             help='Force recreation of demo data (deletes existing)',
+        )
+        parser.add_argument(
+            '--create-demo-users', action='store_true',
+            help='Create local demo accounts using FG_DEMO_*_PASSWORD environment variables.',
         )
 
     def handle(self, *args, **options):
@@ -36,55 +41,55 @@ class Command(BaseCommand):
         citizen_group, _ = Group.objects.get_or_create(name='Citizen')
         authority_group, _ = Group.objects.get_or_create(name='EmergencyTeam')
         
-        # Create demo users
-        demo_citizen, created = User.objects.get_or_create(
-            username='citizen',
-            defaults={
-                'email': 'citizen@example.com',
-                'is_staff': False,
-                'is_superuser': False,
+        # Demo accounts are opt-in so this command is safe to run against production data.
+        if options['create_demo_users']:
+            required_passwords = {
+                'citizen': os.environ.get('FG_DEMO_CITIZEN_PASSWORD'),
+                'authority': os.environ.get('FG_DEMO_AUTHORITY_PASSWORD'),
+                'admin': os.environ.get('FG_DEMO_ADMIN_PASSWORD'),
             }
-        )
-        if created:
-            demo_citizen.set_password('citizen123')
-            demo_citizen.save()
-            demo_citizen.profile.role = 'citizen'
-            demo_citizen.profile.phone_number = '+254700000001'
-            demo_citizen.profile.save()
-            self.stdout.write(f'  Created citizen user: citizen / citizen123')
-        
-        demo_authority, created = User.objects.get_or_create(
-            username='authority',
-            defaults={
-                'email': 'authority@example.com',
-                'is_staff': False,
-                'is_superuser': False,
-            }
-        )
-        if created:
-            demo_authority.set_password('authority123')
-            demo_authority.save()
-            demo_authority.profile.role = 'authority'
-            demo_authority.profile.phone_number = '+254700000002'
-            demo_authority.profile.save()
-            demo_authority.groups.add(authority_group)
-            self.stdout.write(f'  Created authority user: authority / authority123')
-        
-        demo_admin, created = User.objects.get_or_create(
-            username='admin',
-            defaults={
-                'email': 'admin@example.com',
-                'is_staff': True,
-                'is_superuser': True,
-            }
-        )
-        if created:
-            demo_admin.set_password('admin123')
-            demo_admin.save()
-            demo_admin.profile.role = 'admin'
-            demo_admin.profile.phone_number = '+254700000000'
-            demo_admin.profile.save()
-            self.stdout.write(f'  Created admin user: admin / admin123')
+            if not all(required_passwords.values()):
+                raise ValueError('Set FG_DEMO_CITIZEN_PASSWORD, FG_DEMO_AUTHORITY_PASSWORD, and FG_DEMO_ADMIN_PASSWORD.')
+        else:
+            required_passwords = {}
+
+        if options['create_demo_users']:
+            demo_citizen, created = User.objects.get_or_create(
+                username='citizen', defaults={'email': 'citizen@example.com'}
+            )
+            if created:
+                demo_citizen.set_password(required_passwords['citizen'])
+                demo_citizen.save()
+                UserProfile.objects.update_or_create(
+                    user=demo_citizen,
+                    defaults={'role': 'citizen', 'phone_number': '+254700000001'},
+                )
+                self.stdout.write('  Created citizen demo user')
+
+            demo_authority, created = User.objects.get_or_create(
+                username='authority', defaults={'email': 'authority@example.com'}
+            )
+            if created:
+                demo_authority.set_password(required_passwords['authority'])
+                demo_authority.save()
+                UserProfile.objects.update_or_create(
+                    user=demo_authority,
+                    defaults={'role': 'emergency_responder', 'phone_number': '+254700000002'},
+                )
+                demo_authority.groups.add(authority_group)
+                self.stdout.write('  Created authority demo user')
+
+            demo_admin, created = User.objects.get_or_create(
+                username='admin', defaults={'email': 'admin@example.com', 'is_staff': True, 'is_superuser': True}
+            )
+            if created:
+                demo_admin.set_password(required_passwords['admin'])
+                demo_admin.save()
+                UserProfile.objects.update_or_create(
+                    user=demo_admin,
+                    defaults={'role': 'admin', 'phone_number': '+254700000000'},
+                )
+                self.stdout.write('  Created admin demo user')
         
         # Create sample flood zones around Nairobi
         zones_data = [
@@ -143,6 +148,5 @@ class Command(BaseCommand):
             f'Demo data setup complete. {zones_created} zones created.'
         ))
         self.stdout.write('\nLogin credentials:')
-        self.stdout.write('  Citizen:  citizen / citizen123')
-        self.stdout.write('  Authority: authority / authority123')
-        self.stdout.write('  Admin:     admin / admin123')
+        if options['create_demo_users']:
+            self.stdout.write('  Demo users: citizen / authority / admin (passwords supplied by environment)')

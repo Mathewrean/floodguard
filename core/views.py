@@ -9,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 import json
 import math
 from .models import AlertZone, FloodReading, IncidentReport, AlertLog, UserProfile, FloodPrediction
-from .permissions import is_authority_user, IsAuthority
+from .permissions import has_admin_role, is_authority_user, IsAuthority
 from django.contrib.gis.geos import LineString, Point, Polygon
 from datetime import timedelta
 import logging
@@ -94,6 +94,11 @@ class AlertZoneViewSet(viewsets.ModelViewSet):
         # For list action, pagination will handle limit automatically
         # For other actions (like manual_override), we must not slice
         return queryset
+
+    def get_permissions(self):
+        if self.action in {'list', 'retrieve'}:
+            return [permissions.AllowAny()]
+        return [IsAuthority()]
 
     @action(detail=True, methods=['post'])
     def manual_override(self, request, pk=None):
@@ -265,6 +270,11 @@ class FloodReadingViewSet(viewsets.ModelViewSet):
             queryset = queryset[:200]
 
         return queryset
+
+    def get_permissions(self):
+        if self.action in {'list', 'retrieve', 'heatmap', 'predict'}:
+            return [permissions.AllowAny()]
+        return [IsAuthority()]
 
     @action(detail=False, methods=['get'])
     def predict(self, request):
@@ -438,7 +448,7 @@ def milestones_list(request):
 @permission_classes([permissions.IsAuthenticated])
 def beneficiaries_list(request):
     """Admin/beneficiary group list for impact reporting."""
-    if not (request.user.is_superuser or request.user.groups.filter(name='EmergencyTeam').exists()):
+    if not is_authority_user(request.user):
         return Response({'error': 'Not authorised'}, status=status.HTTP_403_FORBIDDEN)
     from .models import BeneficiaryGroup
     groups = BeneficiaryGroup.objects.all()
@@ -485,7 +495,7 @@ def data_sources_view(request):
 def _ai_analysis_fields(user):
     if not getattr(user, 'is_authenticated', False):
         return ['overall_risk', 'summary', 'safe_zones', 'highest_risk_zone']
-    if user.is_superuser:
+    if has_admin_role(user):
         return None
     if user.groups.filter(name='EmergencyTeam').exists():
         return ['overall_risk', 'summary', 'safe_zones', 'immediate_actions', '24h_outlook', 'highest_risk_zone']
@@ -1084,7 +1094,7 @@ def login_view(request):
         if user is not None:
             login(request, user)
             # Redirect based on user role
-            if user.is_superuser:
+            if has_admin_role(user):
                 return redirect('admin_dashboard')
             elif user.groups.filter(name='EmergencyTeam').exists():
                 return redirect('authority_dashboard')
@@ -1157,7 +1167,7 @@ def dashboard_redirect(request):
     if not request.user.is_authenticated:
         return redirect('login')
     
-    if request.user.is_superuser:
+    if has_admin_role(request.user):
         return redirect('admin_dashboard')
     elif request.user.groups.filter(name='EmergencyTeam').exists():
         return redirect('authority_dashboard')
@@ -1180,7 +1190,7 @@ def citizen_dashboard(request):
 @login_required
 def authority_dashboard(request):
     """Authority dashboard - requires EmergencyTeam group"""
-    if not request.user.groups.filter(name='EmergencyTeam').exists():
+    if not is_authority_user(request.user):
         return redirect('login')
     
     context = {
@@ -1191,7 +1201,7 @@ def authority_dashboard(request):
 @login_required
 def admin_dashboard(request):
     """Admin dashboard - superuser only"""
-    if not request.user.is_superuser:
+    if not has_admin_role(request.user):
         return redirect('login')
     
     context = {
@@ -1811,6 +1821,14 @@ def api_h3_cells(request):
         resolution = int(resolution)
     except (ValueError, TypeError):
         return Response({'error': 'Invalid parameter format'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not (-90 <= min_lat < max_lat <= 90 and -180 <= min_lon < max_lon <= 180):
+        return Response({'error': 'Bounding box is outside valid latitude/longitude ranges'}, status=status.HTTP_400_BAD_REQUEST)
+    if not 0 <= resolution <= 15:
+        return Response({'error': 'H3 resolution must be between 0 and 15'}, status=status.HTTP_400_BAD_REQUEST)
+    # Guard against expensive global/near-global polyfills. The client requests its viewport.
+    if (max_lat - min_lat) * (max_lon - min_lon) > 25:
+        return Response({'error': 'Bounding box is too large; zoom in and retry'}, status=status.HTTP_400_BAD_REQUEST)
 
     from core.h3_risk import get_h3_cells_for_bbox, h3_index_to_geojson
 

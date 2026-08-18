@@ -32,9 +32,12 @@ from django.contrib.auth import get_user_model
 # Configuration
 BASE_URL = os.environ.get("FG_BASE_URL", "http://127.0.0.1:8000")
 ADMIN_USER = os.environ.get("FG_ADMIN_USER", "admin")
-ADMIN_PASSWORD = os.environ.get("FG_ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = os.environ.get("FG_ADMIN_PASSWORD")
 TEST_USER_PREFIX = "authtest"
 SESSION = requests.Session()
+
+if not ADMIN_PASSWORD:
+    raise RuntimeError("Set FG_ADMIN_PASSWORD to run authentication verification; no default password is permitted.")
 
 
 def log(msg, level="INFO"):

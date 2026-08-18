@@ -290,6 +290,7 @@ class AlertLog(models.Model):
 
 class UserProfile(models.Model):
     ROLE_CHOICES = [
+        ('admin', 'Admin'),
         ('super_admin', 'Super Admin'),
         ('govt_national', 'Government Official (National)'),
         ('govt_county', 'Government Official (County)'),

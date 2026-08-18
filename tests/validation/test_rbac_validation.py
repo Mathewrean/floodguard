@@ -364,12 +364,12 @@ class TestPrivilegeEscalationPrevention:
             {'risk_threshold': 0.9},
             format='json'
         )
-        assert response.status_code in [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_researcher_cannot_delete_zones(self, api_client, researcher, zone):
         api_client.force_authenticate(user=researcher)
         response = api_client.delete(f'/api/v1/zones/{zone.id}/')
-        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_citizen_cannot_modify_predictions(self, api_client, citizen, prediction):
         api_client.force_authenticate(user=citizen)

@@ -2,6 +2,7 @@ import pytest
 from django.test import RequestFactory
 from django.contrib.auth.models import AnonymousUser, User
 from core.permissions import IsAuthority, IsAdminUser
+from core.models import UserProfile
 from tests.factories import UserFactory, AuthorityUserFactory
 
 
@@ -49,3 +50,10 @@ class TestIsAdminUser:
         request.user = AnonymousUser()
         permission = IsAdminUser()
         assert not permission.has_permission(request, None)
+
+    def test_returns_true_for_profile_admin(self):
+        request = RequestFactory().get('/')
+        user = User.objects.create_user('operations-admin', password='test-pass')
+        UserProfile.objects.update_or_create(user=user, defaults={'role': 'admin'})
+        request.user = user
+        assert IsAdminUser().has_permission(request, None)

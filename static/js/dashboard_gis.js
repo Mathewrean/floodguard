@@ -25,6 +25,7 @@ function getRiskInfo(score) {
 
 let gisMap = null;
 let h3Layer = null;
+let h3GridLayer = null;
 let userMarker = null;
 let selectedCell = null;
 let routeState = { origin: null, destination: null, profile: 'balanced' };
@@ -71,11 +72,45 @@ async function initGisDashboard() {
     // Bind UI events
     bindGisControls();
 
-    // Load zones and readings
+    // Load zones, readings, and the actual H3 risk cells for the initial viewport.
     await Promise.all([loadZones(), loadReadings()]);
+    await loadH3Cells();
+    gisMap.on('moveend', debounce(loadH3Cells, 350));
     
     // Connect WebSocket for live updates
     connectFloodMapSocket();
+}
+
+async function loadH3Cells() {
+    if (!gisMap) return;
+    const bounds = gisMap.getBounds();
+    if (!bounds.isValid()) return;
+    const query = new URLSearchParams({
+        min_lat: bounds.getSouth().toFixed(6), min_lon: bounds.getWest().toFixed(6),
+        max_lat: bounds.getNorth().toFixed(6), max_lon: bounds.getEast().toFixed(6),
+        // Resolution 7 is suitable for city-scale display; use coarser cells at world scale.
+        resolution: gisMap.getZoom() < 6 ? '4' : gisMap.getZoom() < 10 ? '6' : '7',
+    });
+    try {
+        const data = await fetchJSON(`/api/v1/h3-cells/?${query}`);
+        if (h3GridLayer) h3GridLayer.remove();
+        h3GridLayer = L.layerGroup().addTo(gisMap);
+        (data.cells || []).forEach(cell => {
+            const score = Number(cell.properties?.risk_score || 0);
+            // Omit zero-risk cells to preserve a useful, responsive map.
+            if (score <= 0) return;
+            const band = getRiskBand(score);
+            const layer = L.geoJSON(cell, {
+                style: { color: band.colour, fillColor: band.colour, weight: 1, fillOpacity: 0.20 },
+            }).bindPopup(`<strong>H3 risk cell</strong><br>Risk: ${(score * 100).toFixed(0)}%<br><small>${escapeHTML(cell.properties.h3_index)}</small>`);
+            layer.options.cellData = cell.properties;
+            layer.addTo(h3GridLayer);
+        });
+        if (!layerVisibility.flood) gisMap.removeLayer(h3GridLayer);
+    } catch (e) {
+        // A map may initially show the full globe; the API intentionally asks users to zoom in.
+        if (e.message && !e.message.includes('Bounding box is too large')) console.warn('Failed to load H3 cells:', e);
+    }
 }
 
 function createZonePopup(zone) {
@@ -286,6 +321,9 @@ function bindGisControls() {
         layerVisibility.flood = e.target.checked;
         if (h3Layer) {
             layerVisibility.flood ? gisMap.addLayer(h3Layer) : gisMap.removeLayer(h3Layer);
+        }
+        if (h3GridLayer) {
+            layerVisibility.flood ? gisMap.addLayer(h3GridLayer) : gisMap.removeLayer(h3GridLayer);
         }
     });
     if (satelliteToggle) satelliteToggle.addEventListener('change', e => {
@@ -627,3 +665,4 @@ function addCompassControl() {
 window.initGisDashboard = initGisDashboard;
 window.getRiskInfo = getRiskInfo;
 window.loadZones = loadZones;
+window.loadH3Cells = loadH3Cells;
