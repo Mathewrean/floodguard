@@ -10,6 +10,7 @@ from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
 from django.conf import settings
 from django.core.cache import cache
+from core.cache_keys import cache_key
 
 from core.models import AlertZone, DynamicZone, AdministrativeBoundary, FloodReading
 from core.zoning.h3_intelligence import get_or_create_h3_cell, _get_h3_resolution
@@ -36,8 +37,8 @@ def universal_search(query, user=None, lat=None, lon=None, radius_km=50):
     
     Returns structured JSON with all relevant information.
     """
-    cache_key = f"search:{hash(query)}:{lat}:{lon}:{radius_km}"
-    cached = cache.get(cache_key)
+    key = cache_key('search', query, lat, lon, radius_km)
+    cached = cache.get(key)
     if cached is not None:
         return cached
 
@@ -99,7 +100,7 @@ def universal_search(query, user=None, lat=None, lon=None, radius_km=50):
             result['administrative_hierarchy'] = _get_administrative_hierarchy(lat, lon)
             result['h3_information'] = _get_h3_information(lat, lon)
 
-    cache.set(cache_key, result, SEARCH_CACHE_TIMEOUT)
+    cache.set(key, result, SEARCH_CACHE_TIMEOUT)
     return result
 
 

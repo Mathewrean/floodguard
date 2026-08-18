@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from django.core.cache import cache
+from core.cache_keys import cache_key
 
 from .gee import GEESource
 from .nasa_gpm import NASAGPMSource
@@ -54,8 +55,8 @@ def fetch_all_sources(lat: float, lon: float) -> dict:
 
 
 def build_risk_feature_vector(lat: float, lon: float, zone_name: str = '') -> dict:
-    cache_key = f'risk_vector:{round(lat, 2)}:{round(lon, 2)}:{zone_name}'
-    cached = cache.get(cache_key)
+    key = cache_key('risk-vector', f'{float(lat):.2f}', f'{float(lon):.2f}', zone_name)
+    cached = cache.get(key)
     if cached is not None:
         return cached
 
@@ -88,5 +89,5 @@ def build_risk_feature_vector(lat: float, lon: float, zone_name: str = '') -> di
         'sources': all_data,
     }
 
-    cache.set(cache_key, result, 300)
+    cache.set(key, result, 300)
     return result

@@ -27,7 +27,7 @@ The workflow uses `git reset --hard origin/main`; do not make server-side source
 
 ## Required operator actions
 
-1. Set the real domain in VPS `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS`, and configure DNS/TLS reverse proxy routing.
+1. Set the real domain **plus `localhost,127.0.0.1`** in VPS `ALLOWED_HOSTS`, and configure DNS/TLS reverse proxy routing. The loopback values let the post-deploy internal health probe pass Django host validation.
 2. Ensure GitHub repository secrets `VPS_HOST` and `VPS_SSH_PRIVATE_KEY` are present.
 3. Configure `GRAPHOPPER_API_KEY` on the VPS. Without it, safe routing intentionally returns a fallback response rather than claiming GraphHopper is active.
 4. Build the image with the updated requirements, commit and push to `main`, then inspect the GitHub Actions deploy run and `/health/`.

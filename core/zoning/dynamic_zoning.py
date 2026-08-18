@@ -93,6 +93,16 @@ def _h3_cells_for_polygon(polygon, resolution):
         return []
 
 
+def _h3_cell_from_index(h3_index, resolution=7):
+    """Persist the exact H3 cell represented by an index, not a zone centroid."""
+    try:
+        import h3
+        lat, lon = h3.cell_to_latlng(h3_index)
+        return get_or_create_h3_cell(lat, lon, resolution=resolution)
+    except (ImportError, ValueError):
+        return None
+
+
 # ============================================================
 # Trigger 1: Weather Update
 # ============================================================
@@ -132,7 +142,7 @@ def generate_zone_from_weather(lat, lon, zone_name=None, accuracy=None):
         zone.save()
     
     for h3_index in h3_indices:
-        cell = get_or_create_h3_cell(lat, lon, resolution=7)
+        cell = _h3_cell_from_index(h3_index)
         if cell:
             zone.h3_cells.add(cell)
             update_cell_risk(h3_index, risk, confidence)
@@ -207,7 +217,7 @@ def generate_zone_from_reports(report_ids=None, hours=24, radius_m=REPORT_CLUSTE
         
         h3_indices = _h3_cells_for_polygon(polygon, 7)
         for h3_index in h3_indices:
-            cell = get_or_create_h3_cell(lat, lon, resolution=7)
+            cell = _h3_cell_from_index(h3_index)
             if cell:
                 zone.h3_cells.add(cell)
                 update_cell_risk(h3_index, zone.risk_score, zone.confidence)
@@ -339,7 +349,7 @@ def generate_zone_from_rainfall(lat, lon, rainfall_mm, duration_hours=1, zone_na
     
     h3_indices = _h3_cells_for_polygon(polygon, 7)
     for h3_index in h3_indices:
-        cell = get_or_create_h3_cell(lat, lon, resolution=7)
+        cell = _h3_cell_from_index(h3_index)
         if cell:
             zone.h3_cells.add(cell)
             update_cell_risk(h3_index, risk, confidence)
@@ -404,12 +414,7 @@ def create_authority_zone(name, polygon, risk_score, confidence=1.0, expires_hou
     
     h3_indices = _h3_cells_for_polygon(polygon, 7)
     for h3_index in h3_indices:
-        try:
-            import h3
-            cell_lat, cell_lon = h3.cell_to_latlng(h3_index)
-        except (ImportError, ValueError):
-            continue
-        cell = get_or_create_h3_cell(cell_lat, cell_lon, resolution=7)
+        cell = _h3_cell_from_index(h3_index)
         if cell:
             zone.h3_cells.add(cell)
             update_cell_risk(h3_index, risk_score, confidence)

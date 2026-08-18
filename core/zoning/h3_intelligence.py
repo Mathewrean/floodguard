@@ -155,6 +155,12 @@ def get_or_create_h3_cell(lat, lon, resolution=None, **kwargs):
     
     if not created:
         changed_fields = []
+        # Earlier releases persisted placeholder (0, 0) centroids. Repair them
+        # lazily as cells are encountered, without a data migration outage.
+        if cell.centroid_lat == 0.0 and cell.centroid_lon == 0.0:
+            cell.centroid_lat, cell.centroid_lon = centroid_lat, centroid_lon
+            changed_fields.append('centroid_lat')
+            changed_fields.append('centroid_lon')
         for key, value in kwargs.items():
             field_name = field_names.get(key)
             if field_name and value is not None and getattr(cell, field_name) != value:
@@ -224,9 +230,10 @@ def get_neighboring_cells(cell, k=1, include_self=False):
         
         neighbor_cells = []
         for h3_index in neighbors:
+            neighbor_lat, neighbor_lon = _cell_centroid(h3_index)
             neighbor, _ = H3Cell.objects.get_or_create(
                 h3_index=h3_index,
-                defaults={'resolution': cell.resolution, 'centroid_lat': 0.0, 'centroid_lon': 0.0}
+                defaults={'resolution': cell.resolution, 'centroid_lat': neighbor_lat, 'centroid_lon': neighbor_lon}
             )
             neighbor_cells.append(neighbor)
         return neighbor_cells

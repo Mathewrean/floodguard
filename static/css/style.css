@@ -570,6 +570,11 @@ main { min-height: calc(100vh - 64px); }
   color: var(--primary-dark) !important;
   border-color: rgba(0,0,0,0.2) !important;
 }
+.leaflet-control-attribution {
+  max-width: calc(100vw - 16px);
+  white-space: normal;
+  line-height: 1.35;
+}
 .leaflet-popup-content-wrapper,
 .leaflet-popup-tip {
   border-radius: 12px;
