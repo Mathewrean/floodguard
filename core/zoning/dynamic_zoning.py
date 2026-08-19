@@ -15,7 +15,7 @@ from django.db import transaction
 from core.models import DynamicZone, H3Cell, FloodReading, IncidentReport, AlertZone, AdministrativeBoundary
 from core.data_sources.aggregator import build_risk_feature_vector
 from core.analytics.scoring import calculate_feature_risk
-from core.zoning.h3_intelligence import get_or_create_h3_cell, get_neighboring_cells, get_cell_risk, update_cell_risk
+from core.zoning.h3_intelligence import get_or_create_h3_cell, get_neighboring_cells, get_cell_risk, update_cell_risk, normalize_risk_score
 from core.zoning.lifecycle import transition_zone_state, ZONE_STATES
 
 logger = logging.getLogger(__name__)
@@ -376,7 +376,7 @@ def enhance_zone_with_satellite(zone, water_extent_km2=None, flood_percentage=No
     zone.evidence['water_extent_km2'] = water_extent_km2
     if flood_percentage is not None:
         zone.evidence['flood_percentage'] = flood_percentage
-        zone.risk_score = max(zone.risk_score, min(0.95, flood_percentage))
+        zone.risk_score = max(normalize_risk_score(zone.risk_score), min(0.95, normalize_risk_score(flood_percentage)))
     zone.save()
     
     for cell in zone.h3_cells.all():

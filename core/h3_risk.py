@@ -17,6 +17,7 @@ try:
         get_neighboring_cells,
         get_cell_risk,
         update_cell_risk,
+        normalize_risk_score,
         _get_h3_resolution as _h3_intel_resolution,
     )
     ZONING_ENGINE_AVAILABLE = True
@@ -58,14 +59,15 @@ def get_risk_for_h3_cell(h3_index):
     cache_key = f"h3:{h3_index}:risk_score"
     cached = cache.get(cache_key)
     if cached is not None:
-        return float(cached)
+        return normalize_risk_score(cached)
 
     if ZONING_ENGINE_AVAILABLE:
         try:
             risk = get_cell_risk(h3_index)
             if risk > 0:
+                risk = normalize_risk_score(risk)
                 cache.set(cache_key, risk, H3_CACHE_TIMEOUT)
-                return float(risk)
+                return risk
         except Exception:
             pass
 
@@ -242,10 +244,10 @@ def _calculate_h3_risk(h3_index):
         total_risk = 0.0
         count = 0
         for zone in intersecting_zones:
-            total_risk += float(zone.risk_score or 0)
+            total_risk += normalize_risk_score(zone.risk_score)
             count += 1
         
-        return total_risk / count if count > 0 else 0.0
+        return normalize_risk_score(total_risk / count) if count > 0 else 0.0
     except Exception as e:
         logger.warning(f"Failed to calculate H3 risk for cell {h3_index}: {e}")
         return 0.0

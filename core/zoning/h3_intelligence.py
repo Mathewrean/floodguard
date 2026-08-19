@@ -7,12 +7,31 @@ import math
 
 from django.conf import settings
 from django.core.cache import cache
+from django.utils import timezone
 
 from core.models import H3Cell, H3CellRelationship, AdministrativeBoundary
 
 logger = logging.getLogger(__name__)
 
 H3_CACHE_TIMEOUT = 15 * 60  # 15 minutes
+
+
+def normalize_risk_score(value):
+    """Return a finite FloodGuard risk score in the canonical 0.0–1.0 range.
+
+    Older imports accepted percentage values (for example ``75.5``).  The
+    application contract is a fraction, so those values are converted once at
+    the boundary instead of allowing a UI to turn them into ``7550%``.
+    """
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if not math.isfinite(score):
+        return 0.0
+    if 1.0 < score <= 100.0:
+        score /= 100.0
+    return max(0.0, min(1.0, score))
 
 
 def _cell_centroid(h3_index):
@@ -332,12 +351,19 @@ def get_cell_risk(h3_index):
     cache_key = f"h3:{h3_index}:risk_score"
     cached = cache.get(cache_key)
     if cached is not None:
-        return float(cached)
+        return normalize_risk_score(cached)
     
     try:
         cell = H3Cell.objects.get(h3_index=h3_index)
-        cache.set(cache_key, cell.current_risk_score, H3_CACHE_TIMEOUT)
-        return float(cell.current_risk_score)
+        max_age_seconds = int(getattr(settings, 'H3_RISK_MAX_AGE_SECONDS', 3600))
+        if max_age_seconds >= 0 and (timezone.now() - cell.last_updated).total_seconds() > max_age_seconds:
+            # A last-known score is not a live flood observation.  Do not
+            # paint stale H3 state as a current warning.
+            cache.delete(cache_key)
+            return 0.0
+        risk = normalize_risk_score(cell.current_risk_score)
+        cache.set(cache_key, risk, H3_CACHE_TIMEOUT)
+        return risk
     except H3Cell.DoesNotExist:
         return 0.0
 
@@ -357,13 +383,14 @@ def update_cell_risk(h3_index, risk_score, confidence=None):
                 'centroid_lon': centroid_lon,
             }
         )
-        cell.current_risk_score = float(risk_score)
+        risk = normalize_risk_score(risk_score)
+        cell.current_risk_score = risk
         if confidence is not None:
-            cell.confidence = float(confidence)
+            cell.confidence = normalize_risk_score(confidence)
         cell.save(update_fields=['current_risk_score', 'confidence', 'last_updated'])
         
         cache_key = f"h3:{h3_index}:risk_score"
-        cache.set(cache_key, float(risk_score), H3_CACHE_TIMEOUT)
+        cache.set(cache_key, risk, H3_CACHE_TIMEOUT)
         return cell
     except Exception as e:
         logger.warning(f"Failed to update H3 cell risk for {h3_index}: {e}")

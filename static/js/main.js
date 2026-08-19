@@ -127,7 +127,13 @@ async function fetchJSON(url, options = {}) {
     }
 
     const response = await fetch(url, options);
-    if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+    if (!response.ok) {
+        let payload = {};
+        try { payload = await response.json(); } catch (_) { /* Non-JSON upstream response. */ }
+        const error = new Error(payload.error || `${url} returned ${response.status}`);
+        Object.assign(error, payload, { status: response.status });
+        throw error;
+    }
     return response.json();
 }
 

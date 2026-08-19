@@ -919,6 +919,8 @@ def _safe_route_graphhopper(request):
     dest_lat = request.GET.get('dest_lat')
     dest_lon = request.GET.get('dest_lon')
     vehicle = request.GET.get('vehicle', getattr(settings, 'SAFE_ROUTE_DEFAULT_VEHICLE', 'car'))
+    if vehicle not in {'car', 'bike', 'foot'}:
+        return Response({'error': 'Unsupported routing profile'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not all([origin_lat, origin_lon, dest_lat, dest_lon]):
         return Response({
@@ -940,32 +942,42 @@ def _safe_route_graphhopper(request):
             'fallback': 'POST to /api/v1/safe-route/ for prototype routing'
         }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
-    # Request multiple route strategies from GraphHopper
-    strategies = ['fastest', 'shortest']
-    route_candidates = {}
-
-    for strategy in strategies:
-        gh_url = (
-            f"{settings.GRAPHOPPER_URL}"
-            f"?point={origin_lat},{origin_lon}"
-            f"&point={dest_lat},{dest_lon}"
-            f"&vehicle={vehicle}"
-            f"&algorithm={strategy}"
-            f"&points_encoded=false"
-            f"&key={api_key}"
+    # GraphHopper's current Routing API requires ``profile``.  The historical
+    # vehicle/fastest/shortest query was rejected by the provider, so it made a
+    # valid API key appear broken.  The returned path is always road-network
+    # geometry; H3 then evaluates its flood exposure.
+    try:
+        import requests as req
+        response = req.get(
+            settings.GRAPHOPPER_URL,
+            params=[
+                ('point', f'{origin_lat},{origin_lon}'),
+                ('point', f'{dest_lat},{dest_lon}'),
+                ('profile', vehicle),
+                ('points_encoded', 'false'),
+                ('instructions', 'true'),
+                ('key', api_key),
+            ],
+            timeout=15,
         )
+        if not response.ok:
+            logger.warning('GraphHopper route request failed with HTTP %s: %s', response.status_code, response.text[:500])
+            return Response({
+                'error': 'GraphHopper rejected the routing request',
+                'provider_status': response.status_code,
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        data = response.json()
+    except (req.RequestException, ValueError) as exc:
+        logger.warning('GraphHopper route request failed: %s', exc)
+        return Response({
+            'error': 'GraphHopper is temporarily unavailable',
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        try:
-            import requests as req
-            response = req.get(gh_url, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-            paths = data.get('paths', [])
-            if paths:
-                route_candidates[strategy] = paths[0]
-        except Exception as e:
-            logger.warning(f"GraphHopper request failed for strategy {strategy}: {e}")
-            continue
+    paths = data.get('paths', [])
+    route_candidates = {
+        f'road_network_{index}': path
+        for index, path in enumerate(paths[:3], start=1)
+    }
 
     if not route_candidates:
         return Response({
@@ -996,7 +1008,7 @@ def _safe_route_graphhopper(request):
         evaluated_routes.append({
             'id': strategy,
             'profile': strategy,
-            'label': _route_label(strategy),
+            'label': 'Road-network route',
             'distance_km': round(path.get('distance', 0) / 1000, 1),
             'duration_minutes': round(path.get('time', 0) / 60000, 1),
             'flood_risk': risk_data.get('avg_risk', 0.0),
@@ -1010,7 +1022,7 @@ def _safe_route_graphhopper(request):
     # Sort: safest first, then balanced, then fastest
     evaluated_routes.sort(key=lambda r: (r['flood_risk'], r['distance_km']))
     
-    # Assign final labels
+    # Assign final labels based on road-network route flood exposure.
     if len(evaluated_routes) >= 1:
         evaluated_routes[0]['profile'] = 'safest'
         evaluated_routes[0]['label'] = 'Safest Route'

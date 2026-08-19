@@ -314,6 +314,7 @@ GRAPHOPPER_URL = project_config(
 )
 SAFE_ROUTE_DEFAULT_VEHICLE = project_config('SAFE_ROUTE_VEHICLE', default='car')
 H3_RESOLUTION = int(project_config('H3_RESOLUTION', default=7))
+H3_RISK_MAX_AGE_SECONDS = int(project_config('H3_RISK_MAX_AGE_SECONDS', default=3600))
 
 # Geographic boundary validation (format: min_lon,min_lat,max_lon,max_lat)
 # Set to empty string/None for global coverage (no bounds restriction)

@@ -585,6 +585,7 @@ def update_h3_risk_scores():
     """
     from django.core.cache import cache
     from core.h3_risk import _get_h3_resolution
+    from core.zoning.h3_intelligence import normalize_risk_score, update_cell_risk
     
     zones = AlertZone.objects.filter(is_active=True)
     total_cells = 0
@@ -608,17 +609,11 @@ def update_h3_risk_scores():
             h3shape = h3.geo_to_h3shape(geojson)
             h3_cells = set(h3.h3shape_to_cells(h3shape, resolution))
             
-            # Also fill interior with k-ring
-            for cell in list(h3_cells):
-                try:
-                    ring = h3.grid_disk(cell, 2)
-                    h3_cells.update(ring)
-                except Exception:
-                    continue
-            
-            # Cache risk for each cell
+            # Only cells covered by the zone receive its risk. Expanding the
+            # result with a k-ring incorrectly marks surrounding areas.
             for cell in h3_cells:
-                risk = float(zone.risk_score or 0)
+                risk = normalize_risk_score(zone.risk_score)
+                update_cell_risk(cell, risk)
                 cache.set(f"h3:{cell}:risk_score", risk, 3600)
                 total_cells += 1
                 

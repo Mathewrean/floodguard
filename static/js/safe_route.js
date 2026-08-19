@@ -180,12 +180,17 @@ async function calculateSafeRoute() {
             return;
         }
     } catch (error) {
-        console.warn('GraphHopper route failed, falling back to prototype:', error);
+        console.warn('GraphHopper route failed:', error);
+        const providerStatus = error?.provider_status ? ` (provider HTTP ${error.provider_status})` : '';
+        clearRoutes();
+        renderRouteCards([], {});
+        setRouteStatus(`Road-network routing is temporarily unavailable${providerStatus}. Check the GraphHopper key, plan, and server logs, then try again.`, 'error');
+        return;
     }
-    
+
     clearRoutes();
     renderRouteCards([], {});
-    setRouteStatus('Road-network routing is temporarily unavailable. Check the GraphHopper service configuration and try again.', 'error');
+    setRouteStatus('No road-network route is available for these locations.', 'warning');
 }
 
 function initModeSelector() {
