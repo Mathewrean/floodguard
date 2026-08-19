@@ -1,4 +1,5 @@
 from rest_framework import permissions
+from .models import UserProfile
 
 
 def has_admin_role(user):
@@ -7,8 +8,13 @@ def has_admin_role(user):
         return False
     if user.is_superuser:
         return True
-    profile = getattr(user, 'profile', None)
-    return bool(profile and profile.role in {'admin', 'super_admin'})
+    # Do not use ``user.profile`` here. A profile is created by a signal and
+    # can remain cached on this User instance after an administrator changes
+    # its role, which incorrectly denied a newly assigned admin permission.
+    return UserProfile.objects.filter(
+        user_id=user.pk,
+        role__in={'admin', 'super_admin'},
+    ).exists()
 
 
 def is_authority_user(user):

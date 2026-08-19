@@ -2,6 +2,8 @@
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db import connection
+from django.core.management.base import CommandError
 
 from core.models import AlertZone
 
@@ -19,6 +21,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if AlertZone._meta.db_table not in connection.introspection.table_names():
+            raise CommandError(
+                'The database schema has not been migrated. Run "python manage.py migrate --noinput" first.'
+            )
         zones = AlertZone.objects.filter(name__startswith='Dynamic Zone').order_by('id')
         count = zones.count()
         self.stdout.write(f'Found {count} legacy dynamic AlertZone record(s).')
