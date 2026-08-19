@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from core.models import AlertZone, DynamicZone, FloodReading, H3Cell
@@ -31,11 +32,12 @@ class Command(BaseCommand):
         if stale_after < 0:
             raise CommandError('--stale-after-minutes must be zero or greater.')
         stale_before = timezone.now() - timedelta(minutes=stale_after)
+        invalid_score = Q(risk_score__lt=0) | Q(risk_score__gt=1)
         model_sets = (
-            ('AlertZone', AlertZone.objects.filter(risk_score__gt=1)),
-            ('DynamicZone', DynamicZone.objects.filter(risk_score__gt=1)),
-            ('FloodReading', FloodReading.objects.filter(risk_score__gt=1)),
-            ('H3Cell', H3Cell.objects.filter(current_risk_score__gt=1)),
+            ('AlertZone', AlertZone.objects.filter(invalid_score)),
+            ('DynamicZone', DynamicZone.objects.filter(invalid_score)),
+            ('FloodReading', FloodReading.objects.filter(invalid_score)),
+            ('H3Cell', H3Cell.objects.filter(Q(current_risk_score__lt=0) | Q(current_risk_score__gt=1))),
         )
         invalid = {name: queryset.count() for name, queryset in model_sets}
         stale_cells = H3Cell.objects.filter(last_updated__lt=stale_before, current_risk_score__gt=0)

@@ -1,0 +1,178 @@
+backup_db.sh:1: trailing whitespace.
+[32m+[m[32m#!/bin/bash[m[41m[m
+backup_db.sh:2: trailing whitespace.
+[32m+[m[32mBACKUP_DIR="/app/floodguard/backups"[m[41m[m
+backup_db.sh:3: trailing whitespace.
+[32m+[m[32mmkdir -p $BACKUP_DIR[m[41m[m
+backup_db.sh:4: trailing whitespace.
+[32m+[m[41m[m
+backup_db.sh:5: trailing whitespace.
+[32m+[m[32m# Pull database authentication variables directly from your active .env file[m[41m[m
+backup_db.sh:6: trailing whitespace.
+[32m+[m[32mexport $(grep -v '^#' /app/floodguard/.env | xargs)[m[41m[m
+backup_db.sh:7: trailing whitespace.
+[32m+[m[41m[m
+backup_db.sh:8: trailing whitespace.
+[32m+[m[32mFILENAME="$BACKUP_DIR/floodguard_backup_$(date +%Y%m%d_%H%M%S).sql"[m[41m[m
+backup_db.sh:9: trailing whitespace.
+[32m+[m[41m[m
+backup_db.sh:10: trailing whitespace.
+[32m+[m[32m# Dump the core spatial database schemas cleanly using Docker entries configuration[m[41m[m
+backup_db.sh:11: trailing whitespace.
+[32m+[m[32mdocker exec floodguard-db-1 pg_dump -U ${DB_USER:-postgres} ${DB_NAME:-floodguard} > $FILENAME[m[41m[m
+backup_db.sh:12: trailing whitespace.
+[32m+[m[41m[m
+backup_db.sh:13: trailing whitespace.
+[32m+[m[32m# Keep storage optimized by automatically purging historical backups older than 7 days[m[41m[m
+backup_db.sh:14: trailing whitespace.
+[32m+[m[32mfind $BACKUP_DIR -type f -mtime +7 -name "*.sql" -delete[m[41m[m
+backup_db.sh:15: trailing whitespace.
+[32m+[m[41m[m
+backup_db.sh:16: trailing whitespace.
+[32m+[m[32mecho "✓ Database backup successfully saved to: $FILENAME"[m[41m[m
+nginx.conf:1: trailing whitespace.
+[32m+[m[32m# Nginx configuration for FloodGuard production deployment[m[41m[m
+nginx.conf:2: trailing whitespace.
+[32m+[m[32m# This config should be used with gunicorn/uvicorn running on port 8000[m[41m[m
+nginx.conf:3: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:4: trailing whitespace.
+[32m+[m[32mupstream django {[m[41m[m
+nginx.conf:5: trailing whitespace.
+[32m+[m[32m    server 127.0.0.1:8000 fail_timeout=0;[m[41m[m
+nginx.conf:6: trailing whitespace.
+[32m+[m[32m}[m[41m[m
+nginx.conf:7: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:8: trailing whitespace.
+[32m+[m[32mserver {[m[41m[m
+nginx.conf:9: trailing whitespace.
+[32m+[m[32m    if ($host = floodguard.co.ke) {[m[41m[m
+nginx.conf:10: trailing whitespace.
+[32m+[m[32m        return 301 https://$host$request_uri;[m[41m[m
+nginx.conf:11: trailing whitespace.
+[32m+[m[32m    } # managed by Certbot[m[41m[m
+nginx.conf:12: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:13: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:14: trailing whitespace.
+[32m+[m[32m    listen 80;[m[41m[m
+nginx.conf:15: trailing whitespace.
+[32m+[m[32m    server_name floodguard.co.ke www.floodguard.co.ke;[m[41m[m
+nginx.conf:16: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:17: trailing whitespace.
+[32m+[m[32m    # Security headers[m[41m[m
+nginx.conf:18: trailing whitespace.
+[32m+[m[32m    add_header X-Frame-Options "DENY" always;[m[41m[m
+nginx.conf:19: trailing whitespace.
+[32m+[m[32m    add_header X-Content-Type-Options "nosniff" always;[m[41m[m
+nginx.conf:20: trailing whitespace.
+[32m+[m[32m    add_header X-XSS-Protection "1; mode=block" always;[m[41m[m
+nginx.conf:21: trailing whitespace.
+[32m+[m[32m    add_header Referrer-Policy "strict-origin-when-cross-origin" always;[m[41m[m
+nginx.conf:22: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:23: trailing whitespace.
+[32m+[m[32m    # Allow health checks on HTTP without redirect[m[41m[m
+nginx.conf:24: trailing whitespace.
+[32m+[m[32m    location = /health/ {[m[41m[m
+nginx.conf:25: trailing whitespace.
+[32m+[m[32m        proxy_pass http://django;[m[41m[m
+nginx.conf:26: trailing whitespace.
+[32m+[m[32m        access_log off;[m[41m[m
+nginx.conf:27: trailing whitespace.
+[32m+[m[32m    }[m[41m[m
+nginx.conf:28: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:29: trailing whitespace.
+[32m+[m[32m    # Redirect all other HTTP traffic to HTTPS[m[41m[m
+nginx.conf:30: trailing whitespace.
+[32m+[m[32m    location / {[m[41m[m
+nginx.conf:31: trailing whitespace.
+[32m+[m[32m        return 301 https://$server_name$request_uri;[m[41m[m
+nginx.conf:32: trailing whitespace.
+[32m+[m[32m    }[m[41m[m
+nginx.conf:33: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:34: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:35: trailing whitespace.
+[32m+[m[32m}[m[41m[m
+nginx.conf:36: trailing whitespace.
+[32m+[m[41m[m
+nginx.conf:37: trailing whitespace.
+[32m+[m[32mserver {[m[41m[m
+nginx.conf:38: trailing whitespace.
+[32m+[m[32m    listen 443 ssl http2;[m[41m[m
+nginx.conf:39: trailing whitespace.
+[32m+[m[32m    server_name floodguard.co.ke www.floodguard.co.ke;[m[41m[m
+nginx.conf:40: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:41: trailing whitespace.
+[32m+[m[32m    # SSL certificates (use Let's Encrypt or your provider)[m[41m[m
+nginx.conf:42: trailing whitespace.
+[32m+[m[32m    ssl_certificate /etc/letsencrypt/live/floodguard.co.ke-0001/fullchain.pem; # managed by Certbot[m[41m[m
+nginx.conf:43: trailing whitespace.
+[32m+[m[32m    ssl_certificate_key /etc/letsencrypt/live/floodguard.co.ke-0001/privkey.pem; # managed by Certbot[m[41m[m
+nginx.conf:44: trailing whitespace.
+[32m+[m[32m    ssl_protocols TLSv1.2 TLSv1.3;[m[41m[m
+nginx.conf:45: trailing whitespace.
+[32m+[m[32m    ssl_ciphers HIGH:!aNULL:!MD5;[m[41m[m
+nginx.conf:46: trailing whitespace.
+[32m+[m[32m    ssl_prefer_server_ciphers off;[m[41m[m
+nginx.conf:47: trailing whitespace.
+[32m+[m[32m    ssl_session_cache shared:SSL:10m;[m[41m[m
+nginx.conf:48: trailing whitespace.
+[32m+[m[32m    ssl_session_timeout 10m;[m[41m[m
+nginx.conf:49: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:50: trailing whitespace.
+[32m+[m[32m    # HSTS[m[41m[m
+nginx.conf:51: trailing whitespace.
+[32m+[m[32m    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;[m[41m[m
+nginx.conf:52: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:53: trailing whitespace.
+[32m+[m[32m    # Security headers[m[41m[m
+nginx.conf:54: trailing whitespace.
+[32m+[m[32m    add_header X-Frame-Options "DENY" always;[m[41m[m
+nginx.conf:55: trailing whitespace.
+[32m+[m[32m    add_header X-Content-Type-Options "nosniff" always;[m[41m[m
+nginx.conf:56: trailing whitespace.
+[32m+[m[32m    add_header X-XSS-Protection "1; mode=block" always;[m[41m[m
+nginx.conf:57: trailing whitespace.
+[32m+[m[32m    add_header Referrer-Policy "strict-origin-when-cross-origin" always;[m[41m[m
+nginx.conf:58: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:59: trailing whitespace.
+[32m+[m[32m    # Client body size limit (for photo uploads)[m[41m[m
+nginx.conf:60: trailing whitespace.
+[32m+[m[32m    client_max_body_size 10M;[m[41m[m
+nginx.conf:61: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:67: trailing whitespace.
+[32m+[m[32m        expires 1y;[m[41m[m
+nginx.conf:68: trailing whitespace.
+[32m+[m[32m        add_header Cache-Control "public, immutable, max-age=31536000";[m[41m[m
+nginx.conf:69: trailing whitespace.
+[32m+[m[32m        add_header Vary "Accept-Encoding";[m[41m[m
+nginx.conf:70: trailing whitespace.
+[32m+[m[32m    }[m[41m[m
+nginx.conf:71: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:72: trailing whitespace.
+[32m+[m[32m    # Media files (uploaded photos)[m[41m[m
+nginx.conf:75: trailing whitespace.
+[32m+[m[32m        expires 30d;[m[41m[m
+nginx.conf:76: trailing whitespace.
+[32m+[m[32m        add_header Cache-Control "public, max-age=2592000";[m[41m[m
+nginx.conf:77: trailing whitespace.
+[32m+[m[32m    }[m[41m[m
+nginx.conf:78: trailing whitespace.
+[32m+[m[41m    [m
+nginx.conf:79: trailing whitespace.
+[32m+[m[32m    # WebSocket support[m[41m[m
+nginx.conf:80: trailing whitespace.
+[
