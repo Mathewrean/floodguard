@@ -2824,6 +2824,30 @@ html[data-theme="light"] .search-results tr:hover td {
 .gis-panel-toggle { top: 16px; left: 16px; }
 .gis-panel-toggle .btn { min-width: 44px; min-height: 44px; border-radius: 12px; box-shadow: var(--shadow-md); }
 .gis-legend { max-width: calc(100vw - 32px); }
+.gis-legend-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+  margin: 0 0 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary-dark);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.gis-legend-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.gis-legend-chevron { font-size: 18px; line-height: 1; transition: transform .2s ease; }
+.gis-legend.is-collapsed .gis-legend-item { display: none; }
+.gis-legend.is-collapsed .gis-legend-chevron { transform: rotate(180deg); }
 .map-search-bar { z-index: 700; }
 .leaflet-top, .leaflet-bottom { z-index: 650; }
 .safe-route-page { min-height: calc(100dvh - 112px); }
@@ -2866,6 +2890,7 @@ html[data-theme="light"] .search-results tr:hover td {
   .gis-panel-search input { grid-column: 1 / -1; }
   .gis-location-quality { grid-column: 1 / -1; overflow-wrap: anywhere; }
   .gis-legend { left: 10px; bottom: 10px; padding: 10px 12px; font-size: 12px; }
+  .gis-legend-toggle { min-height: 34px; margin-bottom: 0; }
   .safe-route-page { display: flex; flex-direction: column; min-height: auto; }
   .safe-route-panel { padding: 18px 14px; order: 1; border-right: 0; }
   .safe-route-map-shell { order: 0; min-height: 48dvh; }

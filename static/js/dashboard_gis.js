@@ -292,6 +292,7 @@ function bindGisControls() {
     const routeBtn = document.getElementById('gis-safe-route-btn');
     const toggleBtn = document.getElementById('gis-panel-toggle');
     const closeBtn = document.getElementById('gis-panel-close');
+    const legendToggle = document.getElementById('gis-legend-toggle');
 
     if (searchBtn) searchBtn.addEventListener('click', doLocationSearch);
     if (searchInput) searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLocationSearch(); });
@@ -303,6 +304,15 @@ function bindGisControls() {
         if (panel) panel.classList.add('collapsed');
         const toggle = document.querySelector('#gis-panel-toggle button');
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
+    });
+    if (legendToggle) legendToggle.addEventListener('click', () => {
+        const legend = document.querySelector('.gis-legend');
+        if (!legend) return;
+        const isCollapsed = legend.classList.toggle('is-collapsed');
+        legendToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        legendToggle.setAttribute('aria-label', isCollapsed ? 'Expand flood risk legend' : 'Minimize flood risk legend');
+        const label = legendToggle.querySelector('.gis-legend-toggle-label');
+        if (label) label.textContent = isCollapsed ? 'Show legend' : 'Hide legend';
     });
 
     gisMap.on('click', (e) => {
