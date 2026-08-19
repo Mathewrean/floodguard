@@ -10,6 +10,8 @@ from django.dispatch import receiver
 from django.core.cache import cache
 from django.contrib.gis.db.models import Extent
 from django.conf import settings
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 from django.contrib.auth.models import User
 from core.models import AlertZone, FloodReading, IncidentReport, UserProfile
@@ -112,3 +114,22 @@ def warm_reports_cache(sender, instance, created, **kwargs):
     if created:
         # Invalidate reports counts cache
         cache.delete('reports:stats:recent')
+        # Push newly submitted reports to connected responder dashboards. This
+        # is intentionally best-effort: a temporary channel-layer outage must
+        # never prevent a citizen report from being stored.
+        try:
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    'flood_map_updates',
+                    {
+                        'type': 'flood.update',
+                        'event': 'report_created',
+                        'report_id': instance.id,
+                        'severity': instance.severity,
+                        'status': instance.status,
+                        'timestamp': instance.created_at.isoformat(),
+                    },
+                )
+        except Exception:
+            pass

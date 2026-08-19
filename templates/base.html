@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#F0F7FF">
     <title>FloodGuard - Real-Time Flood Intelligence</title>
     <link rel="preconnect" href="https://unpkg.com">
     <link rel="preconnect" href="https://basemaps.cartocdn.com">
@@ -57,7 +57,7 @@
                     </svg>
                     <span>FloodGuard</span>
                 </a>
-                <ul class="nav-menu">
+                <ul class="nav-menu" id="primary-navigation">
                     <li><a href="{% url 'landing_index' %}">Home</a></li>
                     <li><a href="{% url 'gis_dashboard' %}">GIS Dashboard</a></li>
                     <li><a href="{% url 'safe_route' %}">Safe Route</a></li>
@@ -92,7 +92,7 @@
                             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
                         </svg>
                     </button>
-                    <button class="mobile-menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">
+                    <button class="mobile-menu-toggle" type="button" aria-label="Toggle navigation" aria-controls="primary-navigation" aria-expanded="false">
                         <span></span><span></span><span></span>
                     </button>
                 </div>

@@ -978,12 +978,20 @@ def _safe_route_graphhopper(request):
     
     evaluated_routes = []
     for strategy, path in route_candidates.items():
-        geometry = path.get('geometry', [])
-        if isinstance(geometry, str):
-            # Decode polyline if needed - GraphHopper returns GeoJSON when points_encoded=false
+        geometry = path.get('points', path.get('geometry', []))
+        if isinstance(geometry, dict):
+            geometry = geometry.get('coordinates', [])
+        if not isinstance(geometry, list):
             geometry = []
-        
+        # H3 works with GraphHopper/GeoJSON's [longitude, latitude] order.
         risk_data = get_risk_for_route(geometry) if geometry else {'avg_risk': 0.0, 'max_risk': 0.0, 'cell_count': 0}
+        # Public route responses always use Leaflet's [latitude, longitude]
+        # coordinate order. GraphHopper returns GeoJSON as [longitude, latitude].
+        geometry = [
+            [float(point[1]), float(point[0])]
+            for point in geometry
+            if isinstance(point, (list, tuple)) and len(point) >= 2
+        ]
         
         evaluated_routes.append({
             'id': strategy,
@@ -1471,10 +1479,7 @@ def api_nearby_zones(request):
 @permission_classes([permissions.AllowAny])
 def api_user_zone(request):
     """
-    Dynamic zone lookup/creation based on user GPS coordinates.
-    
-    GET: Returns the zone covering the given coordinates, or a live assessment
-    POST: Creates/updates a zone for the coordinates if user is authenticated
+    Read-only lookup for an authority-managed zone or a transient GPS assessment.
     """
     lat = request.GET.get('lat') or request.data.get('lat')
     lon = request.GET.get('lon') or request.data.get('lon')
@@ -1514,60 +1519,16 @@ def api_user_zone(request):
         'SAFE'
     )
 
-    if request.method == 'GET':
-        return Response({
-            'has_zone': False,
-            'created_zone': False,
-            'live_assessment': True,
-            'zone_name': zone_name,
-            'risk_score': round(risk_score, 3),
-            'risk_threshold': max(0.2, min(0.95, risk_score)),
-            'severity': severity,
-            'source_count': int(features.get('sources_available', 0) or 0),
-            'data_confidence': features.get('data_confidence', 'low'),
-        })
-
-    if not request.user.is_authenticated:
-        return Response({'error': 'Authentication required to create zones'}, status=status.HTTP_401_UNAUTHORIZED)
-
-    zone_polygon = _dynamic_zone_polygon(lat_f, lon_f, accuracy_f)
-    zone, created = AlertZone.objects.get_or_create(
-        name=zone_name,
-        defaults={
-            'polygon': zone_polygon,
-            'risk_threshold': max(0.2, min(0.95, risk_score)),
-            'risk_score': round(risk_score, 3),
-        }
-    )
-    if not created:
-        zone.polygon = zone_polygon
-        zone.risk_score = round(risk_score, 3)
-        zone.risk_threshold = max(0.2, min(0.95, risk_score))
-        zone.save(update_fields=['polygon', 'risk_score', 'risk_threshold', 'updated_at'])
-
-    from core.models import AlertZoneActivity
-    AlertZoneActivity.objects.create(
-        zone=zone,
-        user=request.user,
-        source='dynamic',
-        latitude=lat_f,
-        longitude=lon_f,
-        accuracy_meters=accuracy_f,
-        ip_address=get_client_ip(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')[:255],
-    )
-
     return Response({
-        'has_zone': True,
-        'created_zone': created,
-        'zone_id': zone.id,
-        'zone_name': zone.name,
-        'risk_score': round(float(zone.risk_score or 0), 3),
-        'risk_threshold': round(float(zone.risk_threshold or 0), 3),
+        'has_zone': False,
+        'created_zone': False,
+        'live_assessment': True,
+        'zone_name': zone_name,
+        'risk_score': round(risk_score, 3),
+        'risk_threshold': max(0.2, min(0.95, risk_score)),
         'severity': severity,
         'source_count': int(features.get('sources_available', 0) or 0),
         'data_confidence': features.get('data_confidence', 'low'),
-        'message': f'Live flood assessment for {zone_name}',
     })
 
 
@@ -1712,15 +1673,12 @@ def _zone_summary(zone):
 @throttle_classes([DynamicZoneThrottle])
 def dynamic_zone_check(request):
     """
-    On-demand zone lookup and creation for a client-provided GPS location.
-    GET is non-mutating. POST creates or refreshes a dynamic zone when no mapped
-    zone already covers the submitted coordinate.
+    On-demand, read-only risk assessment for a client-provided GPS location.
+
+    This endpoint must never promote a device/GPS lookup into an AlertZone.
+    Persisted zones are authority-managed operational records; saving a zone for
+    every visitor caused stale, incorrectly mapped areas to remain on the map.
     """
-    if request.method == 'POST' and not request.user.is_authenticated:
-        return Response(
-            {'error': 'Authentication required'},
-            status=401
-        )
     try:
         lat, lon, accuracy = _parse_dynamic_zone_payload(request)
     except ValueError as exc:
@@ -1746,54 +1704,17 @@ def dynamic_zone_check(request):
         'SAFE'
     )
 
-    if request.method == 'GET':
-        return Response({
-            'has_zone': False,
-            'created_zone': False,
-            'live_assessment': True,
-            'zone_name': zone_name,
-            'risk_score': round(risk_score, 3),
-            'risk_threshold': max(0.2, min(0.95, risk_score)),
-            'severity': severity,
-            'source_count': int(features.get('sources_available', 0) or 0),
-            'data_confidence': features.get('data_confidence', 'low'),
-        })
-
-    try:
-        zone_polygon = _dynamic_zone_polygon(lat, lon, accuracy)
-        zone, created = AlertZone.objects.get_or_create(
-            name=zone_name,
-            defaults={
-                'polygon': zone_polygon,
-                'risk_threshold': max(0.2, min(0.95, risk_score)),
-                'risk_score': round(risk_score, 3),
-            },
-        )
-        if created:
-            zone.polygon = zone_polygon
-            zone.risk_threshold = max(0.2, min(0.95, risk_score))
-            zone.risk_score = round(risk_score, 3)
-            zone.save(update_fields=['polygon', 'risk_threshold', 'risk_score'])
-        else:
-            zone.polygon = zone_polygon
-            zone.risk_score = round(risk_score, 3)
-            zone.risk_threshold = max(0.2, min(0.95, risk_score))
-            zone.save(update_fields=['polygon', 'risk_score', 'risk_threshold', 'updated_at'])
-
-        return Response({
-            'has_zone': True,
-            'created_zone': created,
-            'zone_id': zone.id,
-            'zone_name': zone.name,
-            'risk_score': round(float(zone.risk_score or 0), 3),
-            'risk_threshold': round(float(zone.risk_threshold or 0), 3),
-            'severity': severity,
-            'source_count': int(features.get('sources_available', 0) or 0),
-            'data_confidence': features.get('data_confidence', 'low'),
-            'message': f'Live flood assessment for {zone_name}',
-        })
-    except Exception as e:
-        return Response({'has_zone': False, 'error': str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    return Response({
+        'has_zone': False,
+        'created_zone': False,
+        'live_assessment': True,
+        'zone_name': zone_name,
+        'risk_score': round(risk_score, 3),
+        'risk_threshold': max(0.2, min(0.95, risk_score)),
+        'severity': severity,
+        'source_count': int(features.get('sources_available', 0) or 0),
+        'data_confidence': features.get('data_confidence', 'low'),
+    })
 
 
 @api_view(['GET'])

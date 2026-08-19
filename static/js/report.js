@@ -67,26 +67,31 @@ function initReportForm() {
         submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
 
         const formData = new FormData(this);
-        const loc = FloodLocation.current;
-        if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon)) {
-            formData.set('latitude', loc.lat);
-            formData.set('longitude', loc.lon);
-        } else {
-            formData.set('latitude', -1.2921);
-            formData.set('longitude', 36.8219);
+        const rawLatitude = String(formData.get('latitude') || '').trim();
+        const rawLongitude = String(formData.get('longitude') || '').trim();
+        const latitude = Number(rawLatitude);
+        const longitude = Number(rawLongitude);
+        if (!rawLatitude || !rawLongitude || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            showFormErrors({ location: 'Use GPS or enter a valid latitude and longitude before submitting.' });
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Report';
+            return;
         }
 
         try {
-            const res = await fetch('/api/v1/reports/submit/', {
+            const res = await fetch('/api/v1/reports/', {
                 method: 'POST',
-                headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: formData
             });
-            const data = await res.json();
-            if (res.ok && data.success) {
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.id) {
                 showSuccessState();
             } else {
-                showFormErrors({ non_field_errors: [data.error || 'Submission failed'] });
+                showFormErrors(data.detail ? { detail: data.detail } : (data || { non_field_errors: ['Submission failed'] }));
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Submit Report';
             }

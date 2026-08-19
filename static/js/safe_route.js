@@ -14,6 +14,12 @@ function formatCoord(coord) {
     return `${coord.lat.toFixed(6)}, ${coord.lng.toFixed(6)}`;
 }
 
+function parseCoordinateInput(value) {
+    const [lat, lng] = String(value || '').split(',').map(Number);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+}
+
 function setRouteStatus(message, tone = 'info') {
     const status = document.getElementById('route-status');
     if (!status) return;
@@ -103,9 +109,7 @@ function renderRoutes(routes) {
         `).addTo(routeState.map);
         routeState.routeLayers.push(layer);
         geometry.forEach(point => {
-            if (Array.isArray(point) && point.length >= 2) {
-                bounds.push([point[1], point[0]]);
-            }
+            if (Array.isArray(point) && point.length >= 2) bounds.push(point);
         });
     });
 
@@ -147,6 +151,10 @@ function renderRouteCards(routes, engine) {
 }
 
 async function calculateSafeRoute() {
+    ['origin', 'destination'].forEach(type => {
+        const entered = parseCoordinateInput(document.getElementById(`${type}-input`)?.value);
+        if (entered) routeState[type] = entered;
+    });
     if (!routeState.origin || !routeState.destination) {
         setRouteStatus('Set both origin and destination first.', 'warning');
         return;
@@ -175,26 +183,9 @@ async function calculateSafeRoute() {
         console.warn('GraphHopper route failed, falling back to prototype:', error);
     }
     
-    // Fallback to prototype POST endpoint
-    try {
-        const data = await fetchJSON('/api/v1/safe-route/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            },
-            body: JSON.stringify({
-                origin: routeState.origin,
-                destination: routeState.destination,
-                profile: routeState.profile,
-            })
-        });
-        renderRoutes(data.routes || []);
-        renderRouteCards(data.routes || [], data.engine || {});
-        setRouteStatus('Route options ready (prototype mode).', 'success');
-    } catch (error) {
-        setRouteStatus('Safe-route service failed. Check coordinates and try again.', 'error');
-    }
+    clearRoutes();
+    renderRouteCards([], {});
+    setRouteStatus('Road-network routing is temporarily unavailable. Check the GraphHopper service configuration and try again.', 'error');
 }
 
 function initModeSelector() {

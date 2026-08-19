@@ -95,7 +95,7 @@ class TestDynamicZoneAPI:
     def setup_method(self):
         self.client = APIClient()
 
-    def test_dynamic_zone_post_creates_zone_from_current_location(self, mocker):
+    def test_dynamic_zone_post_is_read_only_and_does_not_persist_gps_lookup(self, mocker):
         user = UserFactory()
         self.client.force_authenticate(user=user)
         geo_payload = SimpleNamespace(
@@ -116,10 +116,11 @@ class TestDynamicZoneAPI:
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data['has_zone'] is True
-        assert response.data['created_zone'] is True
+        assert response.data['has_zone'] is False
+        assert response.data['created_zone'] is False
+        assert response.data['live_assessment'] is True
         assert response.data['zone_name'] == 'Dynamic Zone - Westlands'
-        assert AlertZone.objects.count() == 1
+        assert AlertZone.objects.count() == 0
 
     def test_dynamic_zone_get_is_read_only_live_assessment(self, mocker):
         mocker.patch('requests.get', side_effect=Exception('reverse geocoder unavailable'))

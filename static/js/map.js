@@ -409,15 +409,9 @@ function locateUser(map) {
 
 async function fetchLiveZoneForLocation(lat, lon, map, accuracy = null) {
     try {
-        const payload = { lat, lon, accuracy };
-        const res = await fetch('/api/v1/dynamic-zone/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': typeof getCookie === 'function' ? getCookie('csrftoken') : ''
-            },
-            body: JSON.stringify(payload)
-        });
+        const params = new URLSearchParams({ lat, lon });
+        if (Number.isFinite(accuracy)) params.set('accuracy', accuracy);
+        const res = await fetch(`/api/v1/dynamic-zone/?${params.toString()}`);
         if (!res.ok) return;
         const data = await res.json();
 
@@ -442,7 +436,7 @@ async function fetchLiveZoneForLocation(lat, lon, map, accuracy = null) {
                         <div style="margin:6px 0">
                             <span style="font-size:12px;color:${colour};font-weight:700">${band.label} - ${(score * 100).toFixed(0)}%</span>
                         </div>
-                        <small style="color:#666">${data.created_zone ? 'Live zone created from your GPS area.' : 'You are inside a mapped flood zone.'}</small>
+                        <small style="color:#4A6B8A">You are inside a mapped flood zone.</small>
                     </div>
                 `)
                 .openOn(map);

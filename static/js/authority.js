@@ -76,6 +76,11 @@ function connectFloodMapSocket() {
     const socket = new WebSocket(`${protocol}//${window.location.host}/ws/flood-map/`);
     socket.onmessage = event => {
         const data = JSON.parse(event.data);
+        if (data.event === 'report_created') {
+            renderPendingReports();
+            refreshPendingCount();
+            return;
+        }
         const zoneId = data.zone_id || data.id;
         const score = Number(data.risk_score);
         if (!zoneId || Number.isNaN(score)) return;

@@ -91,14 +91,14 @@
   <div id="gis-map" class="gis-map"></div>
 
   <div class="gis-panel-toggle" id="gis-panel-toggle">
-    <button class="btn btn-secondary" aria-label="Toggle panel">☰</button>
+    <button class="btn btn-secondary" aria-label="Open Flood Intelligence panel" aria-controls="gis-panel" aria-expanded="false"><span aria-hidden="true">☰</span><span class="visually-hidden">Open panel</span></button>
   </div>
 
   <div id="gis-panel" class="gis-left-panel">
     <header class="gis-panel-header">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
         <h2 style="margin: 0;">Flood Intelligence</h2>
-        <button id="gis-panel-close" class="btn btn-sm btn-secondary" aria-label="Collapse panel" style="display: none;">✕</button>
+        <button id="gis-panel-close" class="btn btn-sm btn-secondary" aria-label="Collapse panel" style="display: none;">&times;</button>
       </div>
       <div class="gis-panel-search">
         <input id="gis-search-input" placeholder="Search city, place, or coordinates (lat,lon)..." />

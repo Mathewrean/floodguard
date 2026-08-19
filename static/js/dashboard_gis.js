@@ -301,6 +301,8 @@ function bindGisControls() {
     if (closeBtn) closeBtn.addEventListener('click', () => {
         const panel = document.getElementById('gis-panel');
         if (panel) panel.classList.add('collapsed');
+        const toggle = document.querySelector('#gis-panel-toggle button');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
     });
 
     gisMap.on('click', (e) => {
@@ -333,7 +335,10 @@ function bindGisControls() {
 
 function togglePanel() {
     const panel = document.getElementById('gis-panel');
-    if (panel) panel.classList.toggle('collapsed');
+    if (!panel) return;
+    const isCollapsed = panel.classList.toggle('collapsed');
+    const toggle = document.querySelector('#gis-panel-toggle button');
+    if (toggle) toggle.setAttribute('aria-expanded', String(!isCollapsed));
 }
 
 async function doLocationSearch() {
