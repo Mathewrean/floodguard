@@ -100,6 +100,74 @@ def fetch_flood_api(zone_id):
 
 
 @shared_task
+def notify_responders_of_report(report_id):
+    """
+    Notify emergency responders about a new incident report.
+    Adds the report to the emergency responder alert list and sends notifications.
+    """
+    try:
+        report = IncidentReport.objects.select_related('submitted_by').get(id=report_id)
+    except IncidentReport.DoesNotExist:
+        logger.error(f"IncidentReport with id {report_id} does not exist.")
+        return
+
+    severity_name = dict(IncidentReport.SEVERITY_CHOICES).get(report.severity, 'Unknown')
+    logger.info(f"Notifying responders for report #{report.id} with severity {severity_name}")
+
+    channel_layer = get_channel_layer()
+    location = report.location
+    lat = location.y if location else None
+    lon = location.x if location else None
+
+    async_to_sync(channel_layer.group_send)(
+        'incident_reports',
+        {
+            'type': 'incident.report.created',
+            'report_id': report.id,
+            'severity': report.severity,
+            'severity_label': severity_name,
+            'location': {'lat': lat, 'lon': lon} if lat and lon else None,
+            'status': report.status,
+            'created_at': report.created_at.isoformat(),
+        }
+    )
+
+    authority_users = User.objects.filter(
+        groups__name='EmergencyTeam',
+        is_active=True
+    ).prefetch_related('profile').distinct()
+
+    notified = 0
+    for user in authority_users:
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            continue
+
+        if not profile.phone_number or not profile.sms_enabled:
+            continue
+
+        redis_key = f"report_alert:{report.id}:{user.id}"
+        client = get_redis_client()
+        if client and client.exists(redis_key):
+            continue
+
+        message = (
+            f"INCIDENT REPORT #{report.id} - Severity: {severity_name} - "
+            f"Location: {lat},{lon}. "
+            f"Respond via FloodGuard dashboard."
+        )
+
+        delivery_success, provider_message_id = _send_sms_alert(user, None, message, redis_key)
+        if not delivery_success and user.email:
+            _send_email_alert_fallback(user, None, message, severity_name)
+        notified += 1
+
+    logger.info(f"Notified {notified} responders for report #{report.id}")
+    return {'notified': notified}
+
+
+@shared_task
 def fetch_all_zones():
     """
     Fetch flood data for all active zones globally.
@@ -333,14 +401,16 @@ def _send_sms_alert(user, zone, message, redis_key):
             result = response.json()
             provider_message_id = result.get('SMSMessageData', {}).get('Recipients', [{}])[0].get('messageId', '')
         except Exception:
-            provider_message_id = f"msg_{zone.id}_{user.id}_{int(timezone.now().timestamp())}"
+            zone_ref = f"report_{zone.id}" if zone else f"report_alert"
+            provider_message_id = f"msg_{zone_ref}_{user.id}_{int(timezone.now().timestamp())}"
         
         # Set Redis deduplication key (3 hours)
         client = get_redis_client()
         if client:
             client.setex(redis_key, 3 * 60 * 60, 1)
         
-        logger.info(f"SMS sent to {profile.phone_number} for zone {zone.name}")
+        zone_name = zone.name if zone else 'incident report'
+        logger.info(f"SMS sent to {profile.phone_number} for zone {zone_name}")
         return True, provider_message_id
         
     except Exception as e:
@@ -350,20 +420,21 @@ def _send_sms_alert(user, zone, message, redis_key):
 
 def _send_email_alert_fallback(user, zone, message, severity_label):
     """Send email alert as fallback when SMS fails or not available."""
+    zone_name = zone.name if zone else 'Incident Report'
     try:
         success = send_email_alert(
             recipient_email=user.email,
-            subject=f"{severity_label} FLOOD ALERT - {zone.name}",
+            subject=f"{severity_label} FLOOD ALERT - {zone_name}",
             template='emails/flood_alert.html',
             context={
-                'zone_name': zone.name,
+                'zone_name': zone_name,
                 'message': message,
                 'severity': severity_label,
                 'risk_score': None,  # Will be retrieved from zone if needed
             }
         )
         if success:
-            logger.info(f"Email alert sent to {user.email} for zone {zone.name}")
+            logger.info(f"Email alert sent to {user.email} for zone {zone_name}")
         return success
     except Exception as e:
         logger.error(f"Failed to send email to {user.username}: {str(e)}")

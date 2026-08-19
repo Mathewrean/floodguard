@@ -49,8 +49,8 @@ class MonitoringRateThrottle(UserRateThrottle):
 
 
 class ReportSubmissionThrottle(AnonRateThrottle):
-    """Strict public throttle for citizen report submission spam prevention."""
-    rate = '10/hour'
+    """Throttle for citizen report submission with a reasonable limit."""
+    rate = '60/hour'
 
 
 class DynamicZoneThrottle(AnonRateThrottle):
@@ -350,7 +350,11 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user if self.request.user.is_authenticated else None
-        serializer.save(submitted_by=user)
+        report = serializer.save(submitted_by=user)
+
+        if report.severity >= 3:
+            from core.tasks import notify_responders_of_report
+            notify_responders_of_report.delay(report.id)
 
     @action(detail=True, methods=['patch'])
     def verify(self, request, pk=None):
@@ -366,6 +370,47 @@ class IncidentReportViewSet(viewsets.ModelViewSet):
         report.reviewed_by = request.user
         report.save()
         return Response({'status': report.status})
+
+    @action(detail=False, methods=['get'])
+    def responder_alerts(self, request):
+        """
+        List of incident reports relevant to emergency responders.
+        Includes pending/verified reports with severity >= 3, ordered by recency.
+        """
+        if not is_authority_user(request.user):
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        statuses = request.query_params.getlist('status') or ['pending', 'verified', 'acknowledged']
+        reports = IncidentReport.objects.filter(
+            severity__gte=3,
+            status__in=statuses
+        ).select_related('submitted_by').order_by('-created_at')[:100]
+
+        data = []
+        for report in reports:
+            lat = report.location.y if report.location else None
+            lon = report.location.x if report.location else None
+            severity_label = dict(IncidentReport.SEVERITY_CHOICES).get(report.severity, 'Unknown')
+            risk_level = (
+                'CRITICAL' if report.severity >= 4 else
+                'HIGH' if report.severity == 3 else
+                'MODERATE'
+            )
+            data.append({
+                'id': report.id,
+                'severity': report.severity,
+                'severity_label': severity_label,
+                'risk_level': risk_level,
+                'description': report.description,
+                'status': report.status,
+                'location': {'lat': lat, 'lon': lon} if lat and lon else None,
+                'submitted_by': report.submitted_by.username if report.submitted_by else None,
+                'created_at': report.created_at.isoformat(),
+                'acknowledged_by': report.acknowledged_by.username if report.acknowledged_by else None,
+                'acknowledged_at': report.acknowledged_at.isoformat() if report.acknowledged_at else None,
+            })
+
+        return Response(data)
 
 
 class AlertLogViewSet(viewsets.ReadOnlyModelViewSet):
