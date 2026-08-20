@@ -2,18 +2,30 @@
 // Implements modern GIS flood intelligence with location search and safe route integration
 
 const RISK_COLORS = {
-    high: { color: '#DC2626', opacity: 0.45 },
-    medium: { color: '#D97706', opacity: 0.35 },
-    low: { color: '#16A34A', opacity: 0.25 },
-    safe: { color: '#059669', opacity: 0.25 },
+    SAFE: { color: '#059669', opacity: 0.25 },
+    LOW: { color: '#16A34A', opacity: 0.25 },
+    MODERATE: { color: '#D97706', opacity: 0.35 },
+    HIGH: { color: '#EA580C', opacity: 0.45 },
+    CRITICAL: { color: '#DC2626', opacity: 0.50 },
+    EXTREME: { color: '#7F1D1D', opacity: 0.60 },
 };
 
 const RISKS = [
-    { threshold: 0.85, label: 'HIGH', level: 'high', color: '#DC2626' },
-    { threshold: 0.70, label: 'MEDIUM', level: 'medium', color: '#D97706' },
-    { threshold: 0.40, label: 'LOW', level: 'low', color: '#16A34A' },
-    { threshold: 0.0, label: 'SAFE', level: 'safe', color: '#059669' },
+    { threshold: 0.85, label: 'CRITICAL', level: 'CRITICAL', color: '#DC2626' },
+    { threshold: 0.70, label: 'HIGH', level: 'HIGH', color: '#EA580C' },
+    { threshold: 0.40, label: 'MODERATE', level: 'MODERATE', color: '#D97706' },
+    { threshold: 0.20, label: 'LOW', level: 'LOW', color: '#16A34A' },
+    { threshold: 0.0, label: 'SAFE', level: 'SAFE', color: '#059669' },
 ];
+
+const FORECAST_RISK_COLORS = {
+    SAFE: { color: '#059669', opacity: 0.40, dash: true },
+    LOW: { color: '#16A34A', opacity: 0.40, dash: true },
+    MODERATE: { color: '#D97706', opacity: 0.40, dash: true },
+    HIGH: { color: '#EA580C', opacity: 0.40, dash: true },
+    CRITICAL: { color: '#DC2626', opacity: 0.40, dash: true },
+    EXTREME: { color: '#7F1D1D', opacity: 0.40, dash: true },
+};
 
 function getRiskInfo(score) {
     const num = Number(score) || 0;
@@ -21,6 +33,15 @@ function getRiskInfo(score) {
         if (num >= risk.threshold) return risk;
     }
     return RISKS[RISKS.length - 1];
+}
+
+function getRiskBand(score) {
+    const num = Number(score) || 0;
+    if (num >= 0.85) return { colour: '#DC2626', label: 'CRITICAL' };
+    if (num >= 0.70) return { colour: '#EA580C', label: 'HIGH' };
+    if (num >= 0.40) return { colour: '#D97706', label: 'MODERATE' };
+    if (num >= 0.20) return { colour: '#16A34A', label: 'LOW' };
+    return { colour: '#059669', label: 'SAFE' };
 }
 
 let gisMap = null;
@@ -72,6 +93,9 @@ async function initGisDashboard() {
     // Bind UI events
     bindGisControls();
 
+    // Render risk legend
+    renderRiskLegend();
+
     // Load zones, readings, and the actual H3 risk cells for the initial viewport.
     await Promise.all([loadZones(), loadReadings()]);
     await loadH3Cells();
@@ -81,28 +105,71 @@ async function initGisDashboard() {
     connectFloodMapSocket();
 }
 
+function renderRiskLegend() {
+    const legendEl = document.querySelector('.gis-risk-legend');
+    if (!legendEl) return;
+    
+    const levels = ['CRITICAL', 'HIGH', 'MODERATE', 'LOW', 'SAFE', 'EXTREME'];
+    const ranges = {
+        CRITICAL: '≥ 0.85',
+        HIGH: '≥ 0.70',
+        MODERATE: '≥ 0.40',
+        LOW: '≥ 0.20',
+        SAFE: '< 0.20',
+        EXTREME: '≥ 0.95',
+    };
+    
+    legendEl.innerHTML = levels.map(level => {
+        const band = RISK_COLORS[level] || { color: '#888888', opacity: 0.25 };
+        return `
+            <div class="legend-item" style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${band.color};opacity:${band.opacity};border:1px solid ${band.color}"></span>
+                <span style="font-size:12px;font-weight:600">${level}</span>
+                <span style="font-size:11px;color:#666">${ranges[level]}</span>
+            </div>
+        `;
+    }).join('');
+}
+
 async function loadH3Cells() {
     if (!gisMap) return;
     const bounds = gisMap.getBounds();
     if (!bounds.isValid()) return;
+    const isForecast = document.getElementById('gis-forecast-toggle')?.checked || false;
     const query = new URLSearchParams({
         min_lat: bounds.getSouth().toFixed(6), min_lon: bounds.getWest().toFixed(6),
         max_lat: bounds.getNorth().toFixed(6), max_lon: bounds.getEast().toFixed(6),
-        // Resolution 7 is suitable for city-scale display; use coarser cells at world scale.
         resolution: gisMap.getZoom() < 6 ? '4' : gisMap.getZoom() < 10 ? '6' : '7',
     });
+    if (isForecast) {
+        query.set('forecast', 'true');
+        query.set('forecast_hours', '24');
+    }
     try {
         const data = await fetchJSON(`/api/v1/h3-cells/?${query}`);
         if (h3GridLayer) h3GridLayer.remove();
         h3GridLayer = L.layerGroup().addTo(gisMap);
         (data.cells || []).forEach(cell => {
             const score = Number(cell.properties?.risk_score || 0);
-            // Omit zero-risk cells to preserve a useful, responsive map.
-            if (score <= 0) return;
-            const band = getRiskBand(score);
+            const isForecastCell = cell.properties?.forecast_horizon_hours !== undefined;
+            
+            // Use appropriate colors based on forecast/live mode
+            const band = isForecastCell ? FORECAST_RISK_COLORS[cell.properties.risk_level] : RISK_COLORS[cell.properties.risk_level];
+            const opacity = isForecastCell ? 0.40 : (band?.opacity || 0.25);
+            
+            // Always include SAFE and zero-risk cells
+            const color = band?.color || '#888888';
+            
             const layer = L.geoJSON(cell, {
-                style: { color: band.colour, fillColor: band.colour, weight: 1, fillOpacity: 0.20 },
-            }).bindPopup(`<strong>H3 risk cell</strong><br>Risk: ${(score * 100).toFixed(0)}%<br><small>${escapeHTML(cell.properties.h3_index)}</small>`);
+                style: { 
+                    color: color, 
+                    fillColor: color, 
+                    weight: isForecastCell ? 2 : 1, 
+                    opacity: isForecastCell ? 1 : 0.6,
+                    fillOpacity: opacity,
+                    dashArray: isForecastCell ? '5,5' : undefined,
+                }
+            }).bindPopup(`<strong>H3 risk cell</strong><br>Risk: ${(score * 100).toFixed(0)}%<br>Risk Level: ${cell.properties.risk_level}<br><small>${escapeHTML(cell.properties.h3_index)}</small>`);
             layer.options.cellData = cell.properties;
             layer.addTo(h3GridLayer);
         });
@@ -338,6 +405,12 @@ function bindGisControls() {
             layerVisibility.flood ? gisMap.addLayer(h3GridLayer) : gisMap.removeLayer(h3GridLayer);
         }
     });
+    const forecastToggle = document.getElementById('gis-forecast-toggle');
+    if (forecastToggle) {
+        forecastToggle.addEventListener('change', () => {
+            loadH3Cells();
+        });
+    }
     if (satelliteToggle) satelliteToggle.addEventListener('change', e => {
         layerVisibility.satellite = e.target.checked;
     });

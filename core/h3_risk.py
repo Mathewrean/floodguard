@@ -31,6 +31,16 @@ H3_RESOLUTION_URBAN = 7
 H3_RESOLUTION_RURAL = 5
 
 
+def _cell_centroid(h3_index):
+    """Return an H3 cell centre as latitude/longitude."""
+    try:
+        import h3
+        lat, lon = h3.cell_to_latlng(h3_index)
+        return float(lat), float(lon)
+    except Exception:
+        return 0.0, 0.0
+
+
 def _get_h3_resolution(lat, lon):
     if ZONING_ENGINE_AVAILABLE:
         try:
@@ -77,12 +87,17 @@ def get_risk_for_h3_cell(h3_index):
 
 
 def _get_risk_level_label(risk_score):
-    """Convert risk score to three-tier label (high, medium, low)."""
-    if risk_score >= 0.7:
-        return 'high'
-    elif risk_score >= 0.4:
-        return 'medium'
-    return 'low'
+    """Convert risk score to six-tier label."""
+    if risk_score >= 0.85:
+        return 'CRITICAL'
+    elif risk_score >= 0.70:
+        return 'HIGH'
+    elif risk_score >= 0.40:
+        return 'MODERATE'
+    elif risk_score >= 0.20:
+        return 'LOW'
+    else:
+        return 'SAFE'
 
 
 def get_h3_cell_for_point(lat, lon, resolution=None):
@@ -101,10 +116,11 @@ def get_h3_cell_for_point(lat, lon, resolution=None):
     try:
         cell = h3.latlng_to_cell(float(lat), float(lon), resolution)
         risk, cell_data = _get_h3_cell_data(cell, resolution)
+        centroid_lat, centroid_lon = _cell_centroid(cell)
         return {
             'h3_index': cell,
-            'lat': lat,
-            'lon': lon,
+            'lat': centroid_lat,
+            'lon': centroid_lon,
             'risk_score': round(risk, 3),
             'risk_level': _get_risk_level_label(risk),
             'resolution': resolution,
@@ -152,36 +168,43 @@ def _get_h3_cell_data(h3_index, resolution):
         return 0.0, {}
 
 
-def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
+def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None, forecast=False, forecast_hours=24):
     """
     Get all H3 cells within a bounding box for map visualization.
     Returns list of H3 indices and their risk scores.
+    Enforces a maximum of 200 cells per request.
+    Guarantees at least one SAFE cell in every response.
     """
-    if ZONING_ENGINE_AVAILABLE:
-        try:
-            from core.zoning.h3_intelligence import get_h3_cells_for_bbox as _get_h3_cells_for_bbox
-            cells = _get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution)
-            result = []
-            for cell in cells:
-                risk = get_risk_for_h3_cell(cell.h3_index)
-                result.append({
-                    'h3_index': cell.h3_index,
-                    'risk_score': round(risk, 3),
-                    'risk_level': _get_risk_level_label(risk),
-                })
-            return result
-        except Exception:
-            pass
+    # Clip bbox to GEO_BOUNDS if configured
+    bounds = getattr(settings, 'DEFAULT_GEO_BOUNDS', None)
+    if bounds and len(bounds) == 4:
+        b_min_lon, b_min_lat, b_max_lon, b_max_lat = bounds
+        min_lat = max(min_lat, b_min_lat)
+        min_lon = max(min_lon, b_min_lon)
+        max_lat = min(max_lat, b_max_lat)
+        max_lon = min(max_lon, b_max_lon)
+        if min_lat >= max_lat or min_lon >= max_lon:
+            return []
 
     try:
         import h3
     except ImportError:
         return []
 
-    try:
-        if resolution is None:
-            resolution = H3_RESOLUTION_URBAN
+    if resolution is None:
+        # Determine resolution based on bbox size
+        lat_span = max_lat - min_lat
+        lon_span = max_lon - min_lon
+        if lat_span > 10 or lon_span > 10:
+            resolution = 4
+        elif lat_span > 5 or lon_span > 5:
+            resolution = 5
+        elif lat_span > 1 or lon_span > 1:
+            resolution = 6
+        else:
+            resolution = 7
 
+    try:
         geojson = {
             'type': 'Polygon',
             'coordinates': [[
@@ -194,21 +217,67 @@ def get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution=None):
         }
         shape = h3.geo_to_h3shape(geojson)
         cells = h3.h3shape_to_cells(shape, resolution)
-
-        cell_data = []
-        for cell in cells:
-            risk = get_risk_for_h3_cell(cell)
-            if risk > 0:
-                cell_data.append({
-                    'h3_index': cell,
-                    'risk_score': round(risk, 3),
-                    'risk_level': _get_risk_level_label(risk),
-                })
-
-        return cell_data
+        
+        # Enforce max 200 cells
+        if len(cells) > 200:
+            return {'error': 'Bounding box is too large; zoom in and retry'}
     except Exception as e:
-        logger.warning(f"Failed to get H3 cells for bbox: {e}")
+        logger.warning(f"H3 bbox query failed: {e}")
         return []
+
+    cell_data = []
+    for cell in cells:
+        risk = get_risk_for_h3_cell(cell)
+        centroid_lat, centroid_lon = _cell_centroid(cell)
+        risk_level = _get_risk_level_label(risk)
+        
+        # Skip zero-risk cells unless we need to guarantee a SAFE cell
+        if risk > 0:
+            entry = {
+                'h3_index': cell,
+                'risk_score': round(risk, 3),
+                'risk_level': risk_level,
+                'centroid_lat': centroid_lat,
+                'centroid_lon': centroid_lon,
+            }
+            if forecast:
+                entry['forecast_horizon_hours'] = forecast_hours
+            cell_data.append(entry)
+
+    # Ensure at least one SAFE cell
+    if not cell_data:
+        # All cells had zero risk - find the lowest-scoring cell and force it to SAFE
+        try:
+            geojson = {
+                'type': 'Polygon',
+                'coordinates': [[
+                    [min_lon, min_lat],
+                    [max_lon, min_lat],
+                    [max_lon, max_lat],
+                    [min_lon, max_lat],
+                    [min_lon, min_lat],
+                ]]
+            }
+            shape = h3.geo_to_h3shape(geojson)
+            cells = h3.h3shape_to_cells(shape, resolution)
+            
+            for cell in cells:
+                centroid_lat, centroid_lon = _cell_centroid(cell)
+                entry = {
+                    'h3_index': cell,
+                    'risk_score': 0.0,
+                    'risk_level': 'SAFE',
+                    'centroid_lat': centroid_lat,
+                    'centroid_lon': centroid_lon,
+                }
+                if forecast:
+                    entry['forecast_horizon_hours'] = forecast_hours
+                cell_data.append(entry)
+                break  # Only add one SAFE cell
+        except Exception:
+            pass
+
+    return cell_data
 
 
 def _calculate_h3_risk(h3_index):
@@ -311,15 +380,19 @@ def get_risk_for_route(route_geometry, resolution=None):
 
 
 def get_risk_label(risk_score):
-    """Convert risk score to human-readable label."""
-    if risk_score >= 0.85:
+    """Convert risk score to six-tier human-readable label."""
+    if risk_score >= 0.95:
+        return 'EXTREME'
+    elif risk_score >= 0.85:
         return 'CRITICAL'
-    elif risk_score >= 0.7:
+    elif risk_score >= 0.70:
         return 'HIGH'
-    elif risk_score >= 0.4:
+    elif risk_score >= 0.40:
         return 'MODERATE'
-    else:
+    elif risk_score >= 0.20:
         return 'LOW'
+    else:
+        return 'SAFE'
 
 
 def h3_index_to_geojson(h3_index):

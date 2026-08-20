@@ -185,19 +185,40 @@ class IncidentReport(models.Model):
         Calculate a cluster ID based on geographic proximity.
         Reports within the specified radius (default 100m) will share the same cluster ID.
         """
-        from django.contrib.gis.db.models import Union
         from django.contrib.gis.geos import Point
         from django.contrib.gis.measure import Distance
+        import math
         
-        # Find existing reports within radius
-        nearby_reports = IncidentReport.objects.filter(
-            location__distance_lte=(self.location, Distance(m=radius_meters))
-        ).exclude(id=self.id if self.id else None)
+        # Get the location coordinates
+        if self.location:
+            lat1, lon1 = self.location.y, self.location.x
+        else:
+            lat1, lon1 = 0, 0
+        
+        # Find existing reports (using basic filter, then Python-side distance check)
+        exclude_id = self.id if self.id else None
+        if exclude_id:
+            all_reports = IncidentReport.objects.exclude(id=exclude_id)
+        else:
+            all_reports = IncidentReport.objects.all()
+        
+        nearby_reports = []
+        for report in all_reports.iterator():
+            if report.location:
+                lat2, lon2 = report.location.y, report.location.x
+                # Calculate Haversine distance
+                dlat = math.radians(lat2 - lat1)
+                dlon = math.radians(lon2 - lon1)
+                a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+                c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+                distance_m = 6371000 * c  # Earth radius in meters
+                if distance_m <= radius_meters:
+                    nearby_reports.append(report)
         
         # If there are nearby reports, use the earliest one's cluster ID or create a new one
-        if nearby_reports.exists():
+        if nearby_reports:
             # Get the earliest report's cluster ID, or generate one if it doesn't have one
-            earliest_report = nearby_reports.order_by('created_at').first()
+            earliest_report = min(nearby_reports, key=lambda r: r.created_at)
             if earliest_report.cluster_id:
                 return earliest_report.cluster_id
             else:
@@ -205,7 +226,7 @@ class IncidentReport(models.Model):
                 return f"cluster_{earliest_report.id}_{int(earliest_report.created_at.timestamp())}"
         else:
             # No nearby reports, create a new cluster ID based on this report's location and time
-            return f"cluster_{int(timezone.now().timestamp())}_{hash((self.location.x, self.location.y)) % 10000}"
+            return f"cluster_{int(timezone.now().timestamp())}_{hash((lat1, lon1)) % 10000}"
     
     @classmethod
     def cluster_recent_reports(cls, hours=24, radius_meters=100):
@@ -308,6 +329,8 @@ class UserProfile(models.Model):
         default='citizen',
         help_text="User role in the system"
     )
+    location = models.PointField(srid=4326, null=True, blank=True, help_text="Last known location for geo-fenced alerts")
+    location_updated_at = models.DateTimeField(null=True, blank=True, help_text="When location was last updated")
     phone_number = models.CharField(
         max_length=15,
         blank=True,

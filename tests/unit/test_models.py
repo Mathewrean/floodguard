@@ -58,5 +58,6 @@ class TestUserProfile:
     def test_deleting_user_cascades_profile(self):
         user = UserFactory()
         profile = UserProfile.objects.get(user=user)
+        user_id = user.id
         user.delete()
-        assert not UserProfile.objects.filter(user=user).exists()
+        assert not UserProfile.objects.filter(user_id=user_id).exists()

@@ -689,12 +689,16 @@ Based on these multi-source weather, hydrology, and satellite intelligence input
 
 @require_http_methods(["GET"])
 def health_view(request):
-    redis_status = 'unknown'
+    from django.db import connection
+    from django.db.utils import OperationalError
+    
+    db_status = 'ok'
     try:
-        import django
-        django.setup()
-    except Exception:
-        pass
+        connection.cursor().execute('SELECT 1')
+    except OperationalError:
+        db_status = 'down'
+
+    redis_status = 'unknown'
     try:
         from core.tasks import get_redis_client
         client = get_redis_client()
@@ -705,10 +709,32 @@ def health_view(request):
     except Exception:
         redis_status = 'down'
 
+    celery_status = 'unknown'
+    try:
+        from celery import current_app
+        from datetime import datetime, timedelta
+        from django.core.cache import cache
+        
+        heartbeat_key = 'celery_heartbeat_test'
+        heartbeat_val = f'ping_{datetime.now().isoformat()}'
+        cache.set(heartbeat_key, heartbeat_val, 5)
+        retrieved = cache.get(heartbeat_key)
+        cache.delete(heartbeat_key)
+        
+        if retrieved == heartbeat_val:
+            celery_status = 'ok'
+        else:
+            celery_status = 'slow'
+    except Exception:
+        celery_status = 'down'
+
+    overall = 'ok' if db_status == 'ok' and redis_status in ('ok', 'down') else 'degraded'
+    
     return JsonResponse({
-        'status': 'ok',
-        'celery_status': 'unknown',
-        'redis_status': redis_status,
+        'status': overall,
+        'database': db_status,
+        'redis': redis_status,
+        'celery': celery_status,
         'last_poll_time': timezone.now().isoformat(),
     })
 
@@ -1055,11 +1081,16 @@ def _safe_route_graphhopper(request):
             'profile': strategy,
             'label': 'Road-network route',
             'distance_km': round(path.get('distance', 0) / 1000, 1),
+            'duration_min': round(path.get('time', 0) / 60000, 1),
             'duration_minutes': round(path.get('time', 0) / 60000, 1),
             'flood_risk': risk_data.get('avg_risk', 0.0),
             'max_flood_risk': risk_data.get('max_risk', 0.0),
             'risk_label': get_risk_label(risk_data.get('avg_risk', 0.0)),
             'geometry': geometry,
+            'geojson_geometry': {
+                'type': 'LineString',
+                'coordinates': geometry,
+            },
             'instructions': path.get('instructions', []),
             'engine': 'GraphHopper + H3 Flood Overlay',
         })
@@ -1162,7 +1193,7 @@ def login_view(request):
             if has_admin_role(user):
                 return redirect('admin_dashboard')
             elif user.groups.filter(name='EmergencyTeam').exists():
-                return redirect('authority_dashboard')
+                return redirect('authority_redirect')
             else:
                 return redirect('citizen_dashboard')
         else:
@@ -1233,9 +1264,11 @@ def dashboard_redirect(request):
         return redirect('login')
     
     if has_admin_role(request.user):
-        return redirect('admin_dashboard')
+        return redirect('admin_dashboard_redirect')
     elif request.user.groups.filter(name='EmergencyTeam').exists():
-        return redirect('authority_dashboard')
+        return redirect('authority_redirect')
+    elif has_admin_role(request.user):
+        return redirect('admin_dashboard')
     else:
         return redirect('citizen_dashboard')
 
@@ -1781,12 +1814,18 @@ def api_h3_cells(request):
     """
     Get H3 grid cells for map visualization within a bounding box.
     Returns cells with risk scores for dynamic flood zone rendering.
+    Accepts forecast=true and forecast_hours (6, 12, 24) parameters.
     """
     min_lat = request.GET.get('min_lat')
     min_lon = request.GET.get('min_lon')
     max_lat = request.GET.get('max_lat')
     max_lon = request.GET.get('max_lon')
     resolution = request.GET.get('resolution', 7)
+
+    forecast = request.GET.get('forecast', 'false').lower() == 'true'
+    forecast_hours = int(request.GET.get('forecast_hours', 24))
+    if forecast_hours not in [6, 12, 24]:
+        return Response({'error': 'forecast_hours must be 6, 12, or 24'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not all([min_lat, min_lon, max_lat, max_lon]):
         return Response({'error': 'Bounding box parameters required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1804,13 +1843,14 @@ def api_h3_cells(request):
         return Response({'error': 'Bounding box is outside valid latitude/longitude ranges'}, status=status.HTTP_400_BAD_REQUEST)
     if not 0 <= resolution <= 15:
         return Response({'error': 'H3 resolution must be between 0 and 15'}, status=status.HTTP_400_BAD_REQUEST)
-    # Guard against expensive global/near-global polyfills. The client requests its viewport.
-    if (max_lat - min_lat) * (max_lon - min_lon) > 25:
-        return Response({'error': 'Bounding box is too large; zoom in and retry'}, status=status.HTTP_400_BAD_REQUEST)
 
     from core.h3_risk import get_h3_cells_for_bbox, h3_index_to_geojson
 
-    cells = get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution)
+    cells = get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution, forecast, forecast_hours)
+
+    # Handle error response (too many cells)
+    if isinstance(cells, dict) and 'error' in cells:
+        return Response(cells, status=status.HTTP_400_BAD_REQUEST)
 
     cell_geojson = []
     for cell in cells:
@@ -1821,12 +1861,20 @@ def api_h3_cells(request):
                 'risk_score': cell['risk_score'],
                 'risk_level': cell['risk_level'],
             }
+            if forecast:
+                geojson['properties']['forecast_horizon_hours'] = cell.get('forecast_horizon_hours', forecast_hours)
+            if 'centroid_lat' in cell:
+                geojson['properties']['centroid_lat'] = cell['centroid_lat']
+            if 'centroid_lon' in cell:
+                geojson['properties']['centroid_lon'] = cell['centroid_lon']
             cell_geojson.append(geojson)
 
     return Response({
         'cells': cell_geojson,
         'resolution': resolution,
         'count': len(cell_geojson),
+        'forecast': forecast,
+        'forecast_hours': forecast_hours if forecast else None,
     })
 
 

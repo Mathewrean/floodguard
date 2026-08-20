@@ -117,6 +117,14 @@
         <label class="layer-item"><input type="checkbox" id="layer-satellite"> Satellite</label>
       </div>
 
+      <div class="gis-layer-section">
+        <h3>Risk Display</h3>
+        <label class="layer-item" style="margin-bottom:8px">
+          <input type="checkbox" id="gis-forecast-toggle" style="margin-right:8px">
+          <span>Show 24h Forecast</span>
+        </label>
+      </div>
+
       <div class="gis-info-section" id="gis-info-section">
         <h3>Location Details</h3>
         <div class="gis-info-card">
@@ -138,16 +146,23 @@
     </div>
   </div>
 
-  <div class="gis-legend">
-    <h4>Flood Risk</h4>
+  <div class="gis-legend gis-risk-legend">
+    <h4>Flood Risk Legend</h4>
     <button id="gis-legend-toggle" class="gis-legend-toggle" type="button" aria-expanded="true" aria-label="Minimize flood risk legend">
       <span class="gis-legend-toggle-label">Hide legend</span><span class="gis-legend-chevron" aria-hidden="true">⌃</span>
     </button>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#DC2626;opacity:0.45"></span> High Risk (≥70%)</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#EA580C;opacity:0.35"></span> Critical Risk (≥85%)</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#D97706;opacity:0.25"></span> Moderate Risk (40-70%)</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#059669;opacity:0.25"></span> Safe Area</div>
-    <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#EA580C"></span> You</div>
+    <div class="legend-items">
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#7F1D1D;opacity:0.60"></span><strong>EXTREME</strong> (≥0.95)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#DC2626;opacity:0.50"></span><strong>CRITICAL</strong> (≥0.85)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#EA580C;opacity:0.45"></span><strong>HIGH</strong> (≥0.70)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#D97706;opacity:0.35"></span><strong>MODERATE</strong> (≥0.40)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#16A34A;opacity:0.25"></span><strong>LOW</strong> (≥0.20)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#059669;opacity:0.25"></span><strong>SAFE</strong> (<0.20)</div>
+    </div>
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:#666">
+      <div>Live cells: 75% opacity</div>
+      <div>Forecast cells: 40% opacity, dashed border</div>
+    </div>
   </div>
 </section>
 {% endblock %}

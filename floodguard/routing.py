@@ -7,6 +7,7 @@ from core import consumers
 websocket_urlpatterns = [
     re_path(r'^ws/flood-map/$', consumers.FloodMapConsumer.as_asgi()),
     re_path(r'^ws/alerts/$', consumers.AlertConsumer.as_asgi()),
+    re_path(r'^ws/incident-reports/$', consumers.IncidentReportConsumer.as_asgi()),
 ]
 
 application = ProtocolTypeRouter({

@@ -130,7 +130,7 @@ class Command(BaseCommand):
                 UserProfile.objects.update_or_create(
                     user=responder,
                     defaults={
-                        'role': 'authority',
+                        'role': 'emergency_responder',
                         'phone_number': '+254712345678'
                     }
                 )
@@ -176,6 +176,46 @@ class Command(BaseCommand):
                 )
                 self.stdout.write(
                     self.style.SUCCESS('Created citizen user: citizen / citizen123')
+
+            # Create authority user if not exists
+            if not User.objects.filter(username='authority').exists():
+                authority_user = User.objects.create_user(
+                    username='authority',
+                    password='authority123',
+                    email='authority@floodguard.ke',
+                    first_name='Sarah',
+                    last_name='Ochieng'
+                )
+                UserProfile.objects.update_or_create(
+                    user=authority_user,
+                    defaults={
+                        'role': 'govt_national',
+                        'phone_number': '+254722222222'
+                    }
+                )
+                self.stdout.write(
+                    self.style.SUCCESS('Created authority user: authority / authority123 (role: govt_national)')
+                )
+
+            # Create super admin user if not exists
+            if not User.objects.filter(username='superadmin').exists():
+                superadmin_user = User.objects.create_superuser(
+                    username='superadmin',
+                    password='superadmin123',
+                    email='superadmin@floodguard.ke',
+                    first_name='Super',
+                    last_name='Admin'
+                )
+                UserProfile.objects.update_or_create(
+                    user=superadmin_user,
+                    defaults={
+                        'role': 'super_admin',
+                        'phone_number': '+254700000000'
+                    }
+                )
+                self.stdout.write(
+                    self.style.SUCCESS('Created super admin user: superadmin / superadmin123 (role: super_admin)')
+                )
                 )
 
         # STEP 6 — Print startup summary table

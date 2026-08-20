@@ -100,6 +100,7 @@ class TestSMSDeliveryReceiptTracking:
             # Mock redis exists to return False (no dedup) and setex to succeed
             mock_redis.exists.return_value = False
             mock_redis.setex.return_value = True
+            mock_redis.lpop.return_value = None
 
             # Call dispatch_alerts
             dispatch_alerts(self.zone.id, 0.8)
@@ -136,8 +137,7 @@ class TestSMSDeliveryReceiptTracking:
             mock_build.return_value = ("Test alert message", "high")
             mock_redis.exists.return_value = False
             mock_redis.setex.return_value = True
-
-            # Call dispatch_alerts
+            mock_redis.lpop.return_value = None
             dispatch_alerts(self.zone.id, 0.8)
 
             # Check that an AlertLog was created with failed status

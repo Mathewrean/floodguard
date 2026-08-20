@@ -133,11 +133,11 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 CELERY_BEAT_SCHEDULE = {
     'fetch-flood-api': {
-        'task': 'core.tasks.fetch_all_zones',
+        'task': 'core.tasks.fetch_flood_data',
         'schedule': 900,  # every 15 minutes
     },
     'run-risk-scoring': {
-        'task': 'core.tasks.run_risk_scoring',
+        'task': 'core.tasks.run_risk_scoring_all',
         'schedule': 900,  # every 15 minutes
     },
     'generate-7day-forecasts': {

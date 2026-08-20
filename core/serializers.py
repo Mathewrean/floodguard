@@ -50,6 +50,7 @@ class IncidentReportSerializer(serializers.ModelSerializer):
     longitude = serializers.FloatField(write_only=True, required=False)
     water_depth_cm = serializers.IntegerField(write_only=True, required=False)
     photo = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    image = serializers.ImageField(write_only=True, required=False, allow_null=True)
     # Validate photo: max 5MB, dimensions max 2000x2000
     def validate_photo(self, value):
         max_size = 5 * 1024 * 1024  # 5MB
@@ -73,7 +74,7 @@ class IncidentReportSerializer(serializers.ModelSerializer):
         model = IncidentReport
         fields = [
             'id', 'location', 'latitude', 'longitude', 'severity', 'description',
-            'water_depth_cm', 'photo', 'status', 'submitted_by', 'reviewed_by',
+            'water_depth_cm', 'photo', 'image', 'status', 'submitted_by', 'reviewed_by',
             'acknowledged_by', 'acknowledged_at', 'cluster_id', 'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -98,6 +99,9 @@ class IncidentReportSerializer(serializers.ModelSerializer):
         latitude = attrs.pop('latitude', None)
         longitude = attrs.pop('longitude', None)
         attrs.pop('water_depth_cm', None)
+        image = attrs.pop('image', None)
+        if image and not attrs.get('photo'):
+            attrs['photo'] = image
         if not attrs.get('location') and latitude is not None and longitude is not None:
             attrs['location'] = Point(longitude, latitude, srid=4326)
         if not attrs.get('location'):

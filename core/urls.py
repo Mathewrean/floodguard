@@ -25,6 +25,8 @@ urlpatterns = [
     path('dashboard/citizen/', views.citizen_dashboard, name='citizen_dashboard'),
     path('dashboard/authority/', views.authority_dashboard, name='authority_dashboard'),
     path('dashboard/admin/', views.admin_dashboard, name='admin_dashboard'),
+    path('authority/', views.authority_dashboard, name='authority_redirect'),
+    path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard_redirect'),
     path('dashboard/decision-support/', views.decision_support, name='decision_support'),
     path('reports/submit/', views.report_submit, name='report_submit'),
     path('reports/', views.report_list, name='report_list'),
@@ -36,6 +38,7 @@ urlpatterns = [
     path('health/', views.health_view, name='health'),
     path('favicon.ico', views.favicon_view, name='favicon'),
     path('service-worker.js', views.service_worker_view, name='service-worker'),
+    path('sw.js', views.service_worker_view, name='sw'),
     path('manifest.json', views.manifest_view, name='manifest'),
     
     # API routes (versioned)

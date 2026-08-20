@@ -185,6 +185,16 @@ def fetch_all_zones():
             continue
     
     logger.info(f"Dispatched fetch_flood_api for {total} active zones")
+
+
+@shared_task
+def fetch_flood_data():
+    """Fetch flood data for all active zones (Celery beat entrypoint)."""
+    try:
+        return fetch_all_zones()
+    except Exception as e:
+        logger.error(f"fetch_flood_data failed: {str(e)}")
+        return
     return total
 
 @shared_task
@@ -281,12 +291,90 @@ def run_risk_scoring(reading_id):
     except Exception as e:
         logger.error(f"Error calculating risk score for reading {reading.id}: {str(e)}")
 
+
+@shared_task
+def run_risk_scoring_all():
+    """Run risk scoring for all active zones (Celery beat entrypoint)."""
+    try:
+        zones = AlertZone.objects.filter(is_active=True)
+        count = 0
+        for zone in zones:
+            try:
+                from core.analytics.scoring import calculate_risk_score
+                calculate_risk_score(zone.id)
+                count += 1
+            except Exception as e:
+                logger.error(f"Risk scoring failed for zone {zone.id}: {str(e)}")
+        logger.info(f"run_risk_scoring_all completed: scored {count} zones")
+        return count
+    except Exception as e:
+        logger.error(f"run_risk_scoring_all failed: {str(e)}")
+        return
+
+def _consume_pending_alerts():
+    """Consume pending alerts from Redis list alerts:pending and dispatch to users."""
+    client = get_redis_client()
+    if not client:
+        return
+    
+    import json
+    from core.alerts.messages import build_alert_message
+    
+    while True:
+        raw = client.lpop('alerts:pending')
+        if raw is None or raw == b'':
+            break
+        
+        try:
+            alert_data = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            continue
+        
+        zone_id = alert_data.get('zone_id')
+        user_ids = alert_data.get('user_ids', [])
+        risk_score = alert_data.get('risk_score', 0)
+        
+        if not zone_id or not user_ids:
+            continue
+        
+        try:
+            zone = AlertZone.objects.get(id=zone_id)
+        except AlertZone.DoesNotExist:
+            continue
+        
+        if zone.is_override_active:
+            continue
+        
+        message, severity_label = build_alert_message(zone, risk_score)
+        
+        for user_id in user_ids:
+            dedup_key = f"alert:dedup:{user_id}:{zone_id}"
+            if client.exists(dedup_key):
+                continue
+            
+            try:
+                user = User.objects.select_related('profile').get(id=user_id, is_active=True)
+                profile = user.profile
+                if profile.phone_number and profile.sms_enabled:
+                    _send_sms_alert(user, zone, message, dedup_key)
+                elif user.email:
+                    _send_email_alert_fallback(user, zone, message, severity_label)
+                
+                client.setex(dedup_key, 6 * 60 * 60, 1)
+            except Exception as e:
+                logger.warning(f"Failed to process pending alert for user {user_id}: {e}")
+
+
 @shared_task
 def dispatch_alerts(zone_id, risk_score):
     """
     Dispatch alerts for a given zone when risk score exceeds threshold.
     Sends SMS (primary) and Email (fallback) to authority users.
+    Also consumes pending alerts from Redis queue.
     """
+    # Consume pending alerts from Redis queue
+    _consume_pending_alerts()
+
     try:
         zone = AlertZone.objects.get(id=zone_id)
     except AlertZone.DoesNotExist:
@@ -317,11 +405,11 @@ def dispatch_alerts(zone_id, risk_score):
             logger.warning(f"User {user.username} has no profile, skipping")
             continue
         
-        # Create Redis key for deduplication (3 hours)
-        redis_key = f"alert:{zone.id}:{user.id}"
+        # Check if we have sent an alert in the last 6 hours (using zone ID as H3 cell proxy)
+        redis_key = f"alert:dedup:{user.id}:{zone.id}"
         client = get_redis_client()
         
-        # Check if we have sent an alert in the last 3 hours
+        # Check if we have sent an alert in the last 6 hours
         if client and client.exists(redis_key):
             logger.info(f"Alert deduplication: Skipping alert for user {user.username} in zone {zone.name}")
             continue
@@ -404,13 +492,13 @@ def _send_sms_alert(user, zone, message, redis_key):
             zone_ref = f"report_{zone.id}" if zone else f"report_alert"
             provider_message_id = f"msg_{zone_ref}_{user.id}_{int(timezone.now().timestamp())}"
         
-        # Set Redis deduplication key (3 hours)
+        # Set Redis deduplication key (6 hours)
         client = get_redis_client()
         if client:
-            client.setex(redis_key, 3 * 60 * 60, 1)
+            client.setex(redis_key, 6 * 60 * 60, 1)
         
-        zone_name = zone.name if zone else 'incident report'
-        logger.info(f"SMS sent to {profile.phone_number} for zone {zone_name}")
+        zone_name = zone.name if zone else getattr(zone, 'name', 'alert')
+        logger.info(f"SMS sent to {profile.phone_number} for {zone_name}")
         return True, provider_message_id
         
     except Exception as e:

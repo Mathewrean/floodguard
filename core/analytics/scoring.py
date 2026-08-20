@@ -3,9 +3,12 @@ Multi-source weighted flood risk calculation.
 All weights are configurable via settings/environment variables.
 """
 
+import logging
 from django.utils import timezone
 from core.models import FloodReading, AlertZone
 from .config import get_risk_weights, get_threshold_config
+
+logger = logging.getLogger(__name__)
 
 
 class ModelNotAvailableError(Exception):
@@ -51,22 +54,7 @@ def _precipitation_component(features, max_precip_1h=40.0, max_precip_intensity=
 
 def calculate_feature_risk(features):
     """Calculate risk score from feature vector using configurable weights."""
-    weights = get_risk_weights()
-    
-    discharge_norm = calculate_discharge_risk(features.get('river_discharge', 0))
-    precipitation_component = _precipitation_component(features)
-    humidity_factor = _clamp01((features.get('humidity', 50) or 0) / 100.0)
-    sar_factor = _clamp01((features.get('water_extent_km2', 0) or 0) / 10.0)
-    
-    raw_score = (
-        weights.get('discharge_total_weight', 0.45) * discharge_norm +
-        weights.get('precip_weight', 0.30) * precipitation_component +
-        weights.get('env_total_weight', 0.25) * (
-            weights.get('humidity_weight', 0.60) * humidity_factor +
-            weights.get('sar_water_weight', 0.40) * sar_factor
-        )
-    )
-    return max(0.0, min(1.0, raw_score))
+    return _calculate_feature_risk(features)
 
 
 def calculate_risk_score(zone_or_features):
@@ -102,6 +90,59 @@ def calculate_risk_score(zone_or_features):
         latest_reading.save(update_fields=['risk_score', 'metadata'])
 
     if risk_score >= zone.risk_threshold:
+        # PostGIST spatial query: find users whose location falls within the zone polygon
+        from django.contrib.gis.geos import GEOSGeometry
+        from django.db import connection
+        from core.alerts.messages import build_alert_message
+
+        polygon_wkt = zone.polygon.hex
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT user_id FROM core_userprofile
+                WHERE location IS NOT NULL AND ST_Contains(
+                    ST_GeomFromText(%s, 4326),
+                    location
+                )
+            """, [polygon_wkt])
+            matched_user_ids = [row[0] for row in cursor.fetchall()]
+
+        # Push matched user IDs to Redis list for alert dispatch
+        if matched_user_ids:
+            from core.tasks import get_redis_client, _send_sms_alert, _send_email_alert_fallback
+            from django.contrib.auth.models import User
+            from django.utils import timezone
+
+            client = get_redis_client()
+            if client:
+                import json as json_module
+                alert_data = {
+                    'zone_id': zone.id,
+                    'user_ids': matched_user_ids,
+                    'risk_score': risk_score,
+                    'timestamp': timezone.now().isoformat(),
+                }
+                client.lpush('alerts:pending', json_module.dumps(alert_data))
+
+            # Send immediate alert dispatch with deduplication
+            message, severity_label = build_alert_message(zone, risk_score)
+            for user_id in matched_user_ids:
+                redis_key = f"alert:dedup:{user_id}:{zone.id}"
+                if client and client.exists(redis_key):
+                    continue
+
+                try:
+                    user = User.objects.select_related('profile').get(id=user_id, is_active=True)
+                    profile = user.profile
+                    if profile.phone_number and profile.sms_enabled:
+                        _send_sms_alert(user, zone, message, redis_key)
+                    elif user.email:
+                        _send_email_alert_fallback(user, zone, message, severity_label)
+
+                    if client:
+                        client.setex(redis_key, 6 * 60 * 60, 1)
+                except Exception as e:
+                    logger.warning(f"Failed to alert user {user_id}: {e}")
+
         from core.tasks import dispatch_alerts
         dispatch_alerts.delay(zone_id, risk_score)
 
@@ -158,3 +199,56 @@ def _calculate_feature_risk(features):
         raw_score *= weights.get('confidence_two_source_penalty', 0.90)
 
     return max(0.0, min(1.0, round(raw_score, 3)))
+
+
+def calculate_forecast_risk(features):
+    """
+    Calculate predictive risk based on 24-hour precipitation forecast.
+    If forecasted hourly rain exceeds 10 mm/hr for 3 or more consecutive hours,
+    the predicted risk level escalates one tier above the live risk level.
+    """
+    live_risk = _calculate_feature_risk(features)
+    
+    precip_24h = features.get('precipitation_forecast_24h', [])
+    if not precip_24h:
+        return live_risk, live_risk
+    
+    max_consecutive = 0
+    current_streak = 0
+    for precip in precip_24h:
+        if float(precip) > 10.0:
+            current_streak += 1
+            max_consecutive = max(max_consecutive, current_streak)
+        else:
+            current_streak = 0
+    
+    if max_consecutive >= 3:
+        # Escalate one tier above live risk
+        thresholds = get_threshold_config()
+        if live_risk >= thresholds.get('critical', 0.85):
+            forecast_risk = min(1.0, live_risk + 0.05)
+        elif live_risk >= thresholds.get('high', 0.70):
+            forecast_risk = min(1.0, live_risk + 0.10)
+        elif live_risk >= thresholds.get('moderate', 0.40):
+            forecast_risk = min(1.0, live_risk + 0.20)
+        elif live_risk >= thresholds.get('low', 0.0):
+            forecast_risk = min(1.0, live_risk + 0.30)
+        else:
+            forecast_risk = 0.20
+        return live_risk, min(1.0, forecast_risk)
+    
+    return live_risk, live_risk
+
+
+def escalate_risk_level(risk_score):
+    """Escalate a risk score by one risk level."""
+    thresholds = get_threshold_config()
+    if risk_score >= thresholds.get('critical', 0.85):
+        return min(1.0, risk_score + 0.05)
+    elif risk_score >= thresholds.get('high', 0.70):
+        return min(1.0, risk_score + 0.10)
+    elif risk_score >= thresholds.get('moderate', 0.40):
+        return min(1.0, risk_score + 0.20)
+    elif risk_score >= thresholds.get('low', 0.0):
+        return min(1.0, risk_score + 0.30)
+    return 0.20

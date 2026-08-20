@@ -83,6 +83,8 @@ def build_risk_feature_vector(lat: float, lon: float, zone_name: str = '') -> di
         'pressure': openweather.get('pressure_hpa', 1013),
         'wind_speed': openweather.get('wind_speed_ms', 0),
         'water_extent_km2': gee.get('water_extent_km2', 0),
+        'precipitation_forecast_24h': open_meteo.get('precipitation_forecast_24h', []),
+        'rain_forecast_24h': open_meteo.get('rain_forecast_24h', []),
         'sources_available': available_count,
         'data_confidence': 'high' if available_count >= 3 else 'medium' if available_count >= 2 else 'low',
         'zone_name': zone_name,

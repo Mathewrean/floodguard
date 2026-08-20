@@ -16,6 +16,22 @@ settings.STORAGES = {
 
 
 @pytest.fixture(autouse=True)
+def _configure_throttle_rates():
+    """Set throttle rates to expected values for tests"""
+    from core.views import ReportSubmissionThrottle, DynamicZoneThrottle, AIAnalysisThrottle
+    original_report_rate = ReportSubmissionThrottle.rate
+    original_dynamic_rate = DynamicZoneThrottle.rate
+    original_ai_rate = AIAnalysisThrottle.rate
+    ReportSubmissionThrottle.rate = '10/hour'
+    DynamicZoneThrottle.rate = '60/hour'
+    AIAnalysisThrottle.rate = '1000/hour'
+    yield
+    ReportSubmissionThrottle.rate = original_report_rate
+    DynamicZoneThrottle.rate = original_dynamic_rate
+    AIAnalysisThrottle.rate = original_ai_rate
+
+
+@pytest.fixture(autouse=True)
 def mock_redis_for_tests(mocker):
     """Auto-mock Redis in all tests to remove infrastructure dependency"""
     mock = mocker.patch('core.tasks.redis_client')
@@ -23,6 +39,9 @@ def mock_redis_for_tests(mocker):
     mock.setex.return_value = True
     mock.delete.return_value = 1
     mock.flushdb.return_value = True
+    mock.ping.return_value = True
+    mock.lpop.return_value = None
+    mock.lpush.return_value = 1
     return mock
 
 
