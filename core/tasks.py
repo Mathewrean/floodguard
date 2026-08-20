@@ -782,3 +782,83 @@ def update_h3_risk_scores():
     
     logger.info(f"Updated {total_cells} H3 cells from {zones.count()} zones")
     return {'cells_updated': total_cells, 'zones_processed': zones.count()}
+
+
+@shared_task
+def update_forecast_cache():
+    """
+    Pre-compute 48h forecasts for the top 50 highest-risk H3 cells.
+    Caches each forecast at key: forecast:{h3_index}:{horizon} (TTL: 300s / 5 minutes)
+    """
+    from core.risk_engine import predict_risk_timeline
+    from core.h3_risk import get_risk_for_h3_cell
+    from core.cache_keys import cache_key
+
+    # Get top 50 highest-risk H3 cells
+    cells = H3Cell.objects.order_by('-current_risk_score')[:50]
+    cached_count = 0
+
+    for cell in cells:
+        current_risk = get_risk_for_h3_cell(cell.h3_index) or 0.0
+
+        # Fetch hourly forecast data for this cell
+        try:
+            import h3
+            lat, lon = h3.cell_to_latlng(cell.h3_index)
+
+            import requests as req
+            resp = req.get(
+                'https://flood-api.open-meteo.com/v1/flood',
+                params={
+                    'latitude': lat,
+                    'longitude': lon,
+                    'hourly': 'precipitation,rain,river_discharge,soil_moisture_0_to_7cm',
+                    'past_days': 0,
+                    'forecast_days': 2,
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            hourly = data.get('hourly', {})
+            precip_list = hourly.get('precipitation', [])
+            discharge_list = hourly.get('river_discharge', [])
+            soil_list = hourly.get('soil_moisture_0_to_7cm', [])
+
+            hourly_data = []
+            for i in range(48):
+                hourly_data.append({
+                    'precipitation_mm': float(precip_list[i]) if i < len(precip_list) else 0,
+                    'rain_mm': float(precip_list[i]) if i < len(precip_list) else 0,
+                    'river_discharge': float(discharge_list[i]) if i < len(discharge_list) else current_risk * 50,
+                    'soil_moisture': float(soil_list[i]) if i < len(soil_list) else 0.5,
+                    'current_discharge': float(discharge_list[0]) if discharge_list else 1.0,
+                })
+        except Exception as e:
+            logger.warning(f"Failed to fetch forecast for cell {cell.h3_index}: {e}")
+            hourly_data = []
+            for i in range(48):
+                hourly_data.append({
+                    'precipitation_mm': 0,
+                    'rain_mm': 0,
+                    'river_discharge': current_risk * 50,
+                    'soil_moisture': 0.5,
+                    'current_discharge': current_risk * 50,
+                })
+
+        timeline = predict_risk_timeline(hourly_data, current_risk)
+
+        # Cache at forecast:{h3_index}:{horizon} for each horizon
+        for horizon in [0, 6, 12, 24, 48]:
+            fc_key = cache_key('forecast', cell.h3_index, horizon)
+            cache.set(fc_key, {
+                'h3_index': cell.h3_index,
+                'current_risk_score': current_risk,
+                'forecast_horizon_hours': horizon,
+                'timeline': timeline,
+                'score_at_horizon': timeline[min(horizon, 47)]['predicted_score'] if timeline else current_risk,
+            }, 300)  # TTL: 5 minutes
+            cached_count += 1
+
+    logger.info(f"Cached {cached_count} forecast entries for {cells.count()} cells")
+    return {'cells_cached': cells.count(), 'entries_cached': cached_count}

@@ -1814,18 +1814,20 @@ def api_h3_cells(request):
     """
     Get H3 grid cells for map visualization within a bounding box.
     Returns cells with risk scores for dynamic flood zone rendering.
-    Accepts forecast=true and forecast_hours (6, 12, 24) parameters.
+    Accepts forecast=true and forecast_hours (6, 12, 24, 48) parameters.
+    Accepts zoom_level (1-18) to map to H3 resolution automatically.
     """
     min_lat = request.GET.get('min_lat')
     min_lon = request.GET.get('min_lon')
     max_lat = request.GET.get('max_lat')
     max_lon = request.GET.get('max_lon')
     resolution = request.GET.get('resolution', 7)
+    zoom_level = request.GET.get('zoom_level')
 
     forecast = request.GET.get('forecast', 'false').lower() == 'true'
     forecast_hours = int(request.GET.get('forecast_hours', 24))
-    if forecast_hours not in [6, 12, 24]:
-        return Response({'error': 'forecast_hours must be 6, 12, or 24'}, status=status.HTTP_400_BAD_REQUEST)
+    if forecast_hours not in [0, 6, 12, 24, 48]:
+        return Response({'error': 'forecast_hours must be 0 (live), 6, 12, 24, or 48'}, status=status.HTTP_400_BAD_REQUEST)
 
     if not all([min_lat, min_lon, max_lat, max_lon]):
         return Response({'error': 'Bounding box parameters required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1835,7 +1837,16 @@ def api_h3_cells(request):
         min_lon = float(min_lon)
         max_lat = float(max_lat)
         max_lon = float(max_lon)
-        resolution = int(resolution)
+
+        # If zoom_level is provided, derive resolution from it
+        if zoom_level is not None:
+            zoom_level = int(zoom_level)
+            if not 1 <= zoom_level <= 18:
+                return Response({'error': 'zoom_level must be between 1 and 18'}, status=status.HTTP_400_BAD_REQUEST)
+            from core.risk_engine import zoom_level_to_resolution
+            resolution = zoom_level_to_resolution(zoom_level)
+        else:
+            resolution = int(resolution)
     except (ValueError, TypeError):
         return Response({'error': 'Invalid parameter format'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1844,7 +1855,22 @@ def api_h3_cells(request):
     if not 0 <= resolution <= 15:
         return Response({'error': 'H3 resolution must be between 0 and 15'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from core.h3_risk import get_h3_cells_for_bbox, h3_index_to_geojson
+    # Reject oversized bboxes (lat span > 20 or lon span > 20) to prevent performance issues
+    lat_span = max_lat - min_lat
+    lon_span = max_lon - min_lon
+    if lat_span > 20 or lon_span > 20:
+        return Response({'error': 'Bounding box is too large; zoom in and retry'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from core.h3_risk import get_h3_cells_for_bbox, h3_index_to_geojson, _get_risk_level_label
+    from core.risk_engine import interpolate_risk_scores, auto_split_merge
+    from core.cache_keys import cache_key
+    from django.core.cache import cache
+
+    # Check interpolation cache
+    bbox_hash = cache_key('bbox', min_lat, min_lon, max_lat, max_lon, resolution, forecast_hours)
+    cached_result = cache.get(bbox_hash)
+    if cached_result is not None:
+        return Response(cached_result)
 
     cells = get_h3_cells_for_bbox(min_lat, min_lon, max_lat, max_lon, resolution, forecast, forecast_hours)
 
@@ -1852,29 +1878,336 @@ def api_h3_cells(request):
     if isinstance(cells, dict) and 'error' in cells:
         return Response(cells, status=status.HTTP_400_BAD_REQUEST)
 
-    cell_geojson = []
+    # Apply interpolation
+    cell_scores_map = {c['h3_index']: c['risk_score'] for c in cells}
+    interpolated = interpolate_risk_scores(cell_scores_map)
+
+    # Apply auto split/merge
+    cell_dicts = []
     for cell in cells:
+        cell_data = dict(cell)
+        cell_data['resolution'] = resolution
+        interpolated_info = interpolated.get(cell['h3_index'], {})
+        cell_data['interpolated'] = interpolated_info.get('interpolated', False)
+        if cell_data['interpolated']:
+            cell_data['risk_score'] = interpolated_info.get('risk_score', cell['risk_score'])
+            cell_data['risk_level'] = _risk_level_label(cell_data['risk_score'])
+        cell_dicts.append(cell_data)
+
+    cell_dicts = auto_split_merge(cell_dicts)
+
+    cell_geojson = []
+    for cell in cell_dicts:
         geojson = h3_index_to_geojson(cell['h3_index'])
         if geojson:
             geojson['properties'] = {
                 'h3_index': cell['h3_index'],
                 'risk_score': cell['risk_score'],
                 'risk_level': cell['risk_level'],
+                'interpolated': cell.get('interpolated', False),
+                'resolution': cell.get('resolution', resolution),
             }
-            if forecast:
-                geojson['properties']['forecast_horizon_hours'] = cell.get('forecast_horizon_hours', forecast_hours)
+            if 'forecast_horizon_hours' in cell:
+                geojson['properties']['forecast_horizon_hours'] = cell['forecast_horizon_hours']
+            if 'split_from' in cell and cell['split_from']:
+                geojson['properties']['split_from'] = cell['split_from']
+            if 'merged_from' in cell and cell['merged_from']:
+                geojson['properties']['merged_from'] = cell['merged_from']
             if 'centroid_lat' in cell:
                 geojson['properties']['centroid_lat'] = cell['centroid_lat']
             if 'centroid_lon' in cell:
                 geojson['properties']['centroid_lon'] = cell['centroid_lon']
             cell_geojson.append(geojson)
 
-    return Response({
+    # Scale label for UI tooltip
+    from core.risk_engine import _resolution_to_scale_label
+    response_data = {
         'cells': cell_geojson,
         'resolution': resolution,
+        'scale_label': _resolution_to_scale_label(resolution),
         'count': len(cell_geojson),
         'forecast': forecast,
         'forecast_hours': forecast_hours if forecast else None,
+    }
+
+    # Cache for 60 seconds (dynamic data) - only cache successful responses with cells
+    if len(cell_geojson) > 0:
+        cache.set(bbox_hash, response_data, 60)
+    return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([AnonRateThrottle])
+def api_h3_cell_children(request, h3_index):
+    """
+    GET /api/v1/h3-cells/{h3_index}/children/
+    Returns child cells at resolution + 1 with their individual risk scores.
+    """
+    from core.risk_engine import get_child_cells
+    from core.h3_risk import get_risk_for_h3_cell, _get_risk_level_label
+    from core.zoning.h3_intelligence import get_or_create_h3_cell
+
+    try:
+        import h3
+    except ImportError:
+        return Response({'error': 'H3 library not available'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        current_res = h3.get_resolution(h3_index)
+    except Exception:
+        return Response({'error': 'Invalid H3 index'}, status=status.HTTP_400_BAD_REQUEST)
+
+    child_indices = get_child_cells(h3_index)
+    if not child_indices:
+        return Response({'error': 'Could not resolve child cells', 'parent_resolution': current_res}, status=status.HTTP_400_BAD_REQUEST)
+
+    children = []
+    for child_idx in child_indices:
+        try:
+            risk = get_risk_for_h3_cell(child_idx)
+            if risk is None:
+                risk = 0.0
+            lat, lon = h3.cell_to_latlng(child_idx)
+            children.append({
+                'h3_index': child_idx,
+                'parent_index': h3_index,
+                'resolution': current_res + 1,
+                'risk_score': round(float(risk), 3),
+                'risk_level': _get_risk_level_label(float(risk)),
+                'centroid_lat': lat,
+                'centroid_lon': lon,
+            })
+        except Exception:
+            continue
+
+    return Response({
+        'parent': h3_index,
+        'parent_resolution': current_res,
+        'children': children,
+        'child_count': len(children),
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([AnonRateThrottle])
+def api_h3_cell_parent(request, h3_index):
+    """
+    GET /api/v1/h3-cells/{h3_index}/parent/
+    Returns the parent cell at resolution - 1.
+    """
+    from core.risk_engine import get_parent_cell, compute_parent_risk
+    from core.h3_risk import get_risk_for_h3_cell, _get_risk_level_label
+
+    try:
+        import h3
+    except ImportError:
+        return Response({'error': 'H3 library not available'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        current_res = h3.get_resolution(h3_index)
+    except Exception:
+        return Response({'error': 'Invalid H3 index'}, status=status.HTTP_400_BAD_REQUEST)
+
+    parent_index = get_parent_cell(h3_index)
+    if parent_index is None:
+        return Response({'error': 'Cell has no parent (already at resolution 0)'}, status=status.HTTP_400_BAD_REQUEST)
+
+    parent_risk = get_risk_for_h3_cell(parent_index)
+
+    try:
+        children = get_parent_cell.__wrapped__ if hasattr(get_parent_cell, '__wrapped__') else None
+    except Exception:
+        pass
+
+    # Aggregate child scores for parent risk
+    try:
+        child_indices = h3.cell_to_children(parent_index, current_res)
+        child_scores = []
+        for child in child_indices:
+            child_risk = get_risk_for_h3_cell(child)
+            if child_risk is not None:
+                child_scores.append(float(child_risk))
+        parent_agg_risk = compute_parent_risk(child_scores)
+    except Exception:
+        parent_agg_risk = parent_risk if parent_risk else 0.0
+
+    try:
+        lat, lon = h3.cell_to_latlng(parent_index)
+    except Exception:
+        lat, lon = 0.0, 0.0
+
+    return Response({
+        'h3_index': parent_index,
+        'parent_resolution': current_res - 1,
+        'child_resolution': current_res,
+        'risk_score': round(float(parent_risk or parent_agg_risk or 0), 3),
+        'risk_level': _get_risk_level_label(float(parent_risk or parent_agg_risk or 0)),
+        'centroid_lat': lat,
+        'centroid_lon': lon,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([AnonRateThrottle])
+def api_h3_cell_timeline(request, h3_index):
+    """
+    GET /api/v1/h3-cells/{h3_index}/timeline/
+    Returns the full 48-hour prediction array for a single H3 cell.
+    """
+    from core.risk_engine import predict_risk_timeline
+    from core.h3_risk import get_risk_for_h3_cell, _get_risk_level_label
+    from core.cache_keys import cache_key
+    from django.core.cache import cache
+
+    try:
+        import h3
+    except ImportError:
+        return Response({'error': 'H3 library not available'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    try:
+        h3.get_resolution(h3_index)
+    except Exception:
+        return Response({'error': 'Invalid H3 index'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Cache key for 5 minutes
+    cache_key_str = cache_key('timeline', h3_index)
+    cached = cache.get(cache_key_str)
+    if cached is not None:
+        return Response(cached)
+
+    current_risk = get_risk_for_h3_cell(h3_index) or 0.0
+
+    # Build 48-hour hourly data from Open-Meteo forecast
+    try:
+        import requests as req
+        lat, lon = h3.cell_to_latlng(h3_index)
+        resp = req.get(
+            'https://flood-api.open-meteo.com/v1/flood',
+            params={
+                'latitude': lat,
+                'longitude': lon,
+                'hourly': 'precipitation,rain,river_discharge,soil_moisture_0_to_7cm',
+                'past_days': 0,
+                'forecast_days': 2,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        hourly = data.get('hourly', {})
+        precip_list = hourly.get('precipitation', [])
+        rain_list = hourly.get('rain', [])
+        discharge_list = hourly.get('river_discharge', [])
+        soil_moisture_list = hourly.get('soil_moisture_0_to_7cm', [])
+
+        hourly_data = []
+        for i in range(48):
+            hourly_data.append({
+                'precipitation_mm': float(precip_list[i]) if i < len(precip_list) else 0,
+                'rain_mm': float(rain_list[i]) if i < len(rain_list) else 0,
+                'river_discharge': float(discharge_list[i]) if i < len(discharge_list) else 0,
+                'soil_moisture': float(soil_moisture_list[i]) if i < len(soil_moisture_list) else 0.5,
+                'current_discharge': float(discharge_list[0]) if discharge_list else 1.0,
+            })
+    except Exception as e:
+        logger.warning(f"Failed to fetch hourly forecast for H3 cell {h3_index}: {e}")
+        # Fallback: generate synthetic data based on current risk
+        hourly_data = []
+        for i in range(48):
+            hourly_data.append({
+                'precipitation_mm': 0,
+                'rain_mm': 0,
+                'river_discharge': current_risk * 50,
+                'soil_moisture': 0.5,
+                'current_discharge': current_risk * 50,
+            })
+
+    timeline = predict_risk_timeline(hourly_data, current_risk)
+
+    response_data = {
+        'h3_index': h3_index,
+        'current_risk_score': round(current_risk, 3),
+        'current_risk_level': _get_risk_level_label(current_risk),
+        'timeline': timeline,
+    }
+
+    # Cache for 5 minutes (300 seconds)
+    cache.set(cache_key_str, response_data, 300)
+    return Response(response_data)
+
+
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([AnonRateThrottle])
+def api_flood_propagation(request):
+    """
+    GET /api/v1/flood-propagation/?seed_cell={h3_index}&hours={n}
+    Returns the full propagation result as GeoJSON with propagation_hour in each feature's properties.
+    """
+    from core.risk_engine import simulate_propagation_cached, simulate_propagation
+    from core.h3_risk import get_risk_for_h3_cell, h3_index_to_geojson, _get_risk_level_label
+    from core.cache_keys import cache_key
+    from django.core.cache import cache
+
+    seed_cell = request.GET.get('seed_cell')
+    hours = int(request.GET.get('hours', 6))
+
+    if not seed_cell:
+        return Response({'error': 'seed_cell parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if hours > 12:
+        return Response({'error': 'hours must not exceed 12 (MAX_PROPAGATION_HOURS)'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if hours < 1:
+        return Response({'error': 'hours must be at least 1'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        import h3
+        h3.get_resolution(seed_cell)
+    except Exception:
+        return Response({'error': 'Invalid H3 index'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Build cache key
+    cache_key_str = cache_key('propagation', seed_cell, hours)
+
+    # Build cell_risks dict from nearby cells
+    cell_risks = {}
+    try:
+        neighbors = h3.grid_disk(seed_cell, 3)
+        for n in neighbors:
+            risk = get_risk_for_h3_cell(n)
+            if risk is not None and risk > 0:
+                cell_risks[n] = risk
+    except Exception:
+        pass
+
+    result = simulate_propagation_cached([seed_cell], hours, cell_risks, cache_key_str)
+
+    # Convert to GeoJSON
+    features = []
+    for cell_idx, cell_data in result['cells'].items():
+        geojson = h3_index_to_geojson(cell_idx)
+        if geojson:
+            geojson['type'] = 'Feature'
+            geojson['properties'] = {
+                'h3_index': cell_idx,
+                'risk_score': cell_data['risk_score'],
+                'risk_level': _get_risk_level_label(cell_data['risk_score']),
+                'propagated': cell_data['propagated'],
+                'propagation_hour': cell_data['propagation_hour'],
+            }
+            features.append(geojson)
+
+    return Response({
+        'seed_cell': seed_cell,
+        'hours': hours,
+        'cells': result['cells'],
+        'propagation_paths': result['propagation_paths'],
+        'features': features,
+        'type': 'FeatureCollection',
     })
 
 

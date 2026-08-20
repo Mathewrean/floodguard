@@ -99,6 +99,15 @@ async function initGisDashboard() {
     // Load zones, readings, and the actual H3 risk cells for the initial viewport.
     await Promise.all([loadZones(), loadReadings()]);
     await loadH3Cells();
+
+    // Re-fetch on zoom with animated transition
+    let zoomDebounce;
+    gisMap.on('zoomend', () => {
+        clearTimeout(zoomDebounce);
+        zoomDebounce = setTimeout(() => {
+            loadH3CellsWithAnimation();
+        }, 300);
+    });
     gisMap.on('moveend', debounce(loadH3Cells, 350));
     
     // Connect WebSocket for live updates
@@ -135,49 +144,312 @@ async function loadH3Cells() {
     if (!gisMap) return;
     const bounds = gisMap.getBounds();
     if (!bounds.isValid()) return;
+
+    const zoom = gisMap.getZoom();
     const isForecast = document.getElementById('gis-forecast-toggle')?.checked || false;
+    const forecastHours = document.getElementById('gis-forecast-hours')?.value || '24';
+    const showInterpolation = document.getElementById('gis-interpolation-toggle')?.checked;
+    const showPropagation = window.propagationState && window.propagationState.active;
+
     const query = new URLSearchParams({
         min_lat: bounds.getSouth().toFixed(6), min_lon: bounds.getWest().toFixed(6),
         max_lat: bounds.getNorth().toFixed(6), max_lon: bounds.getEast().toFixed(6),
-        resolution: gisMap.getZoom() < 6 ? '4' : gisMap.getZoom() < 10 ? '6' : '7',
+        zoom_level: zoom,
     });
+
     if (isForecast) {
         query.set('forecast', 'true');
-        query.set('forecast_hours', '24');
+        query.set('forecast_hours', forecastHours);
     }
+
+    if (showInterpolation !== undefined) {
+        query.set('interpolation', showInterpolation ? 'true' : 'false');
+    }
+
     try {
         const data = await fetchJSON(`/api/v1/h3-cells/?${query}`);
+
         if (h3GridLayer) h3GridLayer.remove();
         h3GridLayer = L.layerGroup().addTo(gisMap);
+
+        let splitCount = 0;
+        let mergeCount = 0;
+
         (data.cells || []).forEach(cell => {
-            const score = Number(cell.properties?.risk_score || 0);
-            const isForecastCell = cell.properties?.forecast_horizon_hours !== undefined;
-            
-            // Use appropriate colors based on forecast/live mode
-            const band = isForecastCell ? FORECAST_RISK_COLORS[cell.properties.risk_level] : RISK_COLORS[cell.properties.risk_level];
-            const opacity = isForecastCell ? 0.40 : (band?.opacity || 0.25);
-            
-            // Always include SAFE and zero-risk cells
+            const props = cell.properties || {};
+            const score = Number(props.risk_score || 0);
+            const isForecastCell = props.forecast_horizon_hours !== undefined;
+            const isInterpolated = props.interpolated === true;
+            const isPropagated = props.propagated === true;
+            const propagationHour = props.propagation_hour;
+
+            const band = isForecastCell ? FORECAST_RISK_COLORS[props.risk_level] : RISK_COLORS[props.risk_level];
+            let opacity = isForecastCell ? 0.40 : (band?.opacity || 0.25);
+
+            // Interpolated cells at 65% opacity (0.65 * base)
+            if (isInterpolated && !isForecastCell) {
+                opacity = 0.65;
+            }
+
+            // Propagated cells at 55% opacity (lighter tint effect)
+            if (isPropagated) {
+                opacity = 0.55;
+            }
+
+            // Hide interpolated cells if toggle is off
+            if (!showInterpolation && isInterpolated) {
+                return;
+            }
+
             const color = band?.color || '#888888';
-            
+
             const layer = L.geoJSON(cell, {
-                style: { 
-                    color: color, 
-                    fillColor: color, 
-                    weight: isForecastCell ? 2 : 1, 
+                style: {
+                    color: color,
+                    fillColor: isPropagated ? _lightenColor(color, 30) : color,
+                    weight: isForecastCell ? 2 : (props.split_from ? 3 : 1),
                     opacity: isForecastCell ? 1 : 0.6,
                     fillOpacity: opacity,
-                    dashArray: isForecastCell ? '5,5' : undefined,
+                    dashArray: isForecastCell ? '5,5' : (props.merged_from ? '4,3' : undefined),
                 }
-            }).bindPopup(`<strong>H3 risk cell</strong><br>Risk: ${(score * 100).toFixed(0)}%<br>Risk Level: ${cell.properties.risk_level}<br><small>${escapeHTML(cell.properties.h3_index)}</small>`);
-            layer.options.cellData = cell.properties;
+            });
+
+            let popupContent = `<strong>H3 risk cell</strong><br>`;
+            popupContent += `Risk: ${(score * 100).toFixed(0)}%<br>`;
+            popupContent += `Risk Level: ${props.risk_level}<br>`;
+            popupContent += `Resolution: ${props.resolution} — ${_getResolutionLabel(props.resolution)}<br>`;
+            if (isInterpolated) {
+                popupContent += `<em>Interpolated estimate</em><br>`;
+            }
+            if (isForecastCell) {
+                popupContent += `Forecast horizon: +${props.forecast_horizon_hours}h<br>`;
+                // Hours to impact badge for HIGH/CRITICAL cells
+                if (props.risk_level === 'HIGH' || props.risk_level === 'CRITICAL') {
+                    const hoursUntil = Math.max(0, Math.floor((props.risk_score > 0.9 ? 0 : 6)));
+                    popupContent += `<div style="background:#fff3cd;padding:4px 8px;border-radius:4px;margin-top:4px">⚠ Impact in ~${hoursUntil}h</div>`;
+                }
+            }
+            if (isPropagated) {
+                popupContent += `Propagated (hour ${propagationHour})<br>`;
+                popupContent += `<button onclick="stopSimulation()" class="btn btn-sm btn-secondary" style="margin-top:4px">Stop Simulation</button>`;
+            }
+            popupContent += `<small>${escapeHTML(props.h3_index)}</small>`;
+
+            if (props.split_from) {
+                popupContent += `<br><small style="color:#666">Split from ${escapeHTML(props.split_from)}</small>`;
+            }
+            if (props.merged_from) {
+                popupContent += `<br><small style="color:#666">Merged from ${props.merged_from.length} cells</small>`;
+            }
+
+            // Timeline button for single cell
+            if (props.risk_level === 'HIGH' || props.risk_level === 'CRITICAL') {
+                popupContent += `<br><button onclick="showTimelinePopup('${props.h3_index}')" class="btn btn-sm btn-primary" style="margin-top:4px">View 48h Timeline</button>`;
+                popupContent += `<button onclick="simulatePropagationFromCell('${props.h3_index}')" class="btn btn-sm btn-secondary" style="margin-top:4px">Simulate Propagation</button>`;
+            }
+
+            layer.options.cellData = props;
+            layer.bindPopup(popupContent);
             layer.addTo(h3GridLayer);
+
+            if (props.split_from) splitCount++;
+            if (props.merged_from) mergeCount++;
         });
+
+        // Update info panel with split/merge counts
+        const scaleLabel = data.scale_label || '';
+        if (scaleLabel) {
+            const infoPanel = document.querySelector('.gis-panel-content');
+            if (infoPanel) {
+                const scaleEl = document.getElementById('gis-scale-label');
+                if (!scaleEl) {
+                    const div = document.createElement('div');
+                    div.id = 'gis-scale-label';
+                    div.style.cssText = 'padding:8px 16px;font-size:12px;color:#666;border-bottom:1px solid var(--border);';
+                    infoPanel.parentNode.insertBefore(div, infoPanel);
+                }
+                const el = document.getElementById('gis-scale-label');
+                if (el) {
+                    el.textContent = `${scaleLabel} | ${splitCount} cells split, ${mergeCount} cells merged`;
+                }
+            }
+        }
+
         if (!layerVisibility.flood) gisMap.removeLayer(h3GridLayer);
     } catch (e) {
-        // A map may initially show the full globe; the API intentionally asks users to zoom in.
         if (e.message && !e.message.includes('Bounding box is too large')) console.warn('Failed to load H3 cells:', e);
     }
+}
+
+function _getResolutionLabel(res) {
+    const labels = {
+        3: 'Country Scale',
+        4: 'Regional Scale',
+        5: 'District Scale',
+        6: 'Neighbourhood Scale',
+        7: 'Street Scale',
+        8: 'Building Scale',
+    };
+    return labels[res] || '';
+}
+
+function _lightenColor(hex, percent) {
+    if (!hex || hex.length < 7) return hex;
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = (num >> 16) + amt;
+    const G = (num >> 8 & 0x00FF) + amt;
+    const B = (num & 0x0000FF) + amt;
+    return '#' + (0x1000000 + (R < 0 ? 0 : R > 255 ? 255 : R) * 0x10000 +
+        (G < 0 ? 0 : G > 255 ? 255 : G) * 0x100 +
+        (B < 0 ? 0 : B > 255 ? 255 : B)).toString(16).slice(1);
+}
+
+async function loadH3CellsWithAnimation() {
+    const zoom = gisMap.getZoom();
+    const isForecast = document.getElementById('gis-forecast-toggle')?.checked || false;
+
+    // Store old layer for dissolve animation
+    const oldLayer = h3GridLayer;
+    if (oldLayer) oldLayer.setOpacity(1);
+
+    // Fade out old layer
+    if (oldLayer) {
+        oldLayer.setOpacity(0);
+        setTimeout(() => {
+            if (oldLayer && gisMap.hasLayer(oldLayer)) {
+                oldLayer.remove();
+            }
+        }, 300);
+    }
+
+    // Load new cells with animation
+    await loadH3Cells();
+
+    // Fade in new layer
+    if (h3GridLayer) {
+        h3GridLayer.setOpacity(0);
+        let opacity = 0;
+        const fadeIn = setInterval(() => {
+            opacity += 0.1;
+            if (opacity >= 1) {
+                opacity = 1;
+                clearInterval(fadeIn);
+            }
+            h3GridLayer.setOpacity(opacity);
+        }, 30);
+    }
+}
+
+async function showTimelinePopup(h3Index) {
+    try {
+        const data = await fetchJSON(`/api/v1/h3-cells/${h3Index}/timeline/`);
+        const timeline = data.timeline || [];
+        if (!timeline.length) return;
+
+        // Simple bar chart using ASCII/dots
+        const maxScore = Math.max(...timeline.map(t => t.predicted_score));
+        const chartHeight = 120;
+        const barWidth = 6;
+        const gap = 2;
+        const chartWidth = timeline.length * (barWidth + gap);
+
+        let barsHtml = '';
+        timeline.forEach(t => {
+            const barHeight = (t.predicted_score / maxScore) * chartHeight;
+            const color = t.predicted_level === 'CRITICAL' ? '#DC2626' :
+                         t.predicted_level === 'HIGH' ? '#EA580C' :
+                         t.predicted_level === 'MODERATE' ? '#D97706' :
+                         t.predicted_level === 'LOW' ? '#16A34A' : '#059669';
+            barsHtml += `<div style="display:inline-block;width:${barWidth}px;height:${barHeight}px;background:${color};vertical-align:bottom;margin-right:${gap}px" title="Hour ${t.hour}: ${(t.predicted_score * 100).toFixed(0)}% - ${t.predicted_level}"></div>`;
+        });
+
+        const container = document.createElement('div');
+        container.style.maxWidth = '500px';
+        container.innerHTML = `
+            <strong>48h Risk Timeline</strong><br>
+            <div style="margin-top:8px">
+                <div style="height:${chartHeight}px;vertical-align:bottom;background:rgba(0,0,0,0.05);padding:4px;border-radius:4px">
+                    ${barsHtml}
+                </div>
+            </div>
+            <div style="margin-top:8px;font-size:11px;color:#666">
+                Base risk: ${(data.current_risk_score * 100).toFixed(0)}% (${data.current_risk_level})
+            </div>
+            <div style="margin-top:4px;font-size:11px">
+                Hover bars for hour-level detail
+            </div>
+        `;
+
+        if (selectedCell && selectedCell.bindPopup) {
+            selectedCell.bindPopup(container).openPopup();
+        } else {
+            L.popup().setContent(container).setLatLng(gisMap.getCenter()).openOn(gisMap);
+        }
+    } catch (e) {
+        console.warn('Timeline fetch failed:', e);
+    }
+}
+
+let propagationState = { active: false, layer: null, intervalId: null };
+
+async function simulatePropagationFromCell(h3Index) {
+    if (propagationState.active) return;
+
+    propagationState.active = true;
+    propagationState.layer = L.layerGroup().addTo(gisMap);
+
+    try {
+        const data = await fetchJSON(`/api/v1/flood-propagation/?seed_cell=${h3Index}&hours=6`);
+        const features = data.features || [];
+        const byHour = {};
+        features.forEach(f => {
+            const hour = f.properties.propagation_hour;
+            if (!byHour[hour]) byHour[hour] = [];
+            byHour[hour].push(f);
+        });
+
+        let currentHour = 0;
+        const maxHour = Math.max(...Object.keys(byHour).map(h => parseInt(h)));
+        propagationState.intervalId = setInterval(() => {
+            const hourFeatures = byHour[currentHour];
+            if (hourFeatures) {
+                hourFeatures.forEach(f => {
+                    const props = f.properties;
+                    const band = RISK_COLORS[props.risk_level] || { color: '#888', opacity: 0.5 };
+                    L.geoJSON(f, {
+                        style: {
+                            color: _lightenColor(band.color, 30),
+                            fillColor: _lightenColor(band.color, 30),
+                            weight: 1,
+                            opacity: 0.8,
+                            fillOpacity: 0.55,
+                        }
+                    }).addTo(propagationState.layer);
+                });
+            }
+            currentHour++;
+            if (currentHour > maxHour) {
+                stopSimulation();
+            }
+        }, 1000);
+    } catch (e) {
+        console.warn('Propagation failed:', e);
+        propagationState.active = false;
+        if (propagationState.layer) propagationState.layer.remove();
+    }
+}
+
+function stopSimulation() {
+    if (propagationState.intervalId) {
+        clearInterval(propagationState.intervalId);
+        propagationState.intervalId = null;
+    }
+    if (propagationState.layer) {
+        propagationState.layer.remove();
+        propagationState.layer = null;
+    }
+    propagationState.active = false;
 }
 
 function createZonePopup(zone) {
@@ -406,8 +678,16 @@ function bindGisControls() {
         }
     });
     const forecastToggle = document.getElementById('gis-forecast-toggle');
+    const forecastSlider = document.getElementById('gis-forecast-slider-container');
     if (forecastToggle) {
         forecastToggle.addEventListener('change', () => {
+            if (forecastSlider) forecastSlider.style.display = forecastToggle.checked ? 'block' : 'none';
+            loadH3Cells();
+        });
+    }
+    const interpolationToggle = document.getElementById('gis-interpolation-toggle');
+    if (interpolationToggle) {
+        interpolationToggle.addEventListener('change', () => {
             loadH3Cells();
         });
     }

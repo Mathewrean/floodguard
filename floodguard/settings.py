@@ -160,6 +160,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.update_h3_risk_scores',
         'schedule': 900,  # every 15 minutes
     },
+    'update-forecast-cache': {
+        'task': 'core.tasks.update_forecast_cache',
+        'schedule': 1800,  # every 30 minutes
+    },
 }
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300

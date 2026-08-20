@@ -121,7 +121,20 @@
         <h3>Risk Display</h3>
         <label class="layer-item" style="margin-bottom:8px">
           <input type="checkbox" id="gis-forecast-toggle" style="margin-right:8px">
-          <span>Show 24h Forecast</span>
+          <span>Show Forecast</span>
+        </label>
+        <div id="gis-forecast-slider-container" style="display:none;margin-bottom:8px">
+          <label style="font-size:12px;color:#666">Forecast horizon:</label>
+          <select id="gis-forecast-hours" style="width:100%;padding:4px;font-size:13px">
+            <option value="6">+6h</option>
+            <option value="12" selected>+12h</option>
+            <option value="24">+24h</option>
+            <option value="48">+48h</option>
+          </select>
+        </div>
+        <label class="layer-item" style="margin-bottom:8px">
+          <input type="checkbox" id="gis-interpolation-toggle" style="margin-right:8px" checked>
+          <span>Show interpolation</span>
         </label>
       </div>
 
@@ -157,12 +170,15 @@
       <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#EA580C;opacity:0.45"></span><strong>HIGH</strong> (≥0.70)</div>
       <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#D97706;opacity:0.35"></span><strong>MODERATE</strong> (≥0.40)</div>
       <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#16A34A;opacity:0.25"></span><strong>LOW</strong> (≥0.20)</div>
-      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#059669;opacity:0.25"></span><strong>SAFE</strong> (<0.20)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#059669;opacity:0.65;background-image:repeating-linear-gradient(45deg,#059669,#059669 2px,#000 2px,#000 4px)"></span><strong>Interpolated estimate</strong> (lower opacity)</div>
+      <div class="gis-legend-item"><span class="gis-legend-swatch" style="background:#D97706;opacity:0.55"></span><strong>Simulated spread</strong> (lighter tint)</div>
     </div>
-    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:#666">
-      <div>Live cells: 75% opacity</div>
-      <div>Forecast cells: 40% opacity, dashed border</div>
-    </div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px;color:#666">
+        <div>Live cells: 75% opacity</div>
+        <div>Forecast cells: 40% opacity, dashed border</div>
+        <div>Interpolated cells: 65% opacity</div>
+        <div>Propagated cells: 55% opacity, lighter tint</div>
+      </div>
   </div>
 </section>
 {% endblock %}

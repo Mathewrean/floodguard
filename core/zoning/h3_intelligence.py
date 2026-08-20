@@ -42,6 +42,15 @@ def _cell_centroid(h3_index):
 DEFAULT_RESOLUTION = 7
 
 
+def _get_parent_index(h3_index):
+    """Return the parent H3 index for a given cell, or None."""
+    try:
+        import h3
+        return h3.cell_to_parent(h3_index)
+    except Exception:
+        return None
+
+
 def _get_h3_resolution(lat, lon, population_density=None, road_density=None, building_density=None, terrain_complexity=None, historical_frequency=None):
     """
     Automatically choose H3 resolution based on multiple factors.
@@ -161,6 +170,7 @@ def get_or_create_h3_cell(lat, lon, resolution=None, **kwargs):
         h3_index=h3_index,
         defaults={
             'resolution': resolution,
+            'parent_index': _get_parent_index(h3_index),
             'centroid_lat': centroid_lat,
             'centroid_lon': centroid_lon,
             'population_density': kwargs.get('population_density'),
@@ -379,6 +389,7 @@ def update_cell_risk(h3_index, risk_score, confidence=None):
             h3_index=h3_index,
             defaults={
                 'resolution': h3.get_resolution(h3_index),
+                'parent_index': _get_parent_index(h3_index),
                 'centroid_lat': centroid_lat,
                 'centroid_lon': centroid_lon,
             }

@@ -554,7 +554,11 @@ class AdministrativeBoundary(models.Model):
 
 class H3Cell(models.Model):
     h3_index = models.CharField(max_length=50, unique=True, db_index=True)
-    resolution = models.IntegerField()
+    resolution = models.IntegerField(help_text='H3 resolution (0-15)')
+    parent_index = models.CharField(max_length=50, blank=True, null=True,
+        help_text='Parent H3 index for hierarchical aggregation')
+    child_h3_indices = models.JSONField(default=list, blank=True,
+        help_text='Child H3 indices for hierarchical navigation')
     centroid_lat = models.FloatField()
     centroid_lon = models.FloatField()
     population_density = models.FloatField(null=True, blank=True)
