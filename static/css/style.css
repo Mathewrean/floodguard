@@ -702,6 +702,7 @@ button:disabled {
   height: 100vh;
   padding-top: 94px;
   background: linear-gradient(180deg, #EAF6FF, #D7EEFC);
+  transition: transform .3s ease;
 }
 .dashboard-sidebar a {
   display: flex;
@@ -733,15 +734,18 @@ button:disabled {
   justify-content: center;
   background: #FFFFFF;
   color: var(--primary-dark);
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   font-size: 16px;
+  z-index: 990;
 }
 .dashboard-sidebar.collapsed {
-  width: 0;
-  padding-top: 94px;
-  overflow: hidden;
+  transform: translateX(-100%);
+  overflow: visible;
+}
+.dashboard-sidebar.collapsed .sidebar-toggle {
+  right: calc(100% + 12px);
 }
 .admin-dashboard .dashboard-content.sidebar-collapsed {
   padding-left: 24px;
@@ -1127,7 +1131,33 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
   .dashboard-grid,
   .zone-overview-grid { grid-template-columns: repeat(2, 1fr); }
   .dashboard-content { padding-left: 0; }
-  .dashboard-sidebar { display: none; }
+  .dashboard-sidebar {
+    display: block;
+    position: fixed;
+    top: 64px;
+    left: 0;
+    z-index: 820;
+    width: min(82vw, 280px);
+    height: calc(100vh - 108px);
+    padding-top: 18px;
+    overflow-y: auto;
+    transform: translateX(-105%);
+    box-shadow: var(--shadow-md);
+  }
+  .dashboard.dashboard-nav-open .dashboard-sidebar,
+  .dashboard.dashboard-nav-open .admin-dashboard .dashboard-sidebar {
+    transform: translateX(0);
+  }
+  .dashboard-sidebar .sidebar-toggle {
+    display: none;
+  }
+  .dashboard.dashboard-nav-open::before {
+    content: "";
+    position: fixed;
+    inset: 64px 0 44px;
+    z-index: 790;
+    background: rgba(0,0,0,0.4);
+  }
 }
 
 @media (max-width: 768px) {
@@ -2570,7 +2600,7 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
 }
 
 .dashboard-nav-toggle {
-  display: inline-flex;
+  display: none;
   align-items: center;
   justify-content: center;
   gap: 8px;
@@ -2582,10 +2612,6 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
   background: var(--primary-dark);
   color: #FFF;
   font-weight: 800;
-}
-
-.dashboard-sidebar {
-  transition: transform .2s ease, width .2s ease, opacity .2s ease;
 }
 
 .dashboard.dashboard-nav-open::before {
@@ -2623,32 +2649,12 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
     padding: 20px 0 72px;
   }
 
-  .dashboard-sidebar,
-  .admin-dashboard .dashboard-sidebar {
-    display: block;
-    position: fixed;
-    top: 64px;
-    left: 0;
-    z-index: 820;
-    width: min(82vw, 280px);
-    height: calc(100vh - 108px);
-    padding-top: 18px;
-    overflow-y: auto;
-    transform: translateX(-105%);
-    box-shadow: var(--shadow-md);
-  }
-
-  .dashboard.dashboard-nav-open .dashboard-sidebar,
-  .dashboard.dashboard-nav-open .admin-dashboard .dashboard-sidebar {
-    transform: translateX(0);
-  }
-
-  .dashboard-sidebar .sidebar-toggle {
-    display: none;
-  }
-
   .admin-tabs {
     margin-top: 0;
+  }
+
+  .dashboard-nav-toggle {
+    display: inline-flex;
   }
 
   .admin-dashboard .dashboard-content.sidebar-collapsed {
@@ -2685,6 +2691,11 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
   .dashboard-header .section-subtitle {
     font-size: 14px;
   }
+
+  .map-controls-mini {
+    flex-wrap: wrap;
+  }
+}
 
 /* Search bar */
 .search-bar {
@@ -2734,10 +2745,6 @@ footer h4 { color: #FFF; margin-bottom: 10px; }
 .search-results tr:hover td { background: var(--surface-soft); }
 .search-results tr:last-child td { border-bottom: none; }
 
-  .map-controls-mini {
-    flex-wrap: wrap;
-  }
-}
 
 [data-theme="dark"] .dashboard-controlbar {
   background: rgba(0,0,0,0.96);
@@ -2866,8 +2873,8 @@ html[data-theme="light"] .search-results tr:hover td {
   .logo-mark { width: 27px; height: 27px; }
   .theme-toggle, .mobile-menu-toggle { width: 40px; height: 40px; }
   .nav-menu { top: 60px; padding: 12px; background: #FFFFFF; border-bottom: 1px solid var(--border); box-shadow: var(--shadow-md); }
-  .nav-menu a { height: 44px; padding: 0 12px; border-radius: 8px; font-size: 13px; }
-  .nav-menu a[href*="login"], .nav-menu a[href*="logout"] { margin: 0; color: #FFFFFF; }
+  .nav-menu a { height: 44px; padding: 0 12px; border-radius: 8px; font-size: 13px; color: var(--primary-dark) !important; }
+  .nav-menu a[href*="login"], .nav-menu a[href*="logout"] { margin: 0; background: var(--accent); color: #FFFFFF !important; }
   .status-strip { min-height: 40px; padding: 6px 12px; }
   .dashboard { padding-top: 66px; }
   .dashboard-controlbar { top: 60px; min-height: 58px; padding: 8px 10px; }

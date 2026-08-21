@@ -35,9 +35,9 @@ function initSidebarToggle() {
     const dashboard = document.querySelector('.admin-dashboard .dashboard-content');
     if (!sidebar || !toggleBtn) return;
 
-    toggleBtn.addEventListener('click', () => {
-        isSidebarCollapsed = !isSidebarCollapsed;
-        if (isSidebarCollapsed) {
+    const applyState = (collapsed) => {
+        isSidebarCollapsed = collapsed;
+        if (collapsed) {
             sidebar.classList.add('collapsed');
             dashboard.classList.add('sidebar-collapsed');
             toggleBtn.setAttribute('aria-expanded', 'false');
@@ -48,7 +48,19 @@ function initSidebarToggle() {
             toggleBtn.setAttribute('aria-expanded', 'true');
             toggleBtn.textContent = '✕';
         }
+    };
+
+    toggleBtn.addEventListener('click', () => {
+        applyState(!isSidebarCollapsed);
     });
+
+    const navToggle = document.querySelector('.dashboard-nav-toggle');
+    if (navToggle) {
+        navToggle.addEventListener('click', () => {
+            applyState(false);
+            navToggle.setAttribute('aria-expanded', 'true');
+        });
+    }
 }
 
 function initLocationServices() {
