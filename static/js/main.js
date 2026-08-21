@@ -363,18 +363,12 @@ function initDashboardNavigation() {
 
         const close = () => {
             dashboard.classList.remove('dashboard-nav-open');
-            sidebar.classList.remove('collapsed');
             toggle.setAttribute('aria-expanded', 'false');
         };
 
         toggle.addEventListener('click', event => {
             event.stopPropagation();
             const isOpen = dashboard.classList.toggle('dashboard-nav-open');
-            if (!isOpen) {
-                sidebar.classList.remove('collapsed');
-            } else {
-                sidebar.classList.add('collapsed');
-            }
             toggle.setAttribute('aria-expanded', String(isOpen));
         });
 

@@ -75,6 +75,8 @@
 
 @media (max-width: 768px) {
     .gis-panel-toggle { display: block; }
+    .gis-left-panel { transform: translateX(-320px); }
+    .gis-left-panel:not(.collapsed) { transform: translateX(0); }
     .gis-panel-close { display: none !important; }
 }
 @media (min-width: 769px) {

@@ -745,7 +745,8 @@ button:disabled {
   overflow: visible;
 }
 .dashboard-sidebar.collapsed .sidebar-toggle {
-  right: calc(100% + 12px);
+  left: calc(100% + 12px);
+  right: auto;
 }
 .admin-dashboard .dashboard-content.sidebar-collapsed {
   padding-left: 24px;
