@@ -52,8 +52,7 @@ function initReportForm() {
                 FloodLocation.detect('auto');
             });
         } catch (e) {
-            updateLocationStatus('Location unavailable. Using default.', false);
-            setReportLocation(-1.2921, 36.8219);
+            updateLocationStatus('Location unavailable. Enter coordinates or try again.', false);
         } finally {
             gpsButton.disabled = false;
             gpsButton.textContent = 'Use Current Location';

@@ -1,5 +1,5 @@
 const DEFAULT_LATLNG = [0, 0];
-const DEFAULT_LOCATION = { lat: -1.2921, lon: 36.8219 };
+const DEFAULT_LOCATION = null;
 
 const BASEMAPS = [
     {
@@ -163,7 +163,7 @@ function createBaseMap(elementId, zoom = 12, useEnglish = false) {
 }
 
 function defaultLocation() {
-    return { ...DEFAULT_LOCATION };
+    return null;
 }
 
 function addBasemap(map, index, useEnglish = false) {
@@ -354,7 +354,7 @@ function locateUser(map) {
             map.setView(DEFAULT_LATLNG, 12);
             showStatus('Using default global view.', null);
             setTimeout(hideStatus, 4000);
-            resolve({ ...DEFAULT_LOCATION, source: 'default' });
+            resolve(null);
         };
 
         if (typeof FloodLocation === 'undefined') {
@@ -364,7 +364,7 @@ function locateUser(map) {
 
         FloodLocation.on((loc, isReal) => {
             if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) {
-                useFallback('Invalid location received');
+            useFallback('Location unavailable');
                 return;
             }
 
@@ -493,6 +493,7 @@ async function initFullMap() {
     mapInstance = map;
 
     FloodLocation.on((loc, isReal) => {
+        if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lon)) return;
         map.setView([loc.lat, loc.lon], loc.zoom || 12);
         if (userMarker) map.removeLayer(userMarker);
         userMarker = L.circleMarker([loc.lat, loc.lon], {

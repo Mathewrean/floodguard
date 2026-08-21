@@ -1,7 +1,6 @@
 (function() {
     'use strict';
 
-    const NAIROBI = { lat: -1.2921, lon: 36.8219, zoom: 12 };
     const STORAGE_KEY = 'fg_last_location';
     const CACHE_TTL = 30 * 1000;
     const MAX_ACCURACY = 100;
@@ -17,6 +16,7 @@
     let _bestReading = null;
     let _locationQuality = 0;
     let _source = 'default';
+    let _ipAttempted = false;
 
     function _save(loc) {
         try {
@@ -115,14 +115,17 @@
 
     function _useFallback(reason) {
         console.info('[FloodLocation] Fallback:', reason);
+        if (!_ipAttempted) {
+            _ipFallback();
+            return;
+        }
         _status = 'fallback';
-        _source = 'default';
         const cached = _restore();
-        const loc = cached || { ...NAIROBI, accuracy: null, source: 'default', ts: Date.now() };
+        const loc = cached || null;
         _current = loc;
         _locationQuality = cached ? 60 : 0;
         _notify(loc, false);
-        const msg = cached ? 'Using last known location' : 'Default location — allow GPS for local data';
+        const msg = cached ? 'Using last known location' : 'Location unavailable — allow GPS or choose a location';
         _showStatus(msg, '#666666', 4000);
     }
 
@@ -232,6 +235,7 @@
     }
 
     function _ipFallback() {
+        _ipAttempted = true;
         _status = 'fallback';
         _source = 'ip';
         _showStatus('Locating via IP...', '#444444');
@@ -275,9 +279,10 @@
         },
         detect: function(strategy) {
             strategy = strategy || 'auto';
+            _current = null;
             _bestReading = null;
             _retryCount = 0;
-            _clearCache();
+            _ipAttempted = false;
 
             if (strategy === 'ip') {
                 _ipFallback();
@@ -304,15 +309,16 @@
         },
         get current() { return _current; },
         get status() { return _status; },
-        get default() { return NAIROBI; },
+        get default() { return null; },
         get quality() { return _locationQuality; },
         get qualityLabel() { return _qualityLabel(_locationQuality); },
         get source() { return _source; },
         refresh: function() {
             _status = 'idle';
+            _current = null;
             _bestReading = null;
             _retryCount = 0;
-            _clearCache();
+            _ipAttempted = false;
             _requestGPS();
             _startWatch();
         },

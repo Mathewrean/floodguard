@@ -8,8 +8,6 @@ const routeState = {
     routeLayers: [],
 };
 
-const SAFE_ROUTE_DEFAULT_LOCATION = { lat: -1.2921, lng: 36.8219 };
-
 function formatCoord(coord) {
     return `${coord.lat.toFixed(6)}, ${coord.lng.toFixed(6)}`;
 }
@@ -210,8 +208,6 @@ async function initSafeRoutePage() {
     routeState.map = createBaseMap('safe-route-map', 14);
     const zones = await fetchJSON('/api/v1/zones/').then(normaliseList).catch(() => []);
     renderZones(routeState.map, zones, { fitBounds: false });
-    setRoutePoint('origin', SAFE_ROUTE_DEFAULT_LOCATION, { status: 'default_nairobi', confidence: 1 });
-    routeState.clickMode = 'destination';
 
     routeState.map.on('click', event => {
         const coord = { lat: event.latlng.lat, lng: event.latlng.lng };
@@ -250,7 +246,7 @@ async function initSafeRoutePage() {
     const calculateButton = document.getElementById('calculate-route');
     if (calculateButton) calculateButton.addEventListener('click', calculateSafeRoute);
     initModeSelector();
-    setRouteStatus('Default origin is Nairobi. Use GPS to replace it or click the map.');
+    setRouteStatus('Choose an origin with GPS or click the map, then choose a destination.');
 }
 
 document.addEventListener('DOMContentLoaded', initSafeRoutePage);
